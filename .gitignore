@@ -1,0 +1,9 @@
+# Claude 설정
+.claude/
+
+# API 토큰 (절대 커밋 금지)
+scripts/kis_token.json
+
+# 임시 파일
+.tmp.driveupload
+*.tmp
