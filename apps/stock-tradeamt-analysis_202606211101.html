@@ -687,7 +687,7 @@ function setHistPeriod(v){
   HIST_YEAR = ''; HIST_MONTH = ''; HIST_DAY = '';
   renderHistory();
 }
-function pickerPeriod(){ return (curTab==='daily'||curTab==='change') ? 0 : PERIOD; }
+function pickerPeriod(){ return (curTab==='daily'||curTab==='change'||curTab==='volatility') ? 0 : PERIOD; }
 function dateTripleSelHtml(){
   const dates = getPeriodDates(pickerPeriod());
   const sy = SEL_DATE ? SEL_DATE.slice(0,4) : '';
@@ -1563,7 +1563,7 @@ function renderVolatility(){
   const panel = document.getElementById('panel-volatility');
   const fv = filteredVolumes();
   if(!fv.length){ panel.innerHTML = emptyPanel(); return; }
-  const dates = getPeriodDates(VOLA_PERIOD);
+  const dates = getPeriodDates(0);
   if(!SEL_DATE || !dates.includes(SEL_DATE)) SEL_DATE = dates[0]||'';
   const rows = fv.filter(r=>r.date===SEL_DATE).sort((a,b)=>(a.rank??999)-(b.rank??999));
   if(!rows.length){ panel.innerHTML='<div class="empty"><div class="ico">📊</div><div class="msg">해당일 데이터 없음</div></div>'; return; }
@@ -1611,7 +1611,6 @@ function renderVolatility(){
       {cls:'kpi-sky',  num:kospiRows.length+'/'+kosdaqRows.length, lbl:'KOSPI/KOSDAQ'},
     ])
   + '<div class="toolbar"><div class="f-row">'
-  +   '<span class="f-label">기간</span>'+periodSelHtml('volaPeriod','setVolaPeriod(this.value)',VOLA_PERIOD)
   +   '<span class="f-label">날짜</span>'+dateTripleSelHtml()
   +   mktFilterHtml()
   + '</div></div>'
