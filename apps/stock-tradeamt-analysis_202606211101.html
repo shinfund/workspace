@@ -1637,7 +1637,7 @@ function renderVolatility(){
   + sortedByTurnover.map(function(r){
       return '<tr>'
         +'<td class="l t-rank" style="padding-left:6px">'+fmtRank(r.rank)+'</td>'
-        +'<td class="l t-name" style="cursor:pointer" onclick="goHistory(''+esc(r.name)+'')">'
+        +'<td class="l t-name" style="cursor:pointer" onclick="goHistory(\''+esc(r.name)+'\')">'+
         +  esc(r.name)+'<span class="c">'+esc(r.code)+'</span>'+mktBadge(r.market)
         +'</td>'
         +'<td class="'+chgCls(r.chg)+' t-chg">'+fmtPct(r.chg)+'</td>'
