@@ -4,6 +4,15 @@
 # API 토큰 (절대 커밋 금지)
 scripts/kis_token.json
 
-# 임시 파일
+# 의존성
+node_modules/
+
+# 개인 데이터
+data/
+
+# 로그·임시 파일
+scripts/report_*.txt
+scripts/krx_temp.json
+*.log
 .tmp.driveupload
 *.tmp
