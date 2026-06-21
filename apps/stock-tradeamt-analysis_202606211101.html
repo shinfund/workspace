@@ -687,7 +687,7 @@ function setHistPeriod(v){
   HIST_YEAR = ''; HIST_MONTH = ''; HIST_DAY = '';
   renderHistory();
 }
-function pickerPeriod(){ return (curTab==='daily'||curTab==='change') ? 0 : PERIOD; }
+function pickerPeriod(){ return PERIOD; }
 function dateTripleSelHtml(){
   const dates = getPeriodDates(pickerPeriod());
   const sy = SEL_DATE ? SEL_DATE.slice(0,4) : '';
@@ -772,6 +772,7 @@ function renderDaily(){
       {cls:'kpi-'+(avgChg>=0?'up':'down'),num:fmtPct(avgChg),lbl:'평균등락'},
     ])
   + '<div class="toolbar"><div class="f-row">'
+  +   '<span class="f-label">기간</span>'+periodSelHtml('dailyPeriod','setPeriod(this.value)',PERIOD)
   +   '<span class="f-label">날짜</span>'+dateTripleSelHtml()
   +   mktFilterHtml()
   +   '<span style="font-size:13px;font-weight:700;color:var(--txt2)">'+rows.length+'건</span>'
@@ -798,7 +799,9 @@ function renderDaily(){
               +'<td class="l t-name" style="cursor:pointer" onclick="goHistory(\''+esc(r.name)+'\')">'+esc(r.name)+cBdg+'</td>'
               +'<td>'+fmtNum(r.close)+'</td>'
               +'<td class="'+chgCls(r.chg)+' t-chg">'+fmtPct(r.chg)+'</td>'
-              +'<td>'+fmtNum(r.vol)+'</td>'
+              +'<td class="pc-col">'+fmtMktcap(r.mktcap)+mktcapSize(r.mktcap)+'</td>'
+              +'<td class="pc-col" style="color:var(--purple);font-weight:700">'+fmtTurnover(r.turnover)+'</td>'
+              +'<td class="pc-col" style="font-weight:600">'+(safeN(r.volatility)?'-':fmtNum(r.volatility))+'</td>'
               +'<td class="t-amt">'+fmtAmt(r.amt)+'</td>'
               +'</tr>';
           }).join('')
@@ -829,9 +832,9 @@ function consecAppear(name, fromDate){
 function renderChange(){
   const panel = document.getElementById('panel-change');
   if(!VOLUMES.length){ panel.innerHTML = emptyPanel(); return; }
-  const dates = getPeriodDates(0);
+  const dates = getPeriodDates(PERIOD);
   if(!SEL_DATE || !dates.includes(SEL_DATE)) SEL_DATE = dates[0]||'';
-  const allDates = distinctDatesDesc(VOLUMES);
+  const allDates = distinctDatesDesc(filteredVolumes());
   const idx = allDates.indexOf(SEL_DATE);
   const prevDate = (idx >= 0 && idx < allDates.length-1) ? allDates[idx+1] : null;
   const currRows = filteredVolumes().filter(r=>r.date===SEL_DATE).sort((a,b)=>(a.rank??999)-(b.rank??999));
@@ -857,6 +860,7 @@ function renderChange(){
       {cls:'kpi-tot',num:rows.length,lbl:'총종목'},
     ])
   + '<div class="toolbar"><div class="f-row">'
+  +   '<span class="f-label">기간</span>'+periodSelHtml('changePeriod','setPeriod(this.value)',PERIOD)
   +   '<span class="f-label">기준일</span>'+dateTripleSelHtml()
   +   mktFilterHtml()
   +   '<span style="font-size:13px;font-weight:700;color:var(--txt2)">'+rows.length+'건</span>'
@@ -898,18 +902,18 @@ function validRank(rank){ return rank!=null && !isNaN(rank) && isFinite(rank); }
 
 // 특정 날짜의 신규진입 목록 계산
 function calcEntrants(date, topN){
-  const allDates = distinctDatesDesc(VOLUMES);
+  const fv = filteredVolumes();
+  const allDates = distinctDatesDesc(fv);
   const idx = allDates.indexOf(date);
   const prevDate = (idx>=0 && idx<allDates.length-1) ? allDates[idx+1] : null;
-  // 당일 top N (유효 순위 기준), topN=0이면 전체
-  const currTop = VOLUMES.filter(r=>r.date===date && validRank(r.rank) && (!topN || r.rank<=topN))
+  const currTop = fv.filter(r=>r.date===date && validRank(r.rank) && (topN===0 || r.rank<=topN))
     .sort((a,b)=>a.rank-b.rank);
   const prevMap = {};
-  if(prevDate) VOLUMES.filter(r=>r.date===prevDate).forEach(r=>{ prevMap[r.code||r.name]=r.rank; });
+  if(prevDate) fv.filter(r=>r.date===prevDate).forEach(r=>{ prevMap[r.code||r.name]=r.rank; });
   return { prevDate, rows: currTop.map(r=>{
     const key = r.code||r.name;
     const prevRank = prevDate ? (prevMap[key]??null) : null;
-    const isNew = !prevDate || prevRank==null || !validRank(prevRank) || (!topN || prevRank>topN);
+    const isNew = !prevDate || prevRank==null || !validRank(prevRank) || (topN===0 || prevRank>topN);
     return {...r, prevDate, prevRank, isNew};
   }).filter(r=>r.isNew)};
 }
@@ -919,8 +923,9 @@ function calcPeriodSummary(period, topN){
     const {rows:ent, prevDate} = calcEntrants(date, topN);
     let exitN = 0;
     if(prevDate){
-      const currKeys = new Set(VOLUMES.filter(r=>r.date===date && validRank(r.rank) && (!topN || r.rank<=topN)).map(r=>r.code||r.name));
-      exitN = VOLUMES.filter(r=>r.date===prevDate && validRank(r.rank) && (!topN || r.rank<=topN) && !currKeys.has(r.code||r.name)).length;
+      const fv2 = filteredVolumes();
+      const currKeys = new Set(fv2.filter(r=>r.date===date && validRank(r.rank) && (topN===0 || r.rank<=topN)).map(r=>r.code||r.name));
+      exitN = fv2.filter(r=>r.date===prevDate && validRank(r.rank) && (topN===0 || r.rank<=topN) && !currKeys.has(r.code||r.name)).length;
     }
     return {date, entN:ent.length, exitN};
   });
@@ -1433,7 +1438,7 @@ function renderTop10(){
         +'</tbody></table>'
         +'</div></div>';
     })();
-  panel.innerHTML += missingTradingDaysHtml();
+  panel.insertAdjacentHTML('beforeend', missingTradingDaysHtml());
 }
 
 // ════════════════════════════════════════════════
