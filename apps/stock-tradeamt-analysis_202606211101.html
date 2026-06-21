@@ -423,7 +423,6 @@ let TOP10_PERIOD = 5;    // TOP10 탭 기간 (1/5/10/20/50/100/200/0=전체)
 let TOP10_RANK = {min:1, max:10};  // TOP10 탭 순위 범위
 let TOP10_SORT = 'momentum'; // TOP10 탭 정렬 기준
 let MKT_FILTER = '';  // 시장 필터: '' | 'KOSPI' | 'KOSDAQ'
-let VOLA_PERIOD = 5;  // 변동성 탭 기간
 
 const MAX_HOT_STOCKS = 6;
 
@@ -584,7 +583,7 @@ function mktFilterHtml(){
     +'</select>';
 }
 function setMktFilter(v){ MKT_FILTER=v; SEL_DATE=''; renderCurrent(); }
-function setVolaPeriod(v){ VOLA_PERIOD=Number(v); renderVolatility(); }
+
 function distinctDatesDesc(rows){ return [...new Set(rows.map(r=>r.date).filter(Boolean))].sort((a,b)=>b.localeCompare(a)); }
 
 // ── 한국 공휴일 2025~2027 (calendar 스킬 holidays.md 기준) ──
@@ -942,8 +941,9 @@ function renderEntry(){
   const maxBarN = Math.max(...summary.map(d=>d.entN+d.exitN),1);
 
   // 당일 이탈 수 계산 (전일 top N → 오늘 top N 이탈)
-  const currTopKeys = new Set(VOLUMES.filter(r=>r.date===SEL_DATE&&validRank(r.rank)&&r.rank<=ENTRANT_TOP_N).map(r=>r.code||r.name));
-  const exitN = prevDate ? VOLUMES.filter(r=>r.date===prevDate&&validRank(r.rank)&&r.rank<=ENTRANT_TOP_N&&!currTopKeys.has(r.code||r.name)).length : 0;
+  const fv0 = filteredVolumes();
+  const currTopKeys = new Set(fv0.filter(r=>r.date===SEL_DATE&&validRank(r.rank)&&r.rank<=ENTRANT_TOP_N).map(r=>r.code||r.name));
+  const exitN = prevDate ? fv0.filter(r=>r.date===prevDate&&validRank(r.rank)&&r.rank<=ENTRANT_TOP_N&&!currTopKeys.has(r.code||r.name)).length : 0;
 
   panel.innerHTML = ''
   + kpiRow([
