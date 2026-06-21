@@ -45,8 +45,9 @@ body{font-family:'Pretendard',-apple-system,sans-serif;font-size:15px;line-heigh
 .spinning{animation:spin-icon .8s linear infinite;display:inline-block;}
 
 /* ── TAB NAV ── */
-.top-nav{background:#fff;border-bottom:1.5px solid var(--border);display:flex;padding:0 4px;max-width:1100px;margin:0 auto;}
-.tab-btn{flex:1;display:flex;align-items:center;justify-content:center;border:none;background:transparent;color:var(--txt2);font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;padding:13px 4px;-webkit-tap-highlight-color:transparent;transition:color .15s;position:relative;white-space:nowrap;}
+.top-nav{background:#fff;border-bottom:1.5px solid var(--border);display:flex;padding:0 4px;max-width:1100px;margin:0 auto;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;overscroll-behavior-x:contain;}
+.top-nav::-webkit-scrollbar{display:none;}
+.tab-btn{flex:1;flex-shrink:0;min-width:56px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;color:var(--txt2);font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;padding:13px 4px;-webkit-tap-highlight-color:transparent;transition:color .15s;position:relative;white-space:nowrap;}
 .tab-btn.on{color:var(--sky600);}
 .tab-btn.on::after{content:'';position:absolute;bottom:0;left:8%;right:8%;height:2.5px;background:var(--sky);border-radius:2px 2px 0 0;}
 .tab-btn:hover:not(.on){color:var(--txt);}
@@ -70,6 +71,8 @@ body{font-family:'Pretendard',-apple-system,sans-serif;font-size:15px;line-heigh
 .kpi-teal .num,.kpi-teal .num-n{color:var(--teal600);} .kpi-teal .lbl{color:var(--teal600);}
 .kpi-coral .num,.kpi-coral .num-n{color:var(--coral);} .kpi-coral .lbl{color:var(--coral);}
 .kpi-amber .num,.kpi-amber .num-n{color:var(--amber);} .kpi-amber .lbl{color:var(--amber);}
+.kpi-sky .num,.kpi-sky .num-n{color:var(--sky);} .kpi-sky .lbl{color:var(--sky);}
+.kpi-purple .num,.kpi-purple .num-n{color:var(--purple);} .kpi-purple .lbl{color:var(--purple);}
 
 /* ── TOOLBAR ── */
 .toolbar{background:var(--card);border:1px solid var(--border);border-radius:var(--r12);padding:11px 13px;margin-bottom:14px;box-shadow:var(--shadow);}
@@ -87,7 +90,7 @@ body{font-family:'Pretendard',-apple-system,sans-serif;font-size:15px;line-heigh
 .sc-title .sub{font-size:12.5px;font-weight:600;color:var(--txt2);}
 
 /* ── TABLE ── */
-.tbl-wrap{overflow-x:auto;border-radius:var(--r8);}
+.tbl-wrap{overflow-x:auto;border-radius:var(--r8);-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;}
 table{width:100%;border-collapse:collapse;font-size:14px;}
 thead th{background:var(--sky50);color:var(--sky800);font-weight:800;font-size:13px;padding:10px 8px;text-align:right;white-space:nowrap;position:sticky;top:0;}
 thead th.l{text-align:left;}
@@ -213,19 +216,20 @@ tbody tr:hover{background:var(--sky50);}
 /* 모바일 ≤600px */
 @media(max-width:600px){
   .main{padding:10px 10px 14px;}
-  .tab-btn{font-size:14px;}
+  .tab-btn{font-size:13.5px;}
   table{font-size:13px;}
   thead th,tbody td{padding:8px 5px;}
   .t-name .c{display:none;}
   .bar-row{grid-template-columns:80px 1fr 48px;}
   .bar-lbl{font-size:12px;}
-  .kpi-card{min-width:66px;padding:9px 7px;}
+  .kpi-card{min-width:60px;padding:9px 7px;}
   .kpi-card .num-n{font-size:15px;}
-  .kpi-card .lbl{font-size:12px;}
+  .kpi-card .lbl{font-size:11.5px;}
   .sel{min-height:40px;}
+  .mom-stats{grid-template-columns:1fr;}
 }
 
-/* 소형 모바일 ≤480px — 600px 규칙 이후 적용(우선) */
+/* 소형 모바일 ≤480px */
 @media(max-width:480px){
   .main{padding:8px 8px 12px;}
   .logo-sub{display:none;}
@@ -233,10 +237,10 @@ tbody tr:hover{background:var(--sky50);}
   .sel{padding:7px 8px;font-size:12.5px;}
   .f-label{font-size:11.5px;}
   .kpi-row{gap:6px;}
-  .kpi-card{min-width:56px;padding:8px 5px;}
+  .kpi-card{min-width:52px;padding:8px 5px;}
   .kpi-card .num-n{font-size:14px;}
   .kpi-card .lbl{font-size:11px;margin-top:2px;}
-  .tab-btn{font-size:13px;padding:10px 2px;}
+  .tab-btn{font-size:12.5px;padding:10px 2px;}
   .sc{padding:11px;}
   table{font-size:12.5px;}
   thead th,tbody td{padding:7px 4px;}
@@ -244,6 +248,17 @@ tbody tr:hover{background:var(--sky50);}
   .bar-lbl{font-size:11.5px;}
   .bar-val{font-size:11.5px;}
   .toolbar{padding:9px 10px;}
+  .vcls-grid{grid-template-columns:1fr 1fr;}
+  .hot-grid{grid-template-columns:1fr 1fr;}
+  .vcls-num{font-size:18px;}
+}
+
+/* 최소 모바일 ≤360px */
+@media(max-width:360px){
+  .tab-btn{font-size:12px;min-width:50px;}
+  .vcls-grid{grid-template-columns:1fr;}
+  .kpi-card{min-width:44px;}
+  .kpi-card .num-n{font-size:13px;}
 }
 
 /* 태블릿·PC ≥601px */
@@ -265,6 +280,9 @@ tbody tr:hover{background:var(--sky50);}
   .sel{font-size:14px;padding:9px 12px;}
   .f-label{font-size:13.5px;}
   .toolbar{padding:13px 16px;}
+  .vcls-grid{grid-template-columns:repeat(4,1fr);}
+  .hot-grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr));}
+  .mom-stats{grid-template-columns:1fr 1fr;}
 }
 
 /* 와이드 PC ≥1100px */
@@ -272,6 +290,7 @@ tbody tr:hover{background:var(--sky50);}
   .main{padding:0 0 24px;}
   .kpi-card{padding:14px 20px;}
   .kpi-card .num-n{font-size:20px;}
+  .kpi-row{flex-wrap:nowrap;}
 }
 /* ── 시장 배지 ── */
 .mkt-k{font-size:11px;font-weight:700;padding:2px 7px;border-radius:7px;background:var(--sky50);color:var(--sky600);margin-left:4px;}
@@ -355,8 +374,8 @@ tbody tr:hover{background:var(--sky50);}
       <button class="tab-btn" data-tab="daily" role="tab" aria-selected="false">일별</button>
       <button class="tab-btn" data-tab="change" role="tab" aria-selected="false">순위변동</button>
       <button class="tab-btn" data-tab="entry" role="tab" aria-selected="false">상위진입</button>
-      <button class="tab-btn" data-tab="history" role="tab" aria-selected="false">종목이력</button>
       <button class="tab-btn" data-tab="volatility" role="tab" aria-selected="false">변동성</button>
+      <button class="tab-btn" data-tab="history" role="tab" aria-selected="false">종목이력</button>
     </div>
   </div>
 
@@ -365,8 +384,8 @@ tbody tr:hover{background:var(--sky50);}
     <div class="panel" id="panel-daily"></div>
     <div class="panel" id="panel-change"></div>
     <div class="panel" id="panel-entry"></div>
-    <div class="panel" id="panel-history"></div>
     <div class="panel" id="panel-volatility"></div>
+    <div class="panel" id="panel-history"></div>
   </div>
 </div>
 
