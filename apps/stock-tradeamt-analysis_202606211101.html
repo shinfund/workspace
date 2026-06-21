@@ -576,7 +576,7 @@ function fmtPrevDiff(n){ if(safeN(n)) return '-'; const v=Number(n); return (v>0
 function mktBadge(m){ if(!m) return ''; return '<span class="'+(m==='KOSPI'?'mkt-k':'mkt-q')+'">'+esc(m)+'</span>'; }
 function mktcapSize(n){ if(safeN(n)||n<=0) return ''; if(n>=10e12) return '<span style="font-size:11px;font-weight:700;padding:2px 6px;border-radius:7px;background:var(--purple50);color:var(--purple)">대형</span>'; if(n>=1e12) return '<span style="font-size:11px;font-weight:700;padding:2px 6px;border-radius:7px;background:var(--sky50);color:var(--sky600)">중형</span>'; return '<span style="font-size:11px;font-weight:700;padding:2px 6px;border-radius:7px;background:var(--gray50);color:var(--gray600)">소형</span>'; }
 function mktFilterHtml(){
-  return '<select class="sel period-sel" onchange="setMktFilter(this.value)">'
+  return '<span class="f-label">시장</span><select class="sel period-sel" onchange="setMktFilter(this.value)">'
     +'<option value=""'+(MKT_FILTER===''?' selected':'')+'>전체</option>'
     +'<option value="KOSPI"'+(MKT_FILTER==='KOSPI'?' selected':'')+'>KOSPI</option>'
     +'<option value="KOSDAQ"'+(MKT_FILTER==='KOSDAQ'?' selected':'')+'>KOSDAQ</option>'
