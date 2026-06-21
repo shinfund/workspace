@@ -687,7 +687,7 @@ function setHistPeriod(v){
   HIST_YEAR = ''; HIST_MONTH = ''; HIST_DAY = '';
   renderHistory();
 }
-function pickerPeriod(){ return PERIOD; }
+function pickerPeriod(){ return (curTab==='daily'||curTab==='change') ? 0 : PERIOD; }
 function dateTripleSelHtml(){
   const dates = getPeriodDates(pickerPeriod());
   const sy = SEL_DATE ? SEL_DATE.slice(0,4) : '';
@@ -772,7 +772,6 @@ function renderDaily(){
       {cls:'kpi-'+(avgChg>=0?'up':'down'),num:fmtPct(avgChg),lbl:'평균등락'},
     ])
   + '<div class="toolbar"><div class="f-row">'
-  +   '<span class="f-label">기간</span>'+periodSelHtml('dailyPeriod','setPeriod(this.value)',PERIOD)
   +   '<span class="f-label">날짜</span>'+dateTripleSelHtml()
   +   mktFilterHtml()
   +   '<span style="font-size:13px;font-weight:700;color:var(--txt2)">'+rows.length+'건</span>'
@@ -832,7 +831,7 @@ function consecAppear(name, fromDate){
 function renderChange(){
   const panel = document.getElementById('panel-change');
   if(!VOLUMES.length){ panel.innerHTML = emptyPanel(); return; }
-  const dates = getPeriodDates(PERIOD);
+  const dates = getPeriodDates(0);
   if(!SEL_DATE || !dates.includes(SEL_DATE)) SEL_DATE = dates[0]||'';
   const allDates = distinctDatesDesc(filteredVolumes());
   const idx = allDates.indexOf(SEL_DATE);
@@ -860,7 +859,6 @@ function renderChange(){
       {cls:'kpi-tot',num:rows.length,lbl:'총종목'},
     ])
   + '<div class="toolbar"><div class="f-row">'
-  +   '<span class="f-label">기간</span>'+periodSelHtml('changePeriod','setPeriod(this.value)',PERIOD)
   +   '<span class="f-label">기준일</span>'+dateTripleSelHtml()
   +   mktFilterHtml()
   +   '<span style="font-size:13px;font-weight:700;color:var(--txt2)">'+rows.length+'건</span>'
