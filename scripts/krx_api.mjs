@@ -23,7 +23,7 @@ const NUM_ROWS = 2000;
 const ETF_RE = /^(KODEX|TIGER|KBSTAR|HANARO|KOSEF|ARIRANG|SOL |ACE |TIMEFOLIO|PLUS |WON |FOCUS|SMART|TREX|파워|KTOP|KCGI|마이다스|RISE|ETF|QV)/;
 function isEtfCode(n) {
   return (n>=69500&&n<=69999)||(n>=102000&&n<=102999)||(n>=114000&&n<=114999)||
-         (n>=133000&&n<=139999)||(n>=160000&&n<=299999)||n>=300000;
+         (n>=133000&&n<=139999)||(n>=160000&&n<=299999);
 }
 const PREF_RE = /우[BCbc]?$/;
 

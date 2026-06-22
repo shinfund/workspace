@@ -9,8 +9,8 @@
  *     [--top N]                                          (default: 10)
  *     [--all]                                            (모든 정렬 차원 한번에 출력)
  *
- * 유니버스: KOSPI 전일 시총 상위 200 + KOSDAQ 상위 50 (ETF·우선주 제외)
- * ※ 상승률/하락률은 이 유니버스 내 순위 (전체 시장 대비 커버리지 ~95%)
+ * 유니버스: KOSPI + KOSDAQ 전종목 (ETF·우선주 제외, ~3,200종목)
+ * ※ KRX 전일 종목 코드 → KIS 당일 시세 개별 조회 (~2분 소요)
  * ※ 시총 순위는 전일 KRX 기준 (당일 시총 ≈ 전일 시총, 오차 무시 수준)
  * stdout: JSON (원 단위 raw 값)
  * stderr: 테이블 (조/억·만주 단위, 캔들·OHLC 포함)
@@ -26,15 +26,13 @@ const TOKEN_CACHE = 'C:\\Users\\shinf\\workspace\\scripts\\kis_token.json';
 const KIS_HOST   = 'openapi.koreainvestment.com';
 const KIS_PORT   = 9443;
 
-const KOSPI_N  = 200;
-const KOSDAQ_N = 50;
 const BATCH    = 5;
 const DELAY    = 200;
 
 const ETF_RE = /^(KODEX|TIGER|KBSTAR|HANARO|KOSEF|ARIRANG|SOL |ACE |TIMEFOLIO|PLUS |WON |FOCUS|SMART|TREX|파워|KTOP|KCGI|마이다스|RISE|ETF|QV)/;
 function isEtfCode(n) {
   return (n>=69500&&n<=69999)||(n>=102000&&n<=102999)||(n>=114000&&n<=114999)||
-         (n>=133000&&n<=139999)||(n>=160000&&n<=299999)||n>=300000;
+         (n>=133000&&n<=139999);
 }
 const PREF_RE = /우[BCbc]?$/;
 
@@ -126,13 +124,12 @@ async function fetchKrxUniverse() {
     }
   }
 
-  const pick=(map,n,mkt)=>[...map.values()]
+  const pick=(map,mkt)=>[...map.values()]
     .sort((a,b)=>Number(b.mrktTotAmt)-Number(a.mrktTotAmt))
-    .slice(0,n)
     .map((item,i)=>({ mktRank:i+1, 시장:mkt, 종목코드:item.srtnCd.trim(), 종목명:item.itmsNm.trim(), _mktcap:Number(item.mrktTotAmt), krx기준일:basDt }));
 
-  const kospi=pick(kospiMap,KOSPI_N,'KOSPI');
-  const kosdaq=pick(kosdaqMap,KOSDAQ_N,'KOSDAQ');
+  const kospi=pick(kospiMap,'KOSPI');
+  const kosdaq=pick(kosdaqMap,'KOSDAQ');
   console.error(`[KRX] KOSPI ${kospi.length}종목, KOSDAQ ${kosdaq.length}종목`);
   return { kospi, kosdaq, basDt };
 }

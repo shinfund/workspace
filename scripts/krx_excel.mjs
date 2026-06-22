@@ -67,16 +67,10 @@ function resolveSaveDir(year, month) {
 const ETF_RE = /^(KODEX|TIGER|KBSTAR|HANARO|KOSEF|ARIRANG|SOL |ACE |TIMEFOLIO|PLUS |WON |FOCUS|SMART|TREX|파워|KTOP|KCGI|마이다스|RISE|ETF|QV)/;
 function isEtfCode(n) {
   return (n>=69500&&n<=69999)||(n>=102000&&n<=102999)||(n>=114000&&n<=114999)||
-         (n>=133000&&n<=139999)||(n>=160000&&n<=299999)||n>=300000;
+         (n>=133000&&n<=139999)||(n>=160000&&n<=299999);
 }
 const PREF_RE = /우[BCbc]?$/;
 
-// ── 서식 상수 (6월 파일 기준) ────────────────────────────────
-const HDR_FILL  = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF603F24' } };
-const HDR_FONT  = { color: { argb: 'FFFFFFFF' }, bold: false };
-const DATA_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFBF4EE' } };
-const HDR_H     = 21.95;
-const DATA_H    = 18;
 
 // 컬럼 정의 (순서·서식 6월 기준, 너비는 자동 계산으로 대체)
 const COLUMNS = [
@@ -237,7 +231,6 @@ async function saveOneDayExcel(basDt, stocks, saveDir) {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet(sheetNm);
 
-  // 컬럼 설정 — 너비 + numFmt 컬럼 레벨 동시 적용 (셀 개별 적용의 백업)
   ws.columns = COLUMNS.map((c, i) => ({
     key:    c.key,
     header: c.header,
@@ -245,57 +238,9 @@ async function saveOneDayExcel(basDt, stocks, saveDir) {
     style:  { numFmt: c.numFmt },
   }));
 
-  // 헤더 행 서식 — 배경·폰트만 적용, numFmt는 종목코드(열4)만 유지 나머지 제거
-  const hdrRow = ws.getRow(1);
-  hdrRow.height = HDR_H;
-  hdrRow.eachCell((cell, ci) => {
-    cell.fill   = HDR_FILL;
-    cell.font   = HDR_FONT;
-    if (ci !== 4) cell.numFmt = '';   // 종목코드 열 외에는 numFmt 제거
-  });
-
-  // 숫자 콤마 적용 대상 컬럼 키 목록
-  const COMMA_KEYS = new Set([
-    '상장주식수','시가','고가','저가','종가','전일종가','전일대비','변동폭','거래량','거래대금','시가총액'
-  ]);
-
-  // 데이터 행 추가 및 서식
-  rowDataList.forEach((rowData, ri) => {
-    const row = ws.addRow(rowData);
-    row.height = DATA_H;
-
-    COLUMNS.forEach((col, ci) => {
-      const cell = row.getCell(ci + 1);
-      cell.fill = DATA_FILL;
-
-      // 날짜: Date 객체 + 서식
-      if (col.key === '날짜') {
-        cell.value  = dateObj;
-        cell.numFmt = 'yyyy-mm-dd';
-        return;
-      }
-      // 종목코드: 텍스트 강제 (앞자리 0 보존)
-      if (col.key === '종목코드') {
-        cell.value  = stocks[ri].code;
-        cell.numFmt = '@';
-        return;
-      }
-      // 숫자 콤마 컬럼: 타입 n 명시 + #,##0
-      if (COMMA_KEYS.has(col.key)) {
-        cell.value  = Number(rowData[col.key]);
-        cell.numFmt = col.key === '전일대비' ? '\\+#,##0;\\-#,##0;0' : '#,##0';
-        return;
-      }
-      // 등락률·회전율: 소수 두 자리
-      if (col.key === '등락률' || col.key === '회전율') {
-        cell.value  = Number(rowData[col.key]);
-        cell.numFmt = '0.00';
-        return;
-      }
-      // 나머지 (순위·시장·종목명)
-      cell.numFmt = col.numFmt;
-    });
-  });
+  for (const rowData of rowDataList) {
+    ws.addRow(rowData);
+  }
 
   const outPath = path.join(saveDir, `거래대금_${basDt}.xlsx`);
   await wb.xlsx.writeFile(outPath);
