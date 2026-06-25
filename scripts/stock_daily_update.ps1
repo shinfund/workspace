@@ -2,6 +2,7 @@
 # KRX trading day 15:40 scheduler launcher
 
 $env:NOTION_TOKEN      = [System.Environment]::GetEnvironmentVariable("NOTION_TOKEN",      "User")
+$env:ANTHROPIC_API_KEY = [System.Environment]::GetEnvironmentVariable("ANTHROPIC_API_KEY", "User")
 
 $logDir  = "C:\Users\shinf\Workspace\logs"
 $logFile = "$logDir\stock_daily_update.log"

@@ -13,6 +13,7 @@ data/
 # 로그·임시 파일
 scripts/report_*.txt
 scripts/krx_temp.json
+scripts/krx_monitor_state.txt
 *.log
 .tmp.driveupload
 *.tmp
