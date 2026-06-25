@@ -18,7 +18,8 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ── 설정 ─────────────────────────────────────────────────────
-const NOTION_TOKEN   = process.env.NOTION_TOKEN;
+const NOTION_TOKEN      = process.env.NOTION_TOKEN;
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const DB_TRADEAMT    = '36159c8c-9c0a-80fd-a656-daeb46ec25d5';
 const DB_ISSUE       = '2136e8ea-20bf-4384-b883-3b15f923afc0';
 const LOG_FILE       = 'C:\\Users\\shinf\\Workspace\\logs\\stock_daily_update.log';
@@ -91,6 +92,61 @@ async function notionReq(method, endpoint, body, retry = 0) {
     });
     req.on('error', reject);
     if (data) req.write(data);
+    req.end();
+  });
+}
+
+// ── JSON strings 내 literal 줄바꿈 제거 (state-machine) ──────
+function fixJsonNewlines(str) {
+  let result = '';
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    if (escaped) { result += ch; escaped = false; continue; }
+    if (ch === '\\' && inString) { result += ch; escaped = true; continue; }
+    if (ch === '"') { result += ch; inString = !inString; continue; }
+    if (inString && (ch === '\n' || ch === '\r')) { result += ' '; continue; }
+    result += ch;
+  }
+  return result;
+}
+
+// ── Claude API (raw https) ────────────────────────────────────
+function claudeReq(messages, system, maxTokens = 5000) {
+  const body = JSON.stringify({
+    model: 'claude-haiku-4-5',
+    max_tokens: maxTokens,
+    system,
+    messages,
+  });
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: 'api.anthropic.com',
+      path: '/v1/messages',
+      method: 'POST',
+      headers: {
+        'x-api-key':         ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'content-type':      'application/json',
+        'content-length':    Buffer.byteLength(body),
+      }
+    }, res => {
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
+      res.on('end', () => {
+        try {
+          const d = Buffer.concat(chunks).toString('utf8');
+          const json = JSON.parse(d);
+          if (res.statusCode >= 400) {
+            reject(new Error(`Claude ${res.statusCode}: ${json.error?.message || d.slice(0,200)}`));
+          } else resolve(json);
+        } catch(e) { reject(new Error(`Claude 파싱 오류`)); }
+      });
+    });
+    req.on('error', reject);
+    req.setTimeout(30000, () => { req.destroy(); reject(new Error('Claude API 타임아웃')); });
+    req.write(body);
     req.end();
   });
 }
@@ -205,8 +261,8 @@ async function updateTradeamt(pageId, s, rank, krx) {
   });
 }
 
-// ── 이슈 분석 (등락률 기반 규칙) ────────────────────────────
-function analyzeIssuesBatch(stocks) {
+// ── 규칙 기반 분석 fallback ──────────────────────────────────
+function ruleBasedAnalysis(stocks) {
   return stocks.map(s => {
     const chg = s.등락률 || 0;
     const abs = Math.abs(chg);
@@ -219,8 +275,68 @@ function analyzeIssuesBatch(stocks) {
       sectors:  ['기타'],
       trigger:  '수급',
       summary:  `${label} ${abs.toFixed(1)}%, 거래대금 ${amt}억`,
+      detail:   '',
     };
   });
+}
+
+// ── 이슈 분석 (Claude AI 배치) ────────────────────────────────
+async function analyzeIssuesBatch(stocks, newsMap) {
+  if (!ANTHROPIC_API_KEY) {
+    log('[Phase 3] ANTHROPIC_API_KEY 없음 — 규칙 기반 분석으로 대체');
+    return ruleBasedAnalysis(stocks);
+  }
+
+  const stockList = stocks.map(s => {
+    const news = newsMap[s.종목코드] || { titles: [] };
+    return {
+      종목코드: s.종목코드,
+      종목명:   s.종목명,
+      등락률:   s.등락률 || 0,
+      거래대금억: Math.round((s.거래대금 || 0) / 1e8),
+      뉴스:     news.titles.slice(0, 3),
+    };
+  });
+
+  const prompt = `오늘(${todayStr}) 한국 주식시장 거래대금 상위 종목입니다. 각 종목을 분석하여 JSON 배열만 반환하세요.
+
+${JSON.stringify(stockList, null, 2)}
+
+각 종목 객체 형식:
+{
+  "종목코드": "그대로",
+  "intensity": "🔴핵심|🟠강함|🟡보통|⚪약함 (등락률 절댓값 기준: 15%↑=핵심, 10%↑=강함, 5%↑=보통, 미만=약함)",
+  "sectors": ["섹터"] (반도체/IT/바이오/금융/에너지/소비재/통신/자동차/화학/건설/철강/기타 중 해당 1~3개),
+  "trigger": "실적|수급|테마|공시|외인|기관|재료|차익|기술적 중 하나",
+  "summary": "핵심 이슈 80자 이내",
+  "detail": "해당 종목만 분석. 다른 종목명 언급 금지. 첫 문장에 반드시 '등락률 +X.XX%(또는 -X.XX%), 거래대금 X,XXX억원' 형식으로 수치를 명확히 표기. 이후 뉴스·시황 기반으로 거래 원인과 주요 이슈를 구체적으로 서술. 수치는 위 데이터 기준으로만 작성. 전체 400자 이내."
+}
+
+출력 규칙: JSON 배열만, compact 한 줄 형식. 마크다운 금지. 줄바꿈 금지.`;
+
+  try {
+    const res = await claudeReq(
+      [{ role: 'user', content: prompt }],
+      '당신은 한국 주식시장 전문 애널리스트입니다. 종목 데이터와 뉴스를 분석하여 투자자에게 유용한 인사이트를 제공합니다. 수치는 제공된 데이터만 사용하고 추측하지 마십시오.',
+      5000
+    );
+    const raw = res.content?.[0]?.text || '';
+    const stripped = raw.replace(/```[a-z]*\n?/gi, '').replace(/```/g, '').trim();
+    const start = stripped.indexOf('[');
+    const end   = stripped.lastIndexOf(']');
+    if (start === -1 || end === -1) throw new Error('JSON 배열 파싱 실패');
+    let jsonStr = fixJsonNewlines(stripped.slice(start, end + 1));
+    jsonStr = jsonStr.replace(/,\s*}/g, '}').replace(/,\s*\]/g, ']');
+    const aiResults = JSON.parse(jsonStr);
+
+    const aiMap = {};
+    for (const a of aiResults) aiMap[a.종목코드] = a;
+
+    return stocks.map(s => aiMap[s.종목코드] || ruleBasedAnalysis([s])[0]);
+  } catch(e) {
+    log(`[Phase 3] Claude API 오류: ${e.message} — 규칙 기반으로 대체`);
+    return ruleBasedAnalysis(stocks);
+  }
 }
 
 // ── 네이버 증권 뉴스 수집 ────────────────────────────────────
@@ -282,7 +398,7 @@ async function isIssueDup(code) {
 // ── 이슈DB: 종목 1건 업로드 ──────────────────────────────────
 async function uploadIssue(s, analysis, news = { titles: [], url: '' }) {
   const dir = s.등락률 >= 5 ? '급등' : s.등락률 <= -5 ? '급락' : '보합';
-  const detail = (news.titles || []).join('. ');
+  const detail = analysis.detail || (news.titles || []).join('. ');
   const props = {
     '종목명':   { title:        [{ text: { content: s.종목명 } }] },
     '날짜':     { date:         { start: todayStr } },
@@ -397,7 +513,10 @@ async function main() {
   log(`[Phase 3] 뉴스 수집 완료`);
 
   log(`[Phase 3] 이슈DB 업로드 대상: ${kisFiltered.length}개`);
-  const analyses = analyzeIssuesBatch(kisFiltered);
+  log(`[Phase 3] Claude AI 분석 중... (${ANTHROPIC_API_KEY ? 'claude-haiku-4-5' : '규칙 기반 fallback'})`);
+  const analyses = await analyzeIssuesBatch(kisFiltered, newsMap);
+  log(`[Phase 3] AI 분석 완료`);
+
   const aMap = {};
   for (const a of analyses) aMap[a.종목코드] = a;
 
