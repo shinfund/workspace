@@ -3,7 +3,7 @@
  *
  * Usage:
  *   node krx_api_5day.mjs [YYYYMMDD(기준일)]
- *     [--top N]              각 날짜 추적 범위 (default: 20)
+ *     [--top N]              각 날짜 추적 범위 (default: 10)
  *     [--market all|kospi|kosdaq]
  *     [--days N]             분석 기간 (default: 5)
  *
@@ -42,7 +42,7 @@ const RST  = USE_COLOR ? '\x1b[0m'  : '';
 // ─── 인수 파싱 ──────────────────────────────────────────────
 function parseArgs() {
   const argv = process.argv.slice(2);
-  const o = { date: null, top: 20, market: 'all', days: 5 };
+  const o = { date: null, top: 10, market: 'all', days: 5 };
   for (let i = 0; i < argv.length; i++) {
     if (/^\d{8}$/.test(argv[i]))   { o.date   = argv[i];                   continue; }
     if (argv[i] === '--top')        { o.top    = parseInt(argv[++i]);        continue; }

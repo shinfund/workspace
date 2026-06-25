@@ -1,5 +1,5 @@
 /**
- * krx_excel.mjs — KRX 거래대금 TOP20 날짜별 개별 Excel 생성 (6월 서식 + 열 너비 자동)
+ * krx_excel.mjs — KRX 거래대금 TOP10 날짜별 개별 Excel 생성 (6월 서식 + 열 너비 자동)
  *
  * Usage:
  *   node krx_excel.mjs YYYY MM   ← 연도·월 필수
@@ -29,7 +29,7 @@ const API_KEY  = '1f471918ea495531eb3d5a2b59c1c7323f9af53aa6c957ea3b47127d766f47
 const HOST     = 'apis.data.go.kr';
 const PATH_API = '/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo';
 const NUM_ROWS = 2000;
-const TOP_N    = 20;
+const TOP_N    = 10;
 
 const SAVE_DIR_PRIMARY  = 'C:\\Users\\shinf\\Workspace\\data\\거래대금';
 const SAVE_DIR_FALLBACK = 'C:\\Users\\shinf\\Downloads';

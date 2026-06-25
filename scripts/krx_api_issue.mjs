@@ -4,7 +4,7 @@ const API_KEY = '1f471918ea495531eb3d5a2b59c1c7323f9af53aa6c957ea3b47127d766f47f
 const HOST = 'apis.data.go.kr';
 const PATH = '/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo';
 const NUM_ROWS = 2000;
-const TRADE_TOP_N = 20;  // 거래대금 상위 N개 보통주 내에서만 탐색
+const TRADE_TOP_N = 10;  // 거래대금 상위 N개 보통주 내에서만 탐색
 const CHG_MIN = 5.0;     // |등락률| 기준 (%)
 
 const ETF_NAME_RE = /^(KODEX|TIGER|KBSTAR|HANARO|KOSEF|ARIRANG|SOL |ACE |TIMEFOLIO|PLUS |WON |FOCUS|SMART|TREX|파워|KTOP|KCGI|마이다스|RISE|ETF|QV)/;
@@ -124,10 +124,10 @@ async function main() {
     filtered.push({ ...item, _trPrc: trPrc });
   }
 
-  // 거래대금 TOP 20 → |등락률| >= 5% 필터
+  // 거래대금 TOP 10 → |등락률| >= 5% 필터
   filtered.sort((a, b) => b._trPrc - a._trPrc);
-  const top20 = filtered.slice(0, TRADE_TOP_N);
-  const candidates = top20
+  const top10 = filtered.slice(0, TRADE_TOP_N);
+  const candidates = top10
     .map(item => {
       const chg = Number(item.fltRt || 0);
       return { ...item, _chg: chg };

@@ -27,7 +27,12 @@ const ExcelJS = require('C:/Users/shinf/workspace/node_modules/exceljs');
 const [CODE, DAYS_STR, KIWOOM_PATH] = process.argv.slice(2);
 if (!CODE) { console.error('사용법: node stock_tech_analysis.mjs CODE [DAYS] [KIWOOM_XLSX]'); process.exit(1); }
 const DAYS = parseInt(DAYS_STR ?? '75');
-const API_KEY = '1f471918ea495531eb3d5a2b59c1c7323f9af53aa6c957ea3b47127d766f47f8';
+const API_KEY    = '1f471918ea495531eb3d5a2b59c1c7323f9af53aa6c957ea3b47127d766f47f8';
+const APP_KEY    = 'PSO0pNJJEdcjc5qizFifXHn0yXG42TRA0hUz';
+const APP_SECRET = 'ag3QEJW9rPfVvvhuiJCZftESl2a0GSSXsbuLzZxVq008hTbqKrBScdZxz/NbVW9UBbdwF+Yd16eFrGB2Q6HLEKADkUCpTvUjXmdorsxF5KmNvVI/Q/fR/2uv9UjTYmzCusALcmkSOaeLQ1pByw8oVPE++lnBZg6aKxh33Tbfd/aNbGNKl2Y=';
+const TOKEN_CACHE = 'C:\\Users\\shinf\\workspace\\scripts\\kis_token.json';
+const KIS_HOST   = 'openapi.koreainvestment.com';
+const KIS_PORT   = 9443;
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -97,6 +102,56 @@ async function readKiwoom(xlsxPath, code) {
   return result;
 }
 
+// ── KIS 인증 토큰 ──
+async function getToken() {
+  if (fs.existsSync(TOKEN_CACHE)) {
+    try {
+      const c = JSON.parse(fs.readFileSync(TOKEN_CACHE, 'utf8'));
+      if (new Date(c.access_token_token_expired) > new Date(Date.now() + 60000)) {
+        process.stderr.write('[KIS] 토큰 캐시 사용\n'); return c.access_token;
+      }
+    } catch {}
+  }
+  process.stderr.write('[KIS] 토큰 신규 발급...\n');
+  const body = JSON.stringify({ grant_type: 'client_credentials', appkey: APP_KEY, appsecret: APP_SECRET });
+  const res = await new Promise((resolve, reject) => {
+    const r = https.request({ hostname: KIS_HOST, port: KIS_PORT, path: '/oauth2/tokenP', method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } },
+      resp => { let d = ''; resp.on('data', c => d += c); resp.on('end', () => resolve(JSON.parse(d))); });
+    r.on('error', reject); r.write(body); r.end();
+  });
+  if (!res.access_token) throw new Error(`토큰 실패: ${JSON.stringify(res)}`);
+  fs.writeFileSync(TOKEN_CACHE, JSON.stringify(res));
+  return res.access_token;
+}
+
+// ── KIS 개별 종목 당일 시세 ──
+async function fetchKisPrice(token, code) {
+  const qs = new URLSearchParams({ FID_COND_MRKT_DIV_CODE: 'J', FID_INPUT_ISCD: code });
+  return new Promise(resolve => {
+    const r = https.request({
+      hostname: KIS_HOST, port: KIS_PORT,
+      path: `/uapi/domestic-stock/v1/quotations/inquire-price?${qs}`,
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json', authorization: `Bearer ${token}`,
+        appkey: APP_KEY, appsecret: APP_SECRET, tr_id: 'FHKST01010100', custtype: 'P' }
+    }, resp => {
+      let d = ''; resp.on('data', c => d += c);
+      resp.on('end', () => {
+        try {
+          const j = JSON.parse(d);
+          if (j.rt_cd !== '0') return resolve(null);
+          const o = j.output;
+          resolve({ 현재가: Number(o.stck_prpr || 0), 등락률: Number(o.prdy_ctrt || 0),
+            거래대금: Number(o.acml_tr_pbmn || 0), 거래량: Number(o.acml_vol || 0),
+            시가: Number(o.stck_oprc || 0), 고가: Number(o.stck_hgpr || 0), 저가: Number(o.stck_lwpr || 0) });
+        } catch { resolve(null); }
+      });
+    });
+    r.on('error', () => resolve(null)); r.end();
+  });
+}
+
 // ── 지표 함수 ──
 function ema(values, period) {
   const k = 2 / (period + 1);
@@ -159,7 +214,30 @@ for (const date of candidates) {
   if (raw.length >= DAYS) break;
 }
 
-// 키움 엑셀 추가
+// ── KIS 당일 데이터 보완 (KRX 데이터 래그 대응, 키움 미제공 시 자동) ──
+if (!KIWOOM_PATH) {
+  const d = new Date(Date.now() + 9 * 3600 * 1000);
+  const todayKST = `${d.getUTCFullYear()}${String(d.getUTCMonth()+1).padStart(2,'0')}${String(d.getUTCDate()).padStart(2,'0')}`;
+  const dowKST = d.getUTCDay();
+  if (dowKST >= 1 && dowKST <= 5 && !raw.find(r => r.날짜 === todayKST)) {
+    process.stderr.write(`[KIS] 오늘(${todayKST}) KRX 미등록 → 당일 시세 조회...\n`);
+    try {
+      const token = await getToken();
+      const kp = await fetchKisPrice(token, CODE);
+      if (kp && kp.현재가 > 0 && kp.시가 > 0 && kp.거래대금 > 0) {
+        raw.push({ 날짜: todayKST, 시가: kp.시가, 고가: kp.고가, 저가: kp.저가,
+          종가: kp.현재가, 등락률: kp.등락률, 거래대금: kp.거래대금, 거래량: kp.거래량 });
+        process.stderr.write(`[KIS] ${todayKST} 추가: ${kp.현재가.toLocaleString()}원 ${kp.등락률>=0?'+':''}${kp.등락률}%\n`);
+      } else {
+        process.stderr.write(`[KIS] 오늘 데이터 없음 (휴장 또는 장 미개장)\n`);
+      }
+    } catch(e) {
+      process.stderr.write(`[KIS] 오류: ${e.message}\n`);
+    }
+  }
+}
+
+// 키움 엑셀 추가 (키움 제공 시 KIS 대신 사용)
 const kiwoom = await readKiwoom(KIWOOM_PATH, CODE);
 if (kiwoom && !raw.find(d => d.날짜 === kiwoom.날짜)) raw.push(kiwoom);
 raw.sort((a, b) => a.날짜.localeCompare(b.날짜));
