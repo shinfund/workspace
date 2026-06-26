@@ -27,7 +27,8 @@ const DELAY_MS       = 420;
 
 // ── 인자 파싱 ────────────────────────────────────────────────
 const argv = process.argv.slice(2);
-const DRY_RUN = argv.includes('--dry-run');
+const DRY_RUN  = argv.includes('--dry-run');
+const TERMINAL = argv.includes('--terminal');
 const dateArgIdx = argv.indexOf('--date');
 const todayStr = dateArgIdx >= 0 ? argv[dateArgIdx + 1] : (() => {
   const d = new Date();
@@ -305,6 +306,7 @@ function ruleBasedAnalysis(stocks) {
       intensity,
       sectors:  ['기타'],
       trigger:  '수급',
+      점수:     abs >= 15 ? 85 : abs >= 10 ? 65 : abs >= 5 ? 45 : 20,
       summary:  `${label} ${abs.toFixed(1)}%, 거래대금 ${amt}억`,
       detail:   '',
       model:    '규칙기반',
@@ -358,6 +360,7 @@ ${JSON.stringify(stockList, null, 2)}
   "intensity": "🔴핵심|🟠강함|🟡보통|⚪약함 (등락률 절댓값 기준: 15%↑=핵심, 10%↑=강함, 5%↑=보통, 미만=약함)",
   "sectors": ["섹터"] (반도체/IT/바이오/금융/에너지/소비재/통신/자동차/화학/건설/철강/기타 중 1~3개),
   "trigger": "실적|수급|테마|공시|외인|기관|재료|차익|기술적 중 하나",
+  "점수": 0~100 정수 (이슈 중요도·투자 관련성: 등락률 크기·거래대금·뉴스 임팩트 종합 판단),
   "summary": "핵심 이슈 80자 이내",
   "detail": "해당 종목만 분석. 다른 종목명 언급 금지. 첫 문장에 반드시 '등락률 +X.XX%(또는 -X.XX%), 거래대금 X,XXX억원' 형식으로 수치를 명확히 표기. 이후 뉴스·시황 기반으로 거래 원인과 주요 이슈를 구체적으로 서술. 수치는 위 데이터 기준으로만 작성. 전체 400자 이내."
 }
@@ -397,6 +400,7 @@ JSON 1개 객체만 반환하세요:
   "intensity": "${prev.intensity}",
   "sectors": ${JSON.stringify(prev.sectors || [])},
   "trigger": "실적|수급|테마|공시|외인|기관|재료|차익|기술적 중 하나",
+  "점수": 0~100 정수 (이슈 중요도·투자 관련성: 등락률 크기·거래대금·뉴스 임팩트 종합 판단),
   "summary": "핵심 이슈 80자 이내",
   "detail": "해당 종목만 분석. 첫 문장에 반드시 '등락률 +X.XX%, 거래대금 X,XXX억원' 수치 표기. 이후 뉴스·시황 기반 거래 원인과 주요 이슈 상세 서술. 시장 전체 방향 대비 차별화 요인 포함. 향후 모니터링 포인트 1~2가지 추가. 800자 이내."
 }
@@ -490,6 +494,7 @@ async function uploadIssue(s, analysis, news = { titles: [], url: '' }) {
     '이슈강도': { select:       { name: analysis.intensity || '⚪약함' } },
     '트리거':   { multi_select: [{ name: analysis.trigger   || '기타' }] },
     '이슈요약': { rich_text:    [{ text: { content: (analysis.summary || '').slice(0, 100) } }] },
+    '점수':     { number:       typeof analysis.점수 === 'number' ? analysis.점수 : 0 },
     '분석모델': { select:       { name: modelName } },
   };
   if (detail) props['이슈상세'] = { rich_text: [{ text: { content: detail.slice(0, 2000) } }] };
@@ -503,15 +508,146 @@ function notifyWindows(title, msg) {
   exec(`powershell -WindowStyle Hidden -Command "${ps}"`, () => {});
 }
 
+// ── 터미널 출력 ─────────────────────────────────────────────
+function printTerminalAnalysis(stocks, analyses, newsMap, marketCtx) {
+  const W = 92;
+  const k = marketCtx?.kospi, q = marketCtx?.kosdaq;
+  const fmt = v => v != null ? `${v >= 0 ? '+' : ''}${v.toFixed(2)}%` : '-';
+  const aMap = {};
+  for (const a of analyses) aMap[a.종목코드] = a;
+
+  // 한글·이모지 2칸, ASCII 1칸
+  function vw(str) {
+    let w = 0;
+    for (const c of (str||'')) {
+      const cp = c.codePointAt(0);
+      w += (cp > 0x2E7F && cp < 0xFFFE) || cp > 0x1F000 ? 2 : 1;
+    }
+    return w;
+  }
+  // 시각 너비 기준 우측 패딩
+  function pr(str, width) {
+    str = String(str||'');
+    return str + ' '.repeat(Math.max(0, width - vw(str)));
+  }
+  // 텍스트 줄바꿈
+  function wrap(text, maxW) {
+    if (!text) return [];
+    const lines = [];
+    let line = '', lineW = 0;
+    for (const ch of text) {
+      const cw = vw(ch);
+      if (lineW + cw > maxW) { lines.push(line); line = ch; lineW = cw; }
+      else { line += ch; lineW += cw; }
+    }
+    if (line) lines.push(line);
+    return lines;
+  }
+
+  const HR  = '─'.repeat(W);
+  const HR2 = '═'.repeat(W);
+
+  console.log('');
+  console.log(HR2);
+  console.log(`  거래대금 TOP10 AI 이슈분석  [${todayStr}]`);
+  if (k || q) console.log(`  시장: KOSPI ${fmt(k?.등락률)} (${k?.지수?.toFixed(2) ?? '-'})  /  KOSDAQ ${fmt(q?.등락률)} (${q?.지수?.toFixed(2) ?? '-'})`);
+  console.log(HR2);
+
+  // ── [표1] 수급·규모 ──────────────────────────────────────
+  console.log('\n[표1] 수급·규모');
+  console.log(HR);
+  console.log(` #  코드    종목명              현재가       등락률  거래대금    회전율   시총`);
+  console.log(HR);
+  stocks.forEach((s, i) => {
+    const amt = s.거래대금 >= 1e12 ? `${(s.거래대금/1e12).toFixed(1)}조` : `${Math.round(s.거래대금/1e8)}억`;
+    const mkt = (s.시가총액전일||0) >= 1e12 ? `${Math.round(s.시가총액전일/1e12)}조` : `${Math.round((s.시가총액전일||0)/1e8)}억`;
+    const chg = (s.등락률 >= 0 ? `+${s.등락률}` : `${s.등락률}`).padStart(7);
+    const vol = s.회전율 != null ? `${s.회전율.toFixed(2)}%`.padStart(7) : '      -';
+    console.log(`${String(i+1).padStart(2)}  ${s.종목코드}  ${pr(s.종목명||'', 16)} ${(s.현재가||0).toLocaleString().padStart(10)} ${chg}%  ${amt.padStart(8)}  ${vol}  ${mkt}`);
+  });
+
+  // ── [표2] 가격흐름 ────────────────────────────────────────
+  console.log('\n[표2] 가격흐름 (OHLC)');
+  console.log(HR);
+  console.log(` #  종목명              캔들  시가         고가         저가        변동폭  시가대비`);
+  console.log(HR);
+  stocks.forEach((s, i) => {
+    const candle = (s.등락률||0) > 0 ? '▲' : (s.등락률||0) < 0 ? '▼' : '─';
+    const spread = s.고가 && s.저가 ? `${((s.고가-s.저가)/s.저가*100).toFixed(1)}%` : '-';
+    const vsOpen = s.시가 && s.현재가 ? `${((s.현재가-s.시가)/s.시가*100).toFixed(1)}%` : '-';
+    const sign   = s.현재가 && s.시가 && s.현재가 >= s.시가 ? '+' : '';
+    console.log(`${String(i+1).padStart(2)}  ${pr(s.종목명||'', 16)} ${candle}  ${(s.시가||0).toLocaleString().padStart(11)} ${(s.고가||0).toLocaleString().padStart(11)} ${(s.저가||0).toLocaleString().padStart(11)}  ${spread.padStart(6)}  ${sign}${vsOpen}`);
+  });
+
+  // ── [표3] AI 이슈분석 ────────────────────────────────────
+  // 컬럼 너비 (vw 기준)
+  const C = { no: 3, name: 26, int: 9, sec: 18, trg: 8, score: 5 };
+  const BODY_PREFIX = '        ';       // 8칸 들여쓰기
+  const LABEL_COL   = '     │ ';        // "  요약 │ "
+  const CONTENT_W   = W - vw(BODY_PREFIX) - vw(LABEL_COL) - 2;
+
+  console.log('\n[표3] AI 이슈분석');
+  console.log(HR2);
+  // 컬럼 헤더
+  console.log(` ${pr('#', C.no)}${pr('종목명 (코드)', C.name)} │ ${pr('강도', C.int)} │ ${pr('섹터', C.sec)} │ ${pr('트리거', C.trg)} │ ${pr('점수', C.score)} │ 모델`);
+  console.log(HR2);
+
+  stocks.forEach((s, i) => {
+    const a    = aMap[s.종목코드] || {};
+    const news = newsMap[s.종목코드] || { titles: [] };
+    const sec  = (a.sectors||[]).join('/') || '-';
+    const score = typeof a.점수 === 'number' ? String(a.점수) : '-';
+    const nameCode = `${s.종목명} (${s.종목코드})`;
+
+    // 종목 헤더 행
+    console.log(` ${pr(String(i+1), C.no)}${pr(nameCode, C.name)} │ ${pr(a.intensity||'-', C.int)} │ ${pr(sec, C.sec)} │ ${pr(a.trigger||'-', C.trg)} │ ${pr(score, C.score)} │ ${a.model||'-'}`);
+
+    // 요약
+    const sumLines = wrap(a.summary||'', CONTENT_W);
+    if (sumLines.length) {
+      console.log(`${BODY_PREFIX}요약 │ ${sumLines[0]}`);
+      for (let j = 1; j < sumLines.length; j++) console.log(`${BODY_PREFIX}     │ ${sumLines[j]}`);
+    }
+
+    // 상세
+    const detLines = wrap(a.detail||'', CONTENT_W);
+    if (detLines.length) {
+      console.log(`${BODY_PREFIX}상세 │ ${detLines[0]}`);
+      for (let j = 1; j < detLines.length; j++) console.log(`${BODY_PREFIX}     │ ${detLines[j]}`);
+    }
+
+    // 뉴스
+    const newsText = (news.titles||[]).slice(0,2).join('  /  ');
+    const newsLines = wrap(newsText, CONTENT_W);
+    if (newsLines.length) {
+      console.log(`${BODY_PREFIX}뉴스 │ ${newsLines[0]}`);
+      for (let j = 1; j < newsLines.length; j++) console.log(`${BODY_PREFIX}     │ ${newsLines[j]}`);
+    }
+
+    console.log(i < stocks.length - 1 ? HR : HR2);
+  });
+
+  // ── 핵심 요약 ─────────────────────────────────────────────
+  const rises  = stocks.filter(s => (s.등락률||0) >= 3).map(s => `${s.종목명}(${s.등락률>=0?'+':''}${s.등락률}%)`);
+  const falls  = stocks.filter(s => (s.등락률||0) <= -3).map(s => `${s.종목명}(${s.등락률}%)`);
+  const themes = [...new Set(analyses.flatMap(a => a.sectors||[]).filter(t => t && t !== '기타'))].slice(0, 5);
+  console.log('\n[핵심 요약]');
+  console.log(HR);
+  if (rises.length)  console.log(`  급등    : ${rises.join('  ')}`);
+  if (falls.length)  console.log(`  급락    : ${falls.join('  ')}`);
+  if (themes.length) console.log(`  주요섹터 : ${themes.join(' / ')}`);
+  console.log(HR + '\n');
+}
+
 // ── 메인 ────────────────────────────────────────────────────
 async function main() {
   const logDir = path.dirname(LOG_FILE);
   if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
 
-  if (!NOTION_TOKEN) { log('[오류] NOTION_TOKEN 환경변수 없음'); process.exit(1); }
+  if (!NOTION_TOKEN && !TERMINAL && !DRY_RUN) { log('[오류] NOTION_TOKEN 환경변수 없음'); process.exit(1); }
 
   log('');
-  log(`====== 주식 일간 업데이트 시작 [${todayStr}]${DRY_RUN ? ' (DRY-RUN)' : ''} ======`);
+  log(`====== 주식 일간 업데이트 시작 [${todayStr}]${DRY_RUN ? ' (DRY-RUN)' : TERMINAL ? ' (TERMINAL)' : ''} ======`);
 
   // ────── Phase 1: 데이터 수집 (병렬) ──────────────────────
   log('[Phase 1] KIS 당일 + KRX 당일 데이터 + 시장 지수 수집...');
@@ -555,7 +691,7 @@ async function main() {
   // ────── Phase 2: 거래대금DB 업로드 ───────────────────────
   log('[Phase 2] 거래대금DB 노션 업로드...');
   let tradeOk = 0, tradeUpd = 0, tradeErr = 0;
-  if (!DRY_RUN) {
+  if (!DRY_RUN && !TERMINAL) {
     try {
       const uploaded = await getUploadedPages();
       log(`[Phase 2] 기존 업로드 ${uploaded.size}건`);
@@ -579,13 +715,15 @@ async function main() {
     } catch(e) {
       log(`[Phase 2] 조회 오류: ${e.message}`);
     }
+  } else if (TERMINAL) {
+    log('[Phase 2] TERMINAL — Notion 업로드 생략');
   } else {
     log('[Phase 2] DRY-RUN — 실제 업로드 생략');
   }
 
   // 순위 11위+ 잔재 삭제
   let tradeArchived = 0;
-  if (!DRY_RUN) {
+  if (!DRY_RUN && !TERMINAL) {
     try {
       tradeArchived = await archiveStalePages();
     } catch(e) {
@@ -610,8 +748,12 @@ async function main() {
   const aMap = {};
   for (const a of analyses) aMap[a.종목코드] = a;
 
+  printTerminalAnalysis(kisFiltered, analyses, newsMap, marketCtx);
+
   let issueOk = 0;
-  if (!DRY_RUN) {
+  if (TERMINAL) {
+    issueOk = kisFiltered.length;
+  } else if (!DRY_RUN) {
     for (const s of kisFiltered) {
       try {
         const dup = await isIssueDup(s.종목코드);
