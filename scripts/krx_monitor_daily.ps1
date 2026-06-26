@@ -54,9 +54,22 @@ try {
     if ($latest -eq $TARGET_DATE) {
         Add-Content $LOG_FILE "[$timestamp] SUCCESS: $TARGET_DATE data available"
 
+        # KRX 확정 데이터로 노션 거래대금DB 자동 패치
+        $notionDate = "$($TARGET_DATE.Substring(0,4))-$($TARGET_DATE.Substring(4,2))-$($TARGET_DATE.Substring(6,2))"
+        Add-Content $LOG_FILE "[$timestamp] 노션 거래대금DB 패치 시작 ($notionDate)..."
+        try {
+            $syncOut = & node "C:\Users\shinf\workspace\scripts\sync_krx_notion.mjs" --date $TARGET_DATE 2>&1
+            $syncOut | ForEach-Object { Add-Content $LOG_FILE "[$timestamp]   $_" }
+            Add-Content $LOG_FILE "[$timestamp] 노션 패치 완료"
+            $patchMsg = "거래대금DB $notionDate 패치 완료"
+        } catch {
+            Add-Content $LOG_FILE "[$timestamp] WARN: 노션 패치 오류: $_"
+            $patchMsg = "거래대금DB 패치 실패"
+        }
+
         Send-BalloonTip `
             -Title "KRX Data Ready: $TARGET_DATE" `
-            -Msg "KRX $TARGET_DATE data is now available."
+            -Msg "KRX $TARGET_DATE 확정. $patchMsg"
 
         # Save notified date to prevent duplicate alerts
         Set-Content $STATE_FILE $TARGET_DATE -NoNewline

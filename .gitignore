@@ -14,6 +14,7 @@ data/
 scripts/report_*.txt
 scripts/krx_temp.json
 scripts/krx_monitor_state.txt
+scripts/krx_monitor_log.txt
 *.log
 .tmp.driveupload
 *.tmp
