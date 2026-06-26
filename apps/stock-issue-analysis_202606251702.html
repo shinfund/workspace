@@ -497,7 +497,7 @@ function parseIssues(pages){
       dir:     getVal(pr['방향'])||'',
       sector:  [].concat(getVal(pr['섹터'])||[]).filter(Boolean),
       trig:    [].concat(getVal(pr['트리거'])||[]).filter(Boolean),
-      strength:getVal(pr['이슈강도'])||'',
+      strength:(getVal(pr['이슈강도'])||'').replace(/^(🔴|🟠|🟡|⚪) ?/,'$1 ').trim(),
       summary: String(getVal(pr['이슈요약'])||'').trim(),
       detail:  String(getVal(pr['이슈상세'])||'').trim(),
       src:     getVal(pr['출처'])||'',
