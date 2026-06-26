@@ -311,7 +311,7 @@ for ci3, w in enumerate([6, 12, 22, 14, 16, 46, 14], 1):
 ws_out.freeze_panes = 'A3'
 
 now = datetime.datetime.now().strftime('%Y%m%d%H%M')
-out_path = rf"C:\Users\shinf\workspace\scripts\포항영덕간 시공업체 연락처_{now}.xlsx"
+out_path = rf"C:\Users\shinf\Workspace\data\터널시공연락처\포항영덕간 시공업체 연락처_{now}.xlsx"
 wb_out.save(out_path)
 print(f"저장: {out_path}")
 print(f"총 {len(rows_data)}개 연락처")
