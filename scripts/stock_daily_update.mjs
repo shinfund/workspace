@@ -19,7 +19,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ── 설정 ─────────────────────────────────────────────────────
 const NOTION_TOKEN      = process.env.NOTION_TOKEN;
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const ANTHROPIC_API_KEY = process.env.MY_ANTHROPIC_API_KEY;
 const DB_TRADEAMT    = '36159c8c-9c0a-80fd-a656-daeb46ec25d5';
 const DB_ISSUE       = '2136e8ea-20bf-4384-b883-3b15f923afc0';
 const LOG_FILE       = 'C:\\Users\\shinf\\Workspace\\logs\\stock_daily_update.log';
