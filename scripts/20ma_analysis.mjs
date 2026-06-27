@@ -2,8 +2,9 @@
  * 20ma_analysis.mjs — 거래대금 TOP10 유니버스 × MA20 괴리율 일간 분석
  *
  * 데이터 소스 (자동 선택):
- *   KRX API       → KRX 확정 과거 데이터 (최근 거래일·주말·공휴일 제외)
- *   Yahoo Finance → 최근 거래일(당일 포함) + 마지막 거래일 이후 주말·공휴일 (KRX 미제공 구간 자동 폴백)
+ *   KIS API       → 당일 실시간 (실패 시 Yahoo 폴백)
+ *   Yahoo Finance → 최근 거래일(당일 포함) + 마지막 거래일 이후 주말·공휴일 + KRX 실패 구간 자동 폴백
+ *   KRX API       → KRX 확정 과거 데이터 (조회 실패 시 Yahoo 폴백)
  *
  * 실행:
  *   node 20ma_analysis.mjs

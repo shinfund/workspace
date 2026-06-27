@@ -2,6 +2,11 @@
  * yahoo_api.mjs — Yahoo Finance 주식 시세 조회
  * KRX 유니버스(코드·시장명) + Yahoo Finance 시세 (당일·과거 모두 지원)
  *
+ * API 선택 원칙:
+ *   KIS API       → 당일 실시간 (실패 시 Yahoo 폴백)
+ *   Yahoo Finance → 최근 거래일(당일 포함) + 마지막 거래일 이후 주말·공휴일 + KRX 실패 구간 자동 폴백
+ *   KRX API       → KRX 확정 과거 데이터 (조회 실패 시 Yahoo 폴백)
+ *
  * Usage:
  *   node yahoo_api.mjs [YYYYMMDD] [--date YYYYMMDD]
  *     [--sort trade|rise|fall|volume]   (default: trade)
