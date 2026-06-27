@@ -1,8 +1,8 @@
 /**
- * krx_api_5day.mjs — KRX 최근 N거래일 거래대금 추이 분석
+ * krx_api_nday.mjs — KRX 최근 N거래일 거래대금 추이 분석
  *
  * Usage:
- *   node krx_api_5day.mjs [YYYYMMDD(기준일)]
+ *   node krx_api_nday.mjs [YYYYMMDD(기준일)]
  *     [--top N]              각 날짜 추적 범위 (default: 10)
  *     [--market all|kospi|kosdaq]
  *     [--days N]             분석 기간 (default: 5)
