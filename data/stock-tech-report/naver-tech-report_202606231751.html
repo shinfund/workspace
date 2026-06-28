@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>NAVER(035420) 기술적 분석 리포트 — 2026-06-23</title>
+<style>
+:root{--bg:#F4F8FD;--card:#FFFFFF;--card2:#EEF4FB;--border:#D5E5F5;--border2:#E8F0F9;--txt:#1A2535;--txt2:#354E6B;--txt3:#3D5775;--up:#B91C1C;--up-bg:#FEF2F2;--down:#1558B0;--down-bg:#EFF6FF;--accent:#1A56A8;--gold:#955C00;--gold-bg:#FEF3E2;--primary:#0C447C;--shadow:0 2px 12px rgba(26,86,168,.07)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;font-size:15px;background:var(--bg);color:var(--txt);line-height:1.6}
+.header{background:linear-gradient(135deg,#0C447C,#1860A5);padding:14px 24px 12px;position:sticky;top:0;z-index:50;box-shadow:0 2px 12px rgba(12,68,124,.2);-webkit-transform:translateZ(0);transform:translateZ(0)}
+.h-top{display:flex;align-items:center;gap:16px}
+.h-stock-info{display:flex;flex-direction:column;gap:4px;flex-shrink:0;min-width:180px}
+.h-name-row{display:flex;align-items:baseline;gap:8px}
+.h-name{color:#fff;font-weight:800;font-size:20px}
+.h-code{color:rgba(255,255,255,.82);font-weight:600;font-size:13px}
+.h-date{font-size:12px;font-weight:500;color:rgba(255,255,255,.72);margin-top:2px;white-space:nowrap}
+.h-price-block{display:flex;align-items:center;gap:12px;flex:1;justify-content:center}
+.h-price{font-size:30px;font-weight:800;letter-spacing:-.5px;white-space:nowrap}
+.h-chg-group{display:flex;align-items:baseline;gap:5px;white-space:nowrap;flex-shrink:0}
+.h-chg-arrow,.h-chg-amt,.h-chg-rate{font-size:15px;font-weight:700}
+.h-trade{font-size:13px;font-weight:600;color:rgba(255,255,255,.88);padding-left:8px;border-left:1px solid rgba(255,255,255,.25);white-space:nowrap}
+.h-badges-block{display:flex;flex-wrap:wrap;gap:5px;justify-content:flex-end;flex-shrink:0;max-width:400px}
+.badge{display:inline-flex;align-items:center;padding:2px 7px;border-radius:20px;font-size:12px;font-weight:700}
+.bg-red{background:rgba(239,68,68,.2);color:#FCA5A5;border:1px solid rgba(252,165,165,.4)}
+.bg-blue{background:rgba(147,197,253,.18);color:#93C5FD;border:1px solid rgba(147,197,253,.45)}
+.bg-amber{background:rgba(253,186,116,.18);color:#FCD34D;border:1px solid rgba(253,186,116,.45)}
+.bg-orange{background:rgba(239,68,68,.3);color:#FCA5A5;border:1px solid rgba(252,165,165,.6)}
+.h-bottom{border-top:1px solid rgba(255,255,255,.15);margin-top:11px;padding-top:9px;display:flex;flex-wrap:wrap;align-items:center;row-gap:4px}
+.h-item{font-size:12px;font-weight:500;color:rgba(255,255,255,.82);padding:0 14px;border-right:1px solid rgba(255,255,255,.2);white-space:nowrap;line-height:1.6}
+.h-item:first-child{padding-left:0}
+.h-item:last-child{border-right:none}
+.h-item strong{color:#fff;font-weight:700}
+.hi-up{color:#F87171;font-weight:700}
+.hi-dn{color:#4ADE80;font-weight:700}
+.hi-gold{color:#FCD34D;font-weight:700}
+.main{max-width:1400px;margin:0 auto;padding:24px 20px}
+.section{margin-bottom:28px}
+.sec-title{font-size:16px;font-weight:800;color:var(--txt);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.sec-title::before{content:'';display:inline-block;width:4px;height:18px;background:var(--accent);border-radius:2px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 20px;box-shadow:var(--shadow)}
+.card-title{font-size:13px;font-weight:700;color:var(--txt2)}
+.card-val{font-size:22px;font-weight:800;color:var(--txt)}
+.card-sub{font-size:12px;font-weight:500;color:var(--txt3);margin-top:4px}
+.grid5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.scenario-wrap{display:flex;flex-direction:column;gap:12px}
+.sc-bull{background:#FEF2F2;border:1px solid #FECACA;border-radius:12px;padding:16px}
+.sc-bear{background:#EFF6FF;border:1px solid #BFDBFE;border-radius:12px;padding:16px}
+.sc-title{font-size:14px;font-weight:800;margin-bottom:10px}
+.sc-bull .sc-title{color:#B91C1C}
+.sc-bear .sc-title{color:#1558B0}
+.scenario-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(0,0,0,.04);font-size:13px}
+.scenario-row span:first-child{font-weight:700;color:var(--txt2)}
+.scenario-row span:last-child{font-weight:700;color:var(--txt)}
+.sc-memo{margin-top:10px;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:500;color:var(--txt2)}
+.sc-bull .sc-memo{background:rgba(185,28,28,.07)}
+.sc-bear .sc-memo{background:rgba(21,88,176,.07)}
+.signal-table{width:100%;border-collapse:collapse;font-size:13px}
+.signal-table th{background:var(--card2);color:var(--txt2);font-weight:700;padding:8px 12px;text-align:left;border-bottom:2px solid var(--border)}
+.signal-table td{padding:8px 12px;border-bottom:1px solid var(--border2);color:var(--txt)}
+.signal-table tr:last-child td{border-bottom:none}
+.sig-up{background:var(--up-bg);color:var(--up);padding:2px 8px;border-radius:12px;font-weight:700;white-space:nowrap}
+.sig-dn{background:var(--down-bg);color:var(--down);padding:2px 8px;border-radius:12px;font-weight:700;white-space:nowrap}
+.sig-neutral{background:var(--gold-bg);color:var(--gold);padding:2px 8px;border-radius:12px;font-weight:700;white-space:nowrap}
+.tl-item{display:flex;gap:14px;margin-bottom:16px}
+.tl-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;margin-top:5px}
+.dot-red{background:#B91C1C}
+.dot-blue{background:#1558B0}
+.dot-amber{background:#955C00}
+.dot-green{background:#0C6B42}
+.dot-gray{background:#6B8099}
+.tl-line-v{width:2px;background:var(--border);flex-shrink:0;margin-left:5px}
+.tl-content{flex:1}
+.tl-title{font-size:14px;font-weight:700;color:var(--txt)}
+.tl-desc{font-size:13px;font-weight:500;color:var(--txt2)}
+.tl-meta{font-size:13px;font-weight:500;color:var(--txt3);margin-top:2px}
+.tbl-wrap{overflow-x:auto;border-radius:12px;box-shadow:var(--shadow);-webkit-transform:translateZ(0);transform:translateZ(0)}
+.data-table{width:100%;border-collapse:collapse;font-size:13px;min-width:960px}
+.data-table th{background:var(--card2);color:var(--txt2);font-weight:700;padding:9px 10px;text-align:right;border-bottom:2px solid var(--border);white-space:nowrap}
+.data-table th:first-child{text-align:left}
+.data-table td{padding:7px 10px;border-bottom:1px solid var(--border2);text-align:right;color:var(--txt)}
+.data-table td:first-child{text-align:left}
+.data-table tr:hover td{background:var(--card2)}
+.data-table tr:last-child td{border-bottom:none}
+.td-up{color:var(--up);font-weight:700}
+.td-dn{color:var(--down);font-weight:700}
+.td-spike{background:rgba(185,28,28,.05)}
+.td-today{background:rgba(21,88,176,.06)}
+.mismatch-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.sig-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
+.sig-card-title{font-size:13px;font-weight:700;margin-bottom:8px}
+.sig-card-body{font-size:13px;font-weight:500;color:var(--txt2)}
+.svg-scroll{overflow-x:auto;-webkit-transform:translateZ(0);transform:translateZ(0)}
+.alert-box{background:rgba(21,88,176,.07);border:1px solid #BFDBFE;border-radius:10px;padding:12px 16px;font-size:13px;font-weight:500;color:var(--txt2);margin-bottom:16px}
+.alert-box strong{color:var(--down)}
+.disclaimer{background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:14px 18px;font-size:12px;color:var(--txt3);margin-top:28px;line-height:1.7}
+@media(max-width:1023px){.grid5{grid-template-columns:repeat(3,1fr)}.h-badges-block{max-width:240px}}
+@media(max-width:900px){.h-price{font-size:24px}.h-chg-arrow,.h-chg-amt,.h-chg-rate{font-size:13px}.h-trade{font-size:12px}.h-badges-block{max-width:180px}}
+@media(max-width:767px){.h-top{flex-wrap:wrap}.h-price-block{width:100%;justify-content:flex-start}}
+@media(max-width:639px){.grid5{grid-template-columns:repeat(2,1fr)}.grid2,.mismatch-grid{grid-template-columns:1fr}.h-item{padding:0 8px}.card{padding:14px 16px}.section{margin-bottom:20px}body{font-size:14px}}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="h-top">
+    <div class="h-stock-info">
+      <div class="h-name-row">
+        <span class="h-name">NAVER</span>
+        <span class="h-code">035420 · KOSPI</span>
+      </div>
+      <div class="h-date">기준일 2026-06-23 · 77거래일 분석 (KIS)</div>
+    </div>
+    <div class="h-price-block">
+      <span class="h-price" style="color:#4ADE80">202,500원</span>
+      <div class="h-chg-group" style="color:#4ADE80">
+        <span class="h-chg-arrow">▼</span>
+        <span class="h-chg-amt">19,500원</span>
+        <span class="h-chg-rate">(-8.78%)</span>
+      </div>
+      <span class="h-trade">거래대금 3,503억</span>
+    </div>
+    <div class="h-badges-block">
+      <span class="badge bg-orange">MA60 이탈</span>
+      <span class="badge bg-blue">MA 역배열</span>
+      <span class="badge bg-blue">MACD 가속 약세</span>
+      <span class="badge bg-amber">Stoch K=1.1 극단과매도</span>
+      <span class="badge bg-red">시나리오B 실현</span>
+    </div>
+  </div>
+  <div class="h-bottom">
+    <div class="h-item">전일종가 <strong>222,000</strong></div>
+    <div class="h-item">시가 219,000 · 고가 <span class="hi-up">220,000</span> · 저가 <span class="hi-dn">201,500</span></div>
+    <div class="h-item">거래량 <strong>168.3만주</strong></div>
+    <div class="h-item">77일 고저 <span class="hi-up">304,000</span> / <span class="hi-dn">190,800</span></div>
+    <div class="h-item">BB <span class="hi-up">288,204</span> · <span class="hi-dn">188,726</span> (BW 20.9%)</div>
+    <div class="h-item">MA60 <span style="color:#F87171;font-weight:700">217,548 ↑돌파필요</span></div>
+    <div class="h-item" style="background:rgba(252,211,77,.15);border-radius:5px;padding:0 12px"><span class="hi-gold">▶ 관찰가 195,000원 (1차지지)</span></div>
+  </div>
+</header>
+
+<main class="main">
+
+<div class="alert-box">
+  <strong>⚠ 시나리오 B 실현:</strong> 6/23 -8.78% 급락으로 MA60(217,548) 완전 이탈. 전일 리포트(6/22)의 손절 기준(217,000)이 작동한 구간. 다음 관찰 포인트는 1차지지 <strong>195,800원</strong>.
+</div>
+
+<section class="section">
+  <div class="sec-title">핵심 지표 (6/23 기준)</div>
+  <div class="grid5">
+    <div class="card">
+      <div class="card-title">이동평균 배열</div>
+      <div class="card-val" style="color:var(--down)">역배열</div>
+      <div class="card-sub" style="margin-top:8px">
+        <span style="color:var(--txt3);font-weight:600">MA5</span> 226,500<br>
+        <span style="color:var(--txt3);font-weight:600">MA10</span> 232,050<br>
+        <span style="color:var(--txt3);font-weight:600">MA20</span> 238,465<br>
+        <span style="color:var(--txt3);font-weight:600">MA60</span> <span style="color:var(--up);font-weight:700">217,548 ↑저항</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">RSI (14일)</div>
+      <div class="card-val" style="color:var(--down)">40.0</div>
+      <div class="card-sub">과매도(30) 근접<br>전일 46.1 → 40.0<br>추가 하락 시 30 진입 가능</div>
+    </div>
+    <div class="card">
+      <div class="card-title">MACD 히스토그램</div>
+      <div class="card-val" style="color:var(--down)">-5,195</div>
+      <div class="card-sub">
+        <span style="color:var(--txt3);font-weight:600">전일</span> -3,462<br>
+        <span style="color:var(--txt3);font-weight:600">증가폭</span> -1,733<br>
+        약세 가속 중
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">스토캐스틱 K/D</div>
+      <div class="card-val" style="color:var(--up)">K 1.1</div>
+      <div class="card-sub">
+        <span style="color:var(--txt3);font-weight:600">D</span> 6.2<br>
+        역대급 극단 과매도<br>단기 반등 가능성 ↑
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">볼린저밴드 위치</div>
+      <div class="card-val" style="color:var(--down)">13.8%</div>
+      <div class="card-sub">
+        전일 33.4% → 13.8%<br>
+        <span style="color:var(--txt3);font-weight:600">하단</span> 188,726<br>
+        하단 이격 13,774원
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="sec-title">AI 모멘텀 사이클 타임라인</div>
+  <div class="grid2">
+    <div class="card">
+      <div class="tl-item">
+        <div style="display:flex;flex-direction:column;align-items:center">
+          <div class="tl-dot dot-amber"></div>
+          <div class="tl-line-v" style="height:40px"></div>
+        </div>
+        <div class="tl-content">
+          <div class="tl-title">5/20 · 저점 형성 <span style="color:var(--down)">190,800원</span></div>
+          <div class="tl-desc">77일 최저점. AI 모멘텀 부재.</div>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div style="display:flex;flex-direction:column;align-items:center">
+          <div class="tl-dot dot-green"></div>
+          <div class="tl-line-v" style="height:44px"></div>
+        </div>
+        <div class="tl-content">
+          <div class="tl-title">5/29~6/1 · AI 폭등 <span style="color:var(--up)">+59%</span></div>
+          <div class="tl-desc">5/29 ×8.61배, 6/1 ×7.62배. 5.77조원 거래대금. 190,800 → 304,000원.</div>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div style="display:flex;flex-direction:column;align-items:center">
+          <div class="tl-dot dot-blue"></div>
+          <div class="tl-line-v" style="height:44px"></div>
+        </div>
+        <div class="tl-content">
+          <div class="tl-title">6/2~6/11 · 1차 조정 <span style="color:var(--down)">-28%</span></div>
+          <div class="tl-desc">271,500 → 218,500원. 6/10 -11.67% 포함.</div>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div style="display:flex;flex-direction:column;align-items:center">
+          <div class="tl-dot dot-green"></div>
+          <div class="tl-line-v" style="height:40px"></div>
+        </div>
+        <div class="tl-content">
+          <div class="tl-title">6/12~6/22 · 반등 후 재조정 <span style="color:var(--down)">-10%</span></div>
+          <div class="tl-desc">247,000 → 222,000원. MA60 지지 테스트 구간.</div>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div style="display:flex;flex-direction:column;align-items:center">
+          <div class="tl-dot dot-red"></div>
+        </div>
+        <div class="tl-content">
+          <div class="tl-title">6/23 · MA60 이탈 급락 <span style="color:var(--down)">-8.78%</span></div>
+          <div class="tl-desc">시가 219,000 → 저가 201,500 → 종가 202,500원. MA60(217,548) 완전 이탈. AI 폭등 직전 가격대(198,000~205,000) 재진입.</div>
+          <div class="tl-meta">1차지지 195,800 향해 이동 중</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px">거래대금 급증 이벤트</div>
+      <div class="svg-scroll">
+        <svg viewBox="0 0 640 215" style="width:100%;min-width:520px;display:block">
+          <line x1="55" y1="24" x2="615" y2="24" stroke="#E8F0F9" stroke-width="1"/>
+          <line x1="55" y1="67" x2="615" y2="67" stroke="#E8F0F9" stroke-width="1"/>
+          <line x1="55" y1="110" x2="615" y2="110" stroke="#E8F0F9" stroke-width="1"/>
+          <line x1="55" y1="150" x2="615" y2="150" stroke="#E8F0F9" stroke-width="1"/>
+          <text x="50" y="28" text-anchor="end" font-size="12" fill="#3D5775">9×</text>
+          <text x="50" y="71" text-anchor="end" font-size="12" fill="#3D5775">6×</text>
+          <text x="50" y="114" text-anchor="end" font-size="12" fill="#3D5775">3×</text>
+          <text x="50" y="154" text-anchor="end" font-size="12" fill="#3D5775">0×</text>
+          <line x1="55" y1="121" x2="615" y2="121" stroke="#B91C1C" stroke-width="1" stroke-dasharray="4,3" opacity=".5"/>
+          <text x="617" y="125" font-size="12" fill="#B91C1C" font-weight="bold">2×</text>
+          <rect x="65" y="112" width="72" height="38" rx="4" fill="#1558B0" opacity=".7"/>
+          <text x="101" y="107" text-anchor="middle" font-size="12" fill="#1558B0" font-weight="bold">×2.62</text>
+          <text x="101" y="163" text-anchor="middle" font-size="12" fill="#3D5775">4/2</text>
+          <text x="101" y="177" text-anchor="middle" font-size="12" fill="#1558B0">-6.76%</text>
+          <rect x="158" y="119" width="72" height="31" rx="4" fill="#1558B0" opacity=".6"/>
+          <text x="194" y="114" text-anchor="middle" font-size="12" fill="#1558B0" font-weight="bold">×2.15</text>
+          <text x="194" y="163" text-anchor="middle" font-size="12" fill="#3D5775">4/30</text>
+          <text x="194" y="177" text-anchor="middle" font-size="12" fill="#1558B0">-4.09%</text>
+          <rect x="251" y="114" width="72" height="36" rx="4" fill="#0C6B42" opacity=".65"/>
+          <text x="287" y="109" text-anchor="middle" font-size="12" fill="#0C6B42" font-weight="bold">×2.47</text>
+          <text x="287" y="163" text-anchor="middle" font-size="12" fill="#3D5775">5/28</text>
+          <text x="287" y="177" text-anchor="middle" font-size="12" fill="#0C6B42">+3.12%</text>
+          <rect x="344" y="26" width="72" height="124" rx="4" fill="#B91C1C" opacity=".85"/>
+          <text x="380" y="20" text-anchor="middle" font-size="13" fill="#B91C1C" font-weight="bold">×8.61</text>
+          <text x="380" y="163" text-anchor="middle" font-size="12" fill="#3D5775">5/29</text>
+          <text x="380" y="177" text-anchor="middle" font-size="12" fill="#B91C1C">+14.15%</text>
+          <rect x="437" y="40" width="72" height="110" rx="4" fill="#B91C1C" opacity=".7"/>
+          <text x="473" y="34" text-anchor="middle" font-size="13" fill="#B91C1C" font-weight="bold">×7.62</text>
+          <text x="473" y="163" text-anchor="middle" font-size="12" fill="#3D5775">6/1</text>
+          <text x="473" y="177" text-anchor="middle" font-size="12" fill="#B91C1C">+16.03%</text>
+          <rect x="55" y="193" width="10" height="10" rx="2" fill="#B91C1C"/>
+          <text x="70" y="202" font-size="12" fill="#3D5775">급등(상승)</text>
+          <rect x="160" y="193" width="10" height="10" rx="2" fill="#1558B0"/>
+          <text x="175" y="202" font-size="12" fill="#3D5775">급증(하락)</text>
+          <rect x="265" y="193" width="10" height="10" rx="2" fill="#0C6B42"/>
+          <text x="280" y="202" font-size="12" fill="#3D5775">급증(상승전)</text>
+        </svg>
+      </div>
+      <div style="margin-top:10px;padding:10px 12px;background:var(--card2);border-radius:8px;font-size:13px;font-weight:500;color:var(--txt2)">
+        폭등 구간(5/29~6/2) 5.77조원 거래 대비, 6/23 거래대금은 3,503억(×0.92). 공황 매도 수준 아닌 소극적 매도. 반등 시 거래대금 1.5배↑ 확인 필요.
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="sec-title">지지·저항 구조 및 매매 시나리오 (6/23 갱신)</div>
+  <div class="grid2">
+    <div class="card" style="padding:14px">
+      <div class="card-title" style="margin-bottom:10px">가격 레벨 구조도 — 현재가 MA60 하향 이탈</div>
+      <div class="svg-scroll">
+        <svg viewBox="0 0 680 510" style="width:100%;min-width:560px;display:block;margin-top:4px">
+          <!-- 저항 영역 (현재가 위) -->
+          <rect x="192" y="18" width="343" height="385" fill="rgba(185,28,28,.025)"/>
+          <!-- 지지 영역 (1차지지 아래) -->
+          <rect x="192" y="427" width="343" height="45" fill="rgba(12,107,66,.04)"/>
+          <!-- 가이드라인 -->
+          <line x1="192" y1="54" x2="535" y2="54" stroke="#E8F0F9" stroke-dasharray="3,4" stroke-width="1"/>
+          <text x="540" y="58" font-size="12" fill="#3D5775">30만</text>
+          <line x1="192" y1="125" x2="535" y2="125" stroke="#E8F0F9" stroke-dasharray="3,4" stroke-width="1"/>
+          <text x="540" y="129" font-size="12" fill="#3D5775">28만</text>
+          <line x1="192" y1="197" x2="535" y2="197" stroke="#E8F0F9" stroke-dasharray="3,4" stroke-width="1"/>
+          <text x="540" y="201" font-size="12" fill="#3D5775">26만</text>
+          <line x1="192" y1="268" x2="535" y2="268" stroke="#E8F0F9" stroke-dasharray="3,4" stroke-width="1"/>
+          <text x="540" y="272" font-size="12" fill="#3D5775">24만</text>
+          <line x1="192" y1="340" x2="535" y2="340" stroke="#E8F0F9" stroke-dasharray="3,4" stroke-width="1"/>
+          <text x="540" y="344" font-size="12" fill="#3D5775">22만</text>
+          <line x1="192" y1="411" x2="535" y2="411" stroke="#E8F0F9" stroke-dasharray="3,4" stroke-width="1"/>
+          <text x="540" y="415" font-size="12" fill="#3D5775">20만</text>
+          <!-- 전고점 304K y=40 -->
+          <line x1="192" y1="40" x2="535" y2="40" stroke="#955C00" stroke-dasharray="5,4" stroke-width="1.5"/>
+          <text x="15" y="37" font-size="12" fill="#955C00" font-weight="bold">전고점</text>
+          <text x="15" y="52" font-size="12" fill="#955C00">304,000</text>
+          <!-- BB상단 288K y=96 -->
+          <line x1="192" y1="96" x2="535" y2="96" stroke="#B91C1C" stroke-dasharray="4,4" stroke-width="1"/>
+          <text x="537" y="93" font-size="12" fill="#B91C1C">BB상단</text>
+          <text x="537" y="107" font-size="12" fill="#B91C1C">288,204</text>
+          <!-- MA20 238K y=274 -->
+          <line x1="192" y1="274" x2="535" y2="274" stroke="#1558B0" stroke-dasharray="3,4" stroke-width="1" opacity=".7"/>
+          <!-- MA10 232K y=297 -->
+          <line x1="192" y1="297" x2="535" y2="297" stroke="#1558B0" stroke-dasharray="3,4" stroke-width="1" opacity=".6"/>
+          <!-- MA5 226.5K y=317 -->
+          <line x1="192" y1="317" x2="535" y2="317" stroke="#1558B0" stroke-dasharray="3,4" stroke-width="1.2" opacity=".9"/>
+          <line x1="192" y1="296" x2="182" y2="280" stroke="#1558B0" stroke-width="0.8" opacity=".6"/>
+          <text x="15" y="277" font-size="12" fill="#1558B0" font-weight="bold">MA5~20</text>
+          <text x="15" y="291" font-size="12" fill="#1558B0">226~238K</text>
+          <!-- MA60 217.5K y=349 → 저항으로 전환 (빨강) -->
+          <line x1="192" y1="349" x2="535" y2="349" stroke="#B91C1C" stroke-width="2" stroke-dasharray="5,3"/>
+          <text x="537" y="346" font-size="12" fill="#B91C1C" font-weight="bold">MA60 저항↑</text>
+          <text x="537" y="360" font-size="12" fill="#B91C1C">217,548</text>
+          <!-- 현재가 202.5K y=403 네이비 굵음 -->
+          <line x1="192" y1="403" x2="535" y2="403" stroke="#0C447C" stroke-width="2.5"/>
+          <text x="15" y="400" font-size="12" fill="#0C447C" font-weight="bold">현재가</text>
+          <text x="15" y="414" font-size="12" fill="#0C447C">202,500</text>
+          <!-- 6/23 저가 201.5K y=406 -->
+          <line x1="192" y1="406" x2="535" y2="406" stroke="#B91C1C" stroke-dasharray="2,3" stroke-width="1"/>
+          <text x="537" y="410" font-size="12" fill="#B91C1C">당일저가</text>
+          <text x="537" y="423" font-size="12" fill="#B91C1C">201,500</text>
+          <!-- 1차지지 195.8K y=427 초록 굵음 -->
+          <line x1="192" y1="427" x2="535" y2="427" stroke="#0C6B42" stroke-width="2"/>
+          <text x="15" y="433" font-size="12" fill="#0C6B42" font-weight="bold">1차지지</text>
+          <text x="15" y="447" font-size="12" fill="#0C6B42">195,800</text>
+          <!-- 75일저점 190.8K y=444 -->
+          <line x1="192" y1="444" x2="535" y2="444" stroke="#6B8099" stroke-dasharray="4,4" stroke-width="1"/>
+          <text x="537" y="441" font-size="12" fill="#6B8099">77일저점</text>
+          <text x="537" y="455" font-size="12" fill="#6B8099">190,800</text>
+          <!-- BB하단 188.7K y=452 -->
+          <line x1="192" y1="452" x2="535" y2="452" stroke="#0C6B42" stroke-dasharray="3,4" stroke-width="1"/>
+          <text x="15" y="465" font-size="12" fill="#0C6B42">BB하단</text>
+          <text x="15" y="479" font-size="12" fill="#0C6B42">188,726</text>
+          <!-- 범례 -->
+          <rect x="192" y="480" width="343" height="22" rx="4" fill="#F0F6FF"/>
+          <line x1="200" y1="491" x2="216" y2="491" stroke="#0C447C" stroke-width="2"/>
+          <text x="220" y="495" font-size="12" fill="#3D5775">현재가</text>
+          <line x1="265" y1="491" x2="281" y2="491" stroke="#B91C1C" stroke-dasharray="5,3" stroke-width="2"/>
+          <text x="285" y="495" font-size="12" fill="#3D5775">MA60 저항</text>
+          <line x1="345" y1="491" x2="361" y2="491" stroke="#0C6B42" stroke-width="2"/>
+          <text x="365" y="495" font-size="12" fill="#3D5775">지지</text>
+          <line x1="402" y1="491" x2="418" y2="491" stroke="#1558B0" stroke-dasharray="3,4" stroke-width="1"/>
+          <text x="422" y="495" font-size="12" fill="#3D5775">MA저항</text>
+        </svg>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="scenario-wrap">
+        <div class="sc-bull">
+          <div class="sc-title">▲ 시나리오 A — 과매도 기술적 반등</div>
+          <div class="scenario-row"><span>전제</span><span>200,000 지지 + 거래대금 회복</span></div>
+          <div class="scenario-row"><span>1차 목표</span><span>215,000~217,000 (MA60 하단)</span></div>
+          <div class="scenario-row"><span>2차 목표</span><span>226,500 (MA5)</span></div>
+          <div class="scenario-row"><span>예상 기간</span><span>3~7거래일</span></div>
+          <div class="scenario-row"><span>수익 / 손절</span><span>+6~7% / -1.2% (200,000)</span></div>
+          <div class="sc-memo">Stoch K=1.1 역대급 과매도 + BB위치 13.8% → 단기 기술적 반등 근거. 단, MA60 재진입 확인 전까지 보유 리스크 유의.</div>
+        </div>
+        <div class="sc-bear">
+          <div class="sc-title">▼ 시나리오 B — 1차지지 이탈 시 추가 하락</div>
+          <div class="scenario-row"><span>전제</span><span>195,800 하향 이탈</span></div>
+          <div class="scenario-row"><span>1차 지지</span><span>190,800 (77일 저점)</span></div>
+          <div class="scenario-row"><span>2차 지지</span><span>188,726 (BB 하단)</span></div>
+          <div class="scenario-row"><span>손절 기준</span><span>200,000 종가 이탈</span></div>
+          <div class="scenario-row"><span>하락 리스크</span><span>-3~7% (188,000~190,000)</span></div>
+          <div class="sc-memo">MACD -5,195 약세 가속. AI 폭등 전 가격대(190,800) 재방문 시 바닥 확인 구간. 공포 클라이맥스 여부 주목.</div>
+        </div>
+      </div>
+      <div class="card" style="padding:14px">
+        <div class="card-title" style="margin-bottom:10px">단기 대응 포인트</div>
+        <table class="signal-table">
+          <thead><tr><th>조건</th><th>가격</th><th>판단</th></tr></thead>
+          <tbody>
+            <tr><td>200,000 지지 + 반등 시작</td><td>202,000 이상</td><td><span class="sig-up">단기 반등 가능</span></td></tr>
+            <tr><td>MA60 재진입 확인</td><td>217,548 이상</td><td><span class="sig-neutral">추세 전환 가능성</span></td></tr>
+            <tr><td>MA5 저항 돌파</td><td>226,500 이상</td><td><span class="sig-neutral">추가매수 고려</span></td></tr>
+            <tr><td>200,000 종가 이탈</td><td>200,000 하향</td><td><span class="sig-dn">1차지지 테스트</span></td></tr>
+            <tr><td>195,800 이탈</td><td>195,800 하향</td><td><span class="sig-dn">손절 / 관망</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="sec-title">신호 분석 (6/23 갱신)</div>
+  <div class="mismatch-grid">
+    <div class="sig-card">
+      <div class="sig-card-title" style="color:var(--down)">▼ 약세 신호 — MACD · MA · 캔들 구조</div>
+      <div class="sig-card-body">
+        <ul style="padding-left:16px;margin-top:6px;line-height:1.9">
+          <li>MA60(217,548) 하향 이탈 — 중기 추세선 붕괴</li>
+          <li>MACD 히스토 -5,195 : 전일(-3,462) 대비 급격 악화</li>
+          <li>MA5~MA20(226K~238K) 4중 저항 역배열 구조</li>
+          <li>6/23 시가(219K) → 고가(220K) 반등 실패 후 저가(201.5K) 직행</li>
+        </ul>
+      </div>
+    </div>
+    <div class="sig-card">
+      <div class="sig-card-title" style="color:var(--up)">▲ 반등 가능 신호 — Stoch · BB · 거래대금</div>
+      <div class="sig-card-body">
+        <ul style="padding-left:16px;margin-top:6px;line-height:1.9">
+          <li>Stoch K=1.1 : 역대급 극단 과매도 (통상 1~3일 내 반등)</li>
+          <li>BB 위치 13.8% → 하단 근접, 통계적 반등 가능 구간</li>
+          <li>RSI 40 → 과매도 30 진입 전 반발 매수 유입 흔함</li>
+          <li>거래대금 ×0.92 (공황 매도 아님) → 점진적 하락</li>
+        </ul>
+      </div>
+    </div>
+    <div class="sig-card" style="grid-column:1/-1;background:var(--gold-bg);border-color:rgba(149,92,0,.2)">
+      <div class="sig-card-title" style="color:var(--gold)">⚖ 종합 판단 (6/23)</div>
+      <div class="sig-card-body">
+        6/22 리포트의 <strong>시나리오 B(MA60 이탈)</strong>가 실현됐습니다. 현재는 AI 폭등 이전 가격대(198,000~205,000)로 복귀. Stoch K=1.1 역대급 과매도로 <strong>단기 기술적 반등</strong>은 가능하나, MA60 완전 이탈 + MACD 약세 가속 구조상 강한 추세 반전은 기대 어려움. <strong>195,800(1차지지) 지지 여부</strong>가 새로운 핵심 분기점. 반등 시 217,000 MA60 재진입 여부가 추세 전환의 관문.
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="sec-title">일별 시세 (77거래일 · 최신순)</div>
+  <div class="tbl-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>날짜</th><th>종가</th><th>등락률</th><th>시가</th><th>고가</th><th>저가</th>
+          <th>거래대금(억)</th><th>MA5</th><th>MA20</th><th>RSI</th><th>MACD히스토</th><th>BB위치%</th>
+        </tr>
+      </thead>
+      <tbody>
+<tr class="td-today"><td>2026-06-23 ★KIS</td><td class="td-dn">202,500</td><td class="td-dn">-8.78%</td><td>219,000</td><td class="td-up">220,000</td><td class="td-dn">201,500</td><td>3,503</td><td>226,500</td><td>238,465</td><td>40.0</td><td class="td-dn">-5,195</td><td>13.8%</td></tr>
+<tr><td>2026-06-22</td><td class="td-dn">222,000</td><td class="td-dn">-3.27%</td><td>230,000</td><td class="td-up">231,000</td><td class="td-dn">222,000</td><td>1,951</td><td>234,400</td><td>238,490</td><td>46.0</td><td class="td-dn">-3,462</td><td>33.4%</td></tr>
+<tr><td>2026-06-19</td><td class="td-dn">229,500</td><td class="td-dn">-2.34%</td><td>236,500</td><td class="td-up">245,500</td><td class="td-dn">224,000</td><td>4,912</td><td>239,600</td><td>237,365</td><td>48.7</td><td class="td-dn">-2,506</td><td>42.4%</td></tr>
+<tr><td>2026-06-18</td><td class="td-dn">235,000</td><td class="td-dn">-3.49%</td><td>241,000</td><td class="td-up">241,000</td><td class="td-dn">234,000</td><td>3,129</td><td>243,100</td><td>235,465</td><td>50.8</td><td class="td-dn">-1,706</td><td>49.6%</td></tr>
+<tr><td>2026-06-17</td><td class="td-up">243,500</td><td class="td-up">+0.62%</td><td>239,500</td><td class="td-up">247,500</td><td class="td-dn">234,500</td><td>2,807</td><td>240,900</td><td>233,620</td><td>53.9</td><td class="td-dn">-910</td><td>58.5%</td></tr>
+<tr><td>2026-06-16</td><td class="td-dn">242,000</td><td class="td-dn">-2.42%</td><td>255,000</td><td class="td-up">265,500</td><td class="td-dn">239,500</td><td>6,180</td><td>237,600</td><td>231,445</td><td>53.5</td><td class="td-dn">-572</td><td>58.8%</td></tr>
+<tr><td>2026-06-15</td><td class="td-up">248,000</td><td class="td-up">+0.40%</td><td>256,000</td><td class="td-up">257,500</td><td class="td-dn">245,500</td><td>5,018</td><td>240,600</td><td>229,520</td><td>55.6</td><td class="td-up">+23</td><td>65.2%</td></tr>
+<tr class="td-spike"><td>2026-06-12</td><td class="td-up">247,000</td><td class="td-up">+10.27%</td><td>232,000</td><td class="td-up">263,000</td><td class="td-dn">231,000</td><td>13,016</td><td>246,800</td><td>227,770</td><td>55.3</td><td class="td-up">+213</td><td>65.9%</td></tr>
+<tr><td>2026-06-11</td><td class="td-dn">224,000</td><td class="td-dn">-1.32%</td><td>218,500</td><td class="td-up">228,500</td><td class="td-dn">218,500</td><td>4,954</td><td>248,500</td><td>225,495</td><td>48.5</td><td class="td-up">+454</td><td>48.8%</td></tr>
+<tr class="td-spike"><td>2026-06-10</td><td class="td-dn">227,000</td><td class="td-dn">-11.67%</td><td>245,000</td><td class="td-up">253,500</td><td class="td-dn">222,000</td><td>8,326</td><td>257,200</td><td>224,495</td><td>49.4</td><td class="td-up">+2,997</td><td>52.0%</td></tr>
+<tr class="td-spike"><td>2026-06-09</td><td class="td-dn">257,000</td><td class="td-dn">-7.89%</td><td>286,000</td><td class="td-up">288,500</td><td class="td-dn">243,000</td><td>17,797</td><td>267,900</td><td>223,720</td><td>59.9</td><td class="td-up">+6,354</td><td>77.0%</td></tr>
+<tr class="td-spike"><td>2026-06-08</td><td class="td-up">279,000</td><td class="td-up">+9.20%</td><td>239,500</td><td class="td-up">294,000</td><td class="td-dn">238,500</td><td>28,163</td><td>270,800</td><td>221,620</td><td>70.0</td><td class="td-up">+7,990</td><td>97.9%</td></tr>
+<tr><td>2026-06-05</td><td class="td-dn">255,500</td><td class="td-dn">-4.49%</td><td>254,500</td><td class="td-up">266,500</td><td class="td-dn">245,000</td><td>7,990</td><td>261,800</td><td>218,045</td><td>63.9</td><td class="td-up">+7,583</td><td>84.7%</td></tr>
+<tr><td>2026-06-04</td><td class="td-dn">267,500</td><td class="td-dn">-4.63%</td><td>267,500</td><td class="td-up">275,000</td><td class="td-dn">255,000</td><td>8,767</td><td>251,700</td><td>215,670</td><td>70.6</td><td class="td-up">+8,610</td><td>100.5%</td></tr>
+<tr class="td-spike"><td>2026-06-02</td><td class="td-up">280,500</td><td class="td-up">+3.31%</td><td>285,000</td><td class="td-up">289,500</td><td class="td-dn">244,000</td><td>24,817</td><td>237,960</td><td>212,745</td><td>79.0</td><td class="td-up">+8,253</td><td>124.4%</td></tr>
+<tr class="td-spike"><td>2026-06-01</td><td class="td-up">271,500</td><td class="td-up">+16.03%</td><td>251,000</td><td class="td-up">304,000</td><td class="td-dn">244,500</td><td>39,947</td><td>221,860</td><td>209,270</td><td>77.3</td><td class="td-up">+5,647</td><td>143.5%</td></tr>
+<tr class="td-spike"><td>2026-05-29</td><td class="td-up">234,000</td><td class="td-up">+14.15%</td><td>211,500</td><td class="td-up">247,500</td><td class="td-dn">211,000</td><td>17,681</td><td>208,160</td><td>206,695</td><td>66.7</td><td class="td-up">+1,942</td><td>125.1%</td></tr>
+<tr class="td-spike"><td>2026-05-28</td><td class="td-up">205,000</td><td class="td-up">+3.12%</td><td>202,000</td><td class="td-up">213,000</td><td class="td-dn">195,800</td><td>4,022</td><td>201,260</td><td>205,970</td><td>49.9</td><td class="td-dn">-285</td><td>46.7%</td></tr>
+<tr><td>2026-05-27</td><td class="td-dn">198,800</td><td class="td-dn">-0.60%</td><td>199,800</td><td class="td-up">202,000</td><td class="td-dn">197,300</td><td>1,814</td><td>198,560</td><td>206,470</td><td>44.4</td><td class="td-dn">-826</td><td>24.6%</td></tr>
+<tr><td>2026-05-26</td><td class="td-dn">200,000</td><td class="td-dn">-1.48%</td><td>205,500</td><td class="td-up">207,000</td><td class="td-dn">199,900</td><td>1,170</td><td>198,420</td><td>207,230</td><td>45.3</td><td class="td-dn">-954</td><td>25.8%</td></tr>
+<tr><td>2026-05-22</td><td class="td-up">203,000</td><td class="td-up">+1.75%</td><td>201,500</td><td class="td-up">207,000</td><td class="td-dn">199,300</td><td>1,527</td><td>198,420</td><td>208,105</td><td>47.5</td><td class="td-dn">-1,170</td><td>33.3%</td></tr>
+<tr><td>2026-05-21</td><td class="td-up">199,500</td><td class="td-up">+4.18%</td><td>194,600</td><td class="td-up">202,000</td><td class="td-dn">194,600</td><td>1,731</td><td>198,520</td><td>208,655</td><td>44.5</td><td class="td-dn">-1,694</td><td>20.5%</td></tr>
+<tr><td>2026-05-20</td><td class="td-dn">191,500</td><td class="td-dn">-3.33%</td><td>198,100</td><td class="td-up">200,000</td><td class="td-dn">190,800</td><td>1,913</td><td>201,220</td><td>209,380</td><td>36.9</td><td class="td-dn">-2,009</td><td>-10.4%</td></tr>
+<tr><td>2026-05-19</td><td class="td-dn">198,100</td><td class="td-dn">-0.95%</td><td>200,500</td><td class="td-up">206,250</td><td class="td-dn">195,100</td><td>1,887</td><td>203,220</td><td>210,480</td><td>41.3</td><td class="td-dn">-1,511</td><td>1.6%</td></tr>
+<tr><td>2026-05-18</td><td class="td-dn">200,000</td><td class="td-dn">-1.72%</td><td>203,000</td><td class="td-up">203,500</td><td class="td-dn">196,700</td><td>1,776</td><td>204,400</td><td>211,400</td><td>42.6</td><td class="td-dn">-1,252</td><td>-0.6%</td></tr>
+<tr><td>2026-05-15</td><td class="td-dn">203,500</td><td class="td-dn">-4.46%</td><td>215,000</td><td class="td-up">216,500</td><td class="td-dn">201,000</td><td>2,081</td><td>206,700</td><td>212,325</td><td>45.1</td><td class="td-dn">-922</td><td>8.0%</td></tr>
+<tr><td>2026-05-14</td><td class="td-up">213,000</td><td class="td-up">+5.71%</td><td>204,000</td><td class="td-up">216,000</td><td class="td-dn">203,500</td><td>3,390</td><td>209,000</td><td>212,700</td><td>52.9</td><td class="td-dn">-675</td><td>52.2%</td></tr>
+<tr><td>2026-05-13</td><td class="td-dn">201,500</td><td class="td-dn">-1.23%</td><td>206,000</td><td class="td-up">206,500</td><td class="td-dn">198,600</td><td>1,818</td><td>207,900</td><td>212,125</td><td>41.5</td><td class="td-dn">-1,196</td><td>1.0%</td></tr>
+<tr><td>2026-05-12</td><td class="td-dn">204,000</td><td class="td-dn">-3.55%</td><td>213,000</td><td class="td-up">213,000</td><td class="td-dn">200,500</td><td>2,037</td><td>209,200</td><td>212,000</td><td>43.6</td><td class="td-dn">-761</td><td>14.8%</td></tr>
+<tr><td>2026-05-11</td><td class="td-dn">211,500</td><td class="td-dn">-1.63%</td><td>215,500</td><td class="td-up">216,000</td><td class="td-dn">210,000</td><td>1,654</td><td>210,200</td><td>211,900</td><td>50.9</td><td class="td-dn">-267</td><td>48.9%</td></tr>
+<tr><td>2026-05-08</td><td class="td-up">215,000</td><td class="td-up">+3.61%</td><td>210,000</td><td class="td-up">219,000</td><td class="td-dn">209,000</td><td>3,314</td><td>210,100</td><td>211,400</td><td>54.8</td><td class="td-dn">-234</td><td>64.7%</td></tr>
+<tr><td>2026-05-07</td><td class="td-dn">207,500</td><td class="td-dn">-0.24%</td><td>209,000</td><td class="td-up">214,000</td><td class="td-dn">206,000</td><td>2,116</td><td>211,100</td><td>210,725</td><td>46.6</td><td class="td-dn">-532</td><td>36.8%</td></tr>
+<tr><td>2026-05-06</td><td class="td-dn">208,000</td><td class="td-dn">-0.48%</td><td>210,500</td><td class="td-up">213,000</td><td class="td-dn">207,500</td><td>1,754</td><td>213,500</td><td>210,145</td><td>47.1</td><td class="td-dn">-214</td><td>41.6%</td></tr>
+<tr><td>2026-05-04</td><td class="td-dn">209,000</td><td class="td-dn">-0.95%</td><td>213,500</td><td class="td-up">213,500</td><td class="td-dn">208,000</td><td>1,833</td><td>214,900</td><td>209,585</td><td>48.1</td><td class="td-up">+245</td><td>48.3%</td></tr>
+<tr class="td-spike"><td>2026-04-30</td><td class="td-dn">211,000</td><td class="td-dn">-4.09%</td><td>223,000</td><td class="td-up">223,000</td><td class="td-dn">210,500</td><td>2,963</td><td>215,900</td><td>209,010</td><td>50.2</td><td class="td-up">+837</td><td>55.8%</td></tr>
+<tr><td>2026-04-29</td><td class="td-up">220,000</td><td class="td-up">+0.23%</td><td>223,000</td><td class="td-up">227,500</td><td class="td-dn">219,000</td><td>1,494</td><td>217,200</td><td>208,250</td><td>60.9</td><td class="td-up">+1,491</td><td>82.9%</td></tr>
+<tr><td>2026-04-28</td><td class="td-up">219,500</td><td class="td-up">+2.09%</td><td>215,500</td><td class="td-up">223,500</td><td class="td-dn">215,000</td><td>1,664</td><td>216,000</td><td>207,750</td><td>60.4</td><td class="td-up">+1,481</td><td>85.4%</td></tr>
+<tr><td>2026-04-27</td><td class="td-up">215,000</td><td class="td-up">+0.47%</td><td>216,000</td><td class="td-up">218,500</td><td class="td-dn">215,000</td><td>991</td><td>214,900</td><td>206,850</td><td>56.4</td><td class="td-up">+1,383</td><td>76.2%</td></tr>
+<tr><td>2026-04-24</td><td class="td-dn">214,000</td><td class="td-dn">-1.61%</td><td>216,000</td><td class="td-up">216,500</td><td class="td-dn">213,000</td><td>1,018</td><td>214,600</td><td>206,450</td><td>55.4</td><td class="td-up">+1,567</td><td>74.4%</td></tr>
+<tr><td>2026-04-23</td><td class="td-up">217,500</td><td class="td-up">+1.64%</td><td>220,500</td><td class="td-up">221,000</td><td class="td-dn">213,000</td><td>1,736</td><td>215,100</td><td>206,375</td><td>59.6</td><td class="td-up">+1,834</td><td>87.3%</td></tr>
+<tr><td>2026-04-22</td><td>214,000</td><td>0.00%</td><td>215,000</td><td class="td-up">216,000</td><td class="td-dn">212,500</td><td>780</td><td>215,300</td><td>206,075</td><td>56.6</td><td class="td-up">+1,758</td><td>76.7%</td></tr>
+<tr><td>2026-04-21</td><td class="td-up">214,000</td><td class="td-up">+0.23%</td><td>215,000</td><td class="td-up">215,500</td><td class="td-dn">211,500</td><td>1,165</td><td>214,700</td><td>206,150</td><td>56.6</td><td class="td-up">+1,862</td><td>76.3%</td></tr>
+<tr><td>2026-04-20</td><td class="td-dn">213,500</td><td class="td-dn">-1.39%</td><td>216,000</td><td class="td-up">217,500</td><td class="td-dn">212,500</td><td>982</td><td>212,200</td><td>206,125</td><td>56.2</td><td class="td-up">+1,892</td><td>75.3%</td></tr>
+<tr><td>2026-04-17</td><td class="td-dn">216,500</td><td class="td-dn">-0.92%</td><td>218,500</td><td class="td-up">219,000</td><td class="td-dn">214,500</td><td>2,423</td><td>209,300</td><td>205,900</td><td>59.2</td><td class="td-up">+1,862</td><td>87.1%</td></tr>
+<tr><td>2026-04-16</td><td class="td-up">218,500</td><td class="td-up">+3.55%</td><td>219,500</td><td class="td-up">220,000</td><td class="td-dn">216,500</td><td>1,642</td><td>206,400</td><td>206,150</td><td>61.3</td><td class="td-up">+1,387</td><td>88.5%</td></tr>
+<tr><td>2026-04-15</td><td class="td-up">211,000</td><td class="td-up">+4.71%</td><td>206,000</td><td class="td-up">214,500</td><td class="td-dn">205,000</td><td>2,090</td><td>203,000</td><td>206,250</td><td>55.9</td><td class="td-up">+351</td><td>65.3%</td></tr>
+<tr><td>2026-04-14</td><td class="td-up">201,500</td><td class="td-up">+1.26%</td><td>203,500</td><td class="td-up">206,500</td><td class="td-dn">201,000</td><td>1,268</td><td>201,100</td><td>207,025</td><td>47.2</td><td class="td-dn">-520</td><td>35.2%</td></tr>
+<tr><td>2026-04-13</td><td class="td-dn">199,000</td><td class="td-dn">-1.49%</td><td>197,700</td><td class="td-up">199,500</td><td class="td-dn">196,800</td><td>1,021</td><td>199,980</td><td>208,150</td><td>44.5</td><td class="td-dn">-852</td><td>26.4%</td></tr>
+<tr><td>2026-04-10</td><td class="td-up">202,000</td><td class="td-up">+0.25%</td><td>202,500</td><td class="td-up">205,000</td><td class="td-dn">201,000</td><td>1,065</td><td>199,540</td><td>209,100</td><td>47.2</td><td class="td-dn">-1,009</td><td>31.1%</td></tr>
+<tr><td>2026-04-09</td><td>201,500</td><td>0.00%</td><td>200,000</td><td class="td-up">206,500</td><td class="td-dn">198,600</td><td>2,529</td><td>198,640</td><td>210,150</td><td>46.7</td><td class="td-dn">-1,438</td><td>27.8%</td></tr>
+<tr><td>2026-04-08</td><td class="td-up">201,500</td><td class="td-up">+2.86%</td><td>202,500</td><td class="td-up">204,000</td><td class="td-dn">200,000</td><td>1,411</td><td>197,500</td><td>211,175</td><td>46.7</td><td class="td-dn">-1,911</td><td>25.8%</td></tr>
+<tr><td>2026-04-07</td><td class="td-dn">195,900</td><td class="td-dn">-0.46%</td><td>197,200</td><td class="td-up">202,000</td><td class="td-dn">195,100</td><td>1,322</td><td>199,200</td><td>212,200</td><td>41.4</td><td class="td-dn">-2,473</td><td>0.9%</td></tr>
+<tr><td>2026-04-06</td><td class="td-dn">196,800</td><td class="td-dn">-0.35%</td><td>197,100</td><td class="td-up">199,400</td><td class="td-dn">194,200</td><td>1,410</td><td>200,320</td><td>213,430</td><td>42.0</td><td class="td-dn">-2,565</td><td>0.6%</td></tr>
+<tr><td>2026-04-03</td><td class="td-up">197,500</td><td class="td-up">+0.87%</td><td>198,900</td><td class="td-up">200,000</td><td class="td-dn">196,600</td><td>1,305</td><td>202,360</td><td>214,515</td><td>42.5</td><td class="td-dn">-2,572</td><td>1.2%</td></tr>
+<tr class="td-spike"><td>2026-04-02</td><td class="td-dn">195,800</td><td class="td-dn">-6.76%</td><td>211,500</td><td class="td-up">212,000</td><td class="td-dn">194,600</td><td>2,931</td><td>205,360</td><td>215,765</td><td>41.0</td><td class="td-dn">-2,429</td><td>-13.4%</td></tr>
+<tr><td>2026-04-01</td><td class="td-up">210,000</td><td class="td-up">+4.22%</td><td>208,500</td><td class="td-up">212,000</td><td class="td-dn">205,500</td><td>1,204</td><td>208,500</td><td>216,975</td><td>51.1</td><td class="td-dn">-1,825</td><td>22.9%</td></tr>
+<tr><td>2026-03-31</td><td class="td-dn">201,500</td><td class="td-dn">-2.66%</td><td>202,500</td><td class="td-up">205,500</td><td class="td-dn">200,000</td><td>1,798</td><td>209,600</td><td>216,875</td><td>43.4</td><td class="td-dn">-2,165</td><td>-8.5%</td></tr>
+<tr><td>2026-03-30</td><td class="td-dn">207,000</td><td class="td-dn">-2.59%</td><td>205,500</td><td class="td-up">208,500</td><td class="td-dn">204,000</td><td>783</td><td>212,000</td><td>—</td><td>47.9</td><td>—</td><td>—</td></tr>
+<tr><td>2026-03-27</td><td class="td-up">212,500</td><td class="td-up">+0.47%</td><td>208,000</td><td class="td-up">213,000</td><td class="td-dn">206,000</td><td>922</td><td>212,400</td><td>—</td><td>53.1</td><td>—</td><td>—</td></tr>
+<tr><td>2026-03-26</td><td class="td-dn">211,500</td><td class="td-dn">-1.86%</td><td>216,500</td><td class="td-up">218,500</td><td class="td-dn">211,000</td><td>886</td><td>214,200</td><td>—</td><td>52.2</td><td>—</td><td>—</td></tr>
+<tr><td>2026-03-25</td><td class="td-up">215,500</td><td class="td-up">+0.94%</td><td>216,500</td><td class="td-up">218,000</td><td class="td-dn">214,000</td><td>1,006</td><td>216,000</td><td>—</td><td>56.1</td><td>—</td><td>—</td></tr>
+<tr><td>2026-03-24</td><td class="td-up">213,500</td><td class="td-up">+2.15%</td><td>215,500</td><td class="td-up">217,000</td><td class="td-dn">209,000</td><td>998</td><td>218,200</td><td>—</td><td>54.5</td><td>—</td><td>—</td></tr>
+<tr><td>2026-03-23</td><td class="td-dn">209,000</td><td class="td-dn">-5.64%</td><td>215,500</td><td class="td-up">215,500</td><td class="td-dn">208,500</td><td>1,461</td><td>220,300</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>2026-03-20</td><td class="td-up">221,500</td><td class="td-up">+0.45%</td><td>222,000</td><td class="td-up">224,500</td><td class="td-dn">220,000</td><td>1,492</td><td>222,100</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>2026-03-19</td><td class="td-dn">220,500</td><td class="td-dn">-2.65%</td><td>221,500</td><td class="td-up">222,500</td><td class="td-dn">220,000</td><td>1,047</td><td>222,400</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>2026-03-18</td><td class="td-up">226,500</td><td class="td-up">+1.12%</td><td>228,500</td><td class="td-up">228,500</td><td class="td-dn">225,000</td><td>1,557</td><td>222,700</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>2026-03-17</td><td class="td-up">224,000</td><td class="td-up">+2.75%</td><td>221,500</td><td class="td-up">227,500</td><td class="td-dn">220,500</td><td>1,378</td><td>221,800</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>2026-03-16</td><td class="td-dn">218,000</td><td class="td-dn">-2.24%</td><td>222,000</td><td class="td-up">222,500</td><td class="td-dn">216,000</td><td>1,162</td><td>221,100</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>2026-03-13</td><td class="td-up">223,000</td><td class="td-up">+0.45%</td><td>216,500</td><td class="td-up">224,000</td><td class="td-dn">216,000</td><td>1,568</td><td>221,200</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>2026-03-12</td><td>222,000</td><td>0.00%</td><td>223,500</td><td class="td-up">225,500</td><td class="td-dn">220,500</td><td>1,558</td><td>221,100</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>2026-03-11</td><td class="td-up">222,000</td><td class="td-up">+0.68%</td><td>227,000</td><td class="td-up">230,000</td><td class="td-dn">221,000</td><td>1,712</td><td>220,700</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>2026-03-10</td><td class="td-up">220,500</td><td class="td-up">+0.92%</td><td>226,500</td><td class="td-up">227,000</td><td class="td-dn">218,000</td><td>2,068</td><td>217,900</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>2026-03-09</td><td class="td-dn">218,500</td><td class="td-dn">-1.80%</td><td>209,500</td><td class="td-up">218,500</td><td class="td-dn">207,000</td><td>2,008</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>2026-03-06</td><td class="td-up">222,500</td><td class="td-up">+1.14%</td><td>216,000</td><td class="td-up">225,500</td><td class="td-dn">216,000</td><td>2,308</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>2026-03-05</td><td class="td-up">220,000</td><td class="td-up">+5.77%</td><td>224,000</td><td class="td-up">227,500</td><td class="td-dn">218,000</td><td>3,707</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>2026-03-04</td><td class="td-dn">208,000</td><td class="td-dn">-11.86%</td><td>225,500</td><td class="td-up">231,000</td><td class="td-dn">207,500</td><td>4,459</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="disclaimer">
+  본 리포트는 기술적 분석 목적의 참고 자료이며 투자 권유가 아닙니다. 모든 투자 결정의 책임은 투자자 본인에게 있습니다. 기준일: 2026-06-23 (당일 데이터 KIS API) | KRX API 기반 77거래일 분석
+</div>
+
+</main>
+</body>
+</html>

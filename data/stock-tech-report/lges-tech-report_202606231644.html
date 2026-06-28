@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LG에너지솔루션(373220) 기술적 분석 — 2026.06.23</title>
+<style>
+:root {
+  --bg:#F4F8FD; --card:#FFFFFF; --card2:#EEF4FB;
+  --border:#D5E5F5; --border2:#E8F0F9;
+  --txt:#1A2535; --txt2:#354E6B; --txt3:#3D5775;
+  --up:#B91C1C; --up-bg:#FEF2F2;
+  --down:#1558B0; --down-bg:#EFF6FF;
+  --accent:#1A56A8; --accent-bg:#E8F0FC;
+  --gold:#955C00; --gold-bg:#FEF3E2;
+  --warn:#925400; --warn-bg:#FEF0E2;
+  --primary:#0C447C; --primary2:#1860A5;
+  --shadow:0 2px 12px rgba(26,86,168,.07);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;font-size:15px;color:var(--txt);background:var(--bg);line-height:1.6;}
+
+/* HEADER */
+.header{background:linear-gradient(135deg,#0C447C,#1860A5);padding:14px 24px 12px;position:sticky;top:0;z-index:50;box-shadow:0 2px 12px rgba(12,68,124,.2);-webkit-transform:translateZ(0);transform:translateZ(0);}
+.h-top{display:flex;align-items:center;gap:16px;}
+.h-stock-info{display:flex;flex-direction:column;gap:4px;flex-shrink:0;min-width:180px;}
+.h-name-row{display:flex;align-items:baseline;gap:8px;}
+.h-name{color:#fff;font-weight:800;font-size:20px;}
+.h-code{color:rgba(255,255,255,.85);font-weight:600;font-size:13px;}
+.h-date{font-size:12px;font-weight:500;color:rgba(255,255,255,.85);margin-top:2px;white-space:nowrap;}
+.h-price-block{display:flex;align-items:center;gap:12px;flex:1;justify-content:center;}
+.h-price{font-size:30px;font-weight:800;letter-spacing:-.5px;white-space:nowrap;}
+.h-chg-group{display:flex;align-items:baseline;gap:5px;white-space:nowrap;flex-shrink:0;}
+.h-chg-arrow,.h-chg-amt,.h-chg-rate{font-size:15px;font-weight:700;}
+.h-trade{font-size:13px;font-weight:600;color:rgba(255,255,255,.9);padding-left:8px;border-left:1px solid rgba(255,255,255,.25);white-space:nowrap;}
+.h-badges-block{display:flex;flex-wrap:wrap;gap:5px;justify-content:flex-end;flex-shrink:0;max-width:400px;}
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:12px;font-weight:700;}
+.bg-red{background:rgba(239,68,68,.22);color:#FCA5A5;border:1px solid rgba(252,165,165,.5);}
+.bg-blue{background:rgba(147,197,253,.18);color:#93C5FD;border:1px solid rgba(147,197,253,.5);}
+.bg-warn-h{background:rgba(239,68,68,.4);color:#FEE2E2;border:1px solid rgba(252,165,165,.7);font-size:13px;}
+.h-bottom{border-top:1px solid rgba(255,255,255,.15);margin-top:11px;padding-top:9px;display:flex;flex-wrap:wrap;align-items:center;row-gap:4px;}
+.h-item{font-size:12px;font-weight:500;color:rgba(255,255,255,.85);padding:0 14px;border-right:1px solid rgba(255,255,255,.2);white-space:nowrap;line-height:1.7;}
+.h-item:first-child{padding-left:0;}
+.h-item:last-child{border-right:none;}
+.h-item strong{color:#fff;font-weight:700;}
+.hi-up{color:#F87171;font-weight:700;}
+.hi-dn{color:#4ADE80;font-weight:700;}
+.hi-gold{color:#FCD34D;font-weight:700;}
+.hi-warn{color:#FEE2E2;font-weight:800;}
+
+/* MAIN */
+.main{max-width:1440px;margin:0 auto;padding:20px 20px 40px;}
+.section{margin-bottom:26px;}
+.sec-title{font-size:16px;font-weight:800;color:var(--txt);margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.sec-title::before{content:'';display:block;width:4px;height:18px;background:var(--accent);border-radius:2px;}
+
+/* CARDS */
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 20px;box-shadow:var(--shadow);}
+.card-title{font-size:13px;font-weight:700;color:var(--txt2);margin-bottom:6px;}
+.card-val{font-size:21px;font-weight:800;color:var(--txt);}
+.card-sub{font-size:13px;font-weight:500;color:var(--txt3);margin-top:6px;line-height:1.6;}
+.card-sub strong{font-weight:700;color:var(--txt2);}
+.val-up{color:var(--up);}
+.val-dn{color:var(--down);}
+.val-warn{color:#925400;}
+
+/* KPI GRID */
+.kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;}
+
+/* TIMELINE */
+.tl-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+.tl-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;box-shadow:var(--shadow);}
+.tl-card.major{border-left:4px solid var(--up);}
+.tl-card.minor{border-left:4px solid var(--accent);}
+.tl-card.pivot{border-left:4px solid #925400;}
+.tl-card.today{border:1px solid #FECACA;background:#FEF8F8;}
+.tl-date{font-size:13px;font-weight:700;color:var(--txt3);margin-bottom:3px;}
+.tl-price{font-size:17px;font-weight:800;color:var(--txt);margin-bottom:4px;}
+.tl-meta{font-size:13px;font-weight:600;color:var(--txt2);margin-bottom:5px;}
+.tl-tags{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;}
+.t-tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:700;}
+.t-tag.up{background:var(--up-bg);color:var(--up);}
+.t-tag.dn{background:var(--down-bg);color:var(--down);}
+.t-tag.mul{background:var(--accent-bg);color:var(--accent);}
+.t-tag.warn{background:var(--warn-bg);color:var(--warn);}
+.tl-desc{font-size:13px;font-weight:500;color:var(--txt2);line-height:1.5;}
+
+/* ALERT + PATTERN */
+.alert-box{background:#FEF2F2;border:2px solid #FECACA;border-radius:12px;padding:18px 20px;box-shadow:0 2px 12px rgba(185,28,28,.08);}
+.alert-title{font-size:15px;font-weight:800;color:var(--up);margin-bottom:10px;}
+.alert-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #FECACA;}
+.alert-row:last-child{border-bottom:none;padding-bottom:0;}
+.alert-key{font-size:13px;font-weight:700;color:var(--up);}
+.alert-val{font-size:13px;font-weight:600;color:var(--txt);}
+.pattern-box{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 20px;box-shadow:var(--shadow);}
+.pattern-title{font-size:14px;font-weight:800;color:var(--txt);margin-bottom:10px;}
+.p-row{display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--border2);}
+.p-row:last-child{border-bottom:none;}
+.p-num{font-size:12px;font-weight:800;color:#fff;background:var(--accent);width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:3px;}
+.p-content{flex:1;}
+.p-date{font-size:12px;font-weight:700;color:var(--txt3);}
+.p-desc{font-size:13px;font-weight:500;color:var(--txt2);line-height:1.5;}
+
+/* GRIDS */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+
+/* SCENARIO */
+.sc-wrap{display:flex;flex-direction:column;gap:14px;}
+.sc-bull{background:#FEF2F2;border:1px solid #FECACA;border-radius:12px;padding:16px;}
+.sc-bear{background:#EFF6FF;border:1px solid #BFDBFE;border-radius:12px;padding:16px;}
+.sc-title{font-size:14px;font-weight:800;margin-bottom:10px;}
+.sc-bull .sc-title{color:var(--up);}
+.sc-bear .sc-title{color:var(--down);}
+.sc-tbl{width:100%;border-collapse:collapse;}
+.sc-tbl td{padding:4px 0;font-size:13px;border-bottom:1px solid rgba(0,0,0,.06);}
+.sc-tbl td:last-child{border-bottom:none;}
+.sc-tbl td:first-child{font-weight:700;color:var(--txt2);width:80px;}
+.sc-tbl td:last-child{font-weight:600;color:var(--txt);}
+.sc-memo{margin-top:10px;padding:8px 12px;border-radius:6px;font-size:13px;font-weight:500;color:var(--txt2);line-height:1.5;}
+.sc-bull .sc-memo{background:rgba(185,28,28,.07);}
+.sc-bear .sc-memo{background:rgba(21,88,176,.07);}
+
+/* SIGNAL TABLE */
+.sig-tbl{width:100%;border-collapse:collapse;}
+.sig-tbl th{background:var(--card2);font-size:13px;font-weight:700;color:var(--txt2);padding:8px 10px;text-align:left;border-bottom:2px solid var(--border);}
+.sig-tbl td{font-size:13px;font-weight:500;color:var(--txt);padding:7px 10px;border-bottom:1px solid var(--border2);}
+.sig-tbl td:nth-child(2){font-weight:700;}
+.s-up{display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:700;background:var(--up-bg);color:var(--up);}
+.s-neu{display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:700;background:var(--accent-bg);color:var(--accent);}
+.s-dn{display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:700;background:var(--down-bg);color:var(--down);}
+.s-warn{display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:700;background:var(--warn-bg);color:var(--warn);}
+
+/* SVG SCROLL */
+.svg-scroll{overflow-x:auto;-webkit-transform:translateZ(0);transform:translateZ(0);}
+
+/* DATA TABLE */
+.tbl-wrap{overflow-x:auto;border-radius:12px;box-shadow:var(--shadow);-webkit-transform:translateZ(0);transform:translateZ(0);}
+.dtbl{width:100%;border-collapse:collapse;font-size:13px;background:var(--card);}
+.dtbl th{background:var(--card2);font-weight:700;color:var(--txt2);padding:9px 10px;text-align:right;white-space:nowrap;border-bottom:2px solid var(--border);}
+.dtbl th:first-child{text-align:left;}
+.dtbl td{padding:7px 10px;text-align:right;border-bottom:1px solid var(--border2);color:var(--txt);white-space:nowrap;}
+.dtbl td:first-child{text-align:left;font-weight:600;}
+.dtbl tbody tr:hover{background:rgba(26,86,168,.04);}
+.row-today{background:rgba(185,28,28,.05);}
+.row-today td{font-weight:700;}
+.row-spike{background:rgba(149,92,0,.05);}
+.t-up{color:var(--up);font-weight:700;}
+.t-dn{color:var(--down);font-weight:700;}
+.t-muted{color:var(--txt3);font-size:12px;}
+.tb{display:inline-block;padding:1px 5px;border-radius:6px;font-size:11px;font-weight:700;}
+.tb-kis{background:var(--accent-bg);color:var(--accent);}
+.tb-spk{background:var(--gold-bg);color:var(--gold);}
+.tb-alert{background:var(--up-bg);color:var(--up);}
+
+/* FOOTER */
+.footer{max-width:1440px;margin:0 auto;padding:16px 20px;text-align:center;font-size:13px;font-weight:500;color:var(--txt3);border-top:1px solid var(--border);}
+
+/* RESPONSIVE */
+@media(max-width:1199px){.kpi-grid{grid-template-columns:repeat(3,1fr);}.tl-grid{grid-template-columns:repeat(2,1fr);}}
+@media(max-width:1023px){.grid2{grid-template-columns:1fr;}.kpi-grid{grid-template-columns:repeat(2,1fr);}}
+@media(max-width:900px){.h-top{flex-wrap:wrap;}.h-price-block{width:100%;justify-content:flex-start;}.h-price{font-size:24px;}.h-badges-block{max-width:200px;}}
+@media(max-width:767px){.h-badges-block{max-width:none;width:100%;}.tl-grid{grid-template-columns:1fr;}}
+@media(max-width:639px){body{font-size:14px;}.main{padding:14px 12px 30px;}.kpi-grid{grid-template-columns:repeat(2,1fr);}.h-item{padding:0 8px;}.card{padding:14px 16px;}.section{margin-bottom:18px;}}
+@media(max-width:479px){.kpi-grid{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="h-top">
+    <div class="h-stock-info">
+      <div class="h-name-row">
+        <span class="h-name">LG에너지솔루션</span>
+        <span class="h-code">373220 · KOSPI</span>
+      </div>
+      <div class="h-date">기준일 2026.06.23 · KRX 75일(3/4~6/22) + KIS 당일</div>
+    </div>
+    <div class="h-price-block">
+      <span class="h-price" style="color:#4ADE80;">362,000원</span>
+      <div class="h-chg-group" style="color:#4ADE80;">
+        <span class="h-chg-arrow">▼</span>
+        <span class="h-chg-amt">23,500원</span>
+        <span class="h-chg-rate">(-6.10%)</span>
+      </div>
+      <span class="h-trade">거래대금 1,815억</span>
+    </div>
+    <div class="h-badges-block">
+      <span class="badge bg-red">MA 역배열</span>
+      <span class="badge bg-red">RSI 약세</span>
+      <span class="badge bg-warn-h">⚠ BB하단 이탈</span>
+    </div>
+  </div>
+  <div class="h-bottom">
+    <div class="h-item">전일종가 <strong>385,500</strong></div>
+    <div class="h-item">시가 <strong>387,500</strong> · 고가 <span class="hi-up">399,500</span> · 저가 <span class="hi-dn">360,000</span></div>
+    <div class="h-item">거래량 <strong>48.4만주</strong></div>
+    <div class="h-item">75일 고저 <span class="hi-up">497,500</span> / <span class="hi-dn">346,000</span></div>
+    <div class="h-item">BB <span class="hi-up">455,921</span> / <span class="hi-dn">364,779</span>(6/22)</div>
+    <div class="h-item">MA60 <strong>423,558</strong> · MA5 <strong>393,600</strong>(추정)</div>
+    <div class="h-item">시총 <strong>약 84.7조</strong></div>
+    <div class="h-item" style="background:rgba(239,68,68,.25);border-radius:5px;padding:0 12px;">
+      <span class="hi-warn">⚠ BB하단 이탈 · 관망</span>
+    </div>
+  </div>
+</header>
+
+<main class="main">
+
+<!-- 1. KPI 카드 -->
+<section class="section">
+  <div class="sec-title">핵심 기술 지표 (6/22 기준, KRX)</div>
+  <div class="kpi-grid">
+    <div class="card">
+      <div class="card-title">MA 배열</div>
+      <div class="card-val val-warn">혼조 → 역배열</div>
+      <div class="card-sub">
+        현재가 <strong>362,000</strong>원<br>
+        MA5 393,600 · MA10 396,900<br>
+        MA20 410,350 · MA60 423,558<br>
+        <span style="color:var(--up);font-weight:700;">4개 이평선 모두 현재가 상위</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">RSI (14일, 6/22)</div>
+      <div class="card-val val-dn">42.1</div>
+      <div class="card-sub">
+        <strong>과매도</strong> 기준: 30 이하<br>
+        6/22 기준 · 6/23 추가 하락 중<br>
+        추정 <strong>35~37</strong> 수준<br>
+        과매도 진입 임박
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">MACD 히스토그램 (6/22)</div>
+      <div class="card-val val-dn">-892</div>
+      <div class="card-sub">
+        MACD <strong>-7,658</strong> · Signal <strong>-6,766</strong><br>
+        히스토 음수 · 하락 모멘텀 지속<br>
+        6/23 추가 악화 예상<br>
+        <span style="color:var(--down);font-weight:700;">매도 우위 지속</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">스토캐스틱 K/D (6/22)</div>
+      <div class="card-val val-dn">K 14.2 / D 22.7</div>
+      <div class="card-sub">
+        <strong>과매도</strong> 기준: K 20 이하<br>
+        K선 과매도 진입 · D선 하향 중<br>
+        기술적 반등 가능하나<br>
+        <span style="color:var(--warn);font-weight:700;">추세 역행 위험</span>
+      </div>
+    </div>
+    <div class="card" style="border:2px solid #FECACA;background:#FEF2F2;">
+      <div class="card-title" style="color:var(--up);">볼린저밴드 위치</div>
+      <div class="card-val" style="color:var(--up);">하단 이탈!</div>
+      <div class="card-sub">
+        BB 하단 (6/22): <strong>364,779</strong>원<br>
+        오늘 종가 362,000 → <span style="color:var(--up);font-weight:700;">하향 이탈</span><br>
+        6/22 기준 BB 위치: 22.7%<br>
+        <span style="color:var(--up);font-weight:700;">강한 하락 추세 신호</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 2. 거래대금 급증 타임라인 -->
+<section class="section">
+  <div class="sec-title">거래대금 급증 타임라인 (×2.0 이상 + 주요 전환점)</div>
+  <div class="tl-grid">
+    <div class="tl-card minor">
+      <div class="tl-date">2026.03.24</div>
+      <div class="tl-price">392,500원</div>
+      <div class="tl-meta">2,519억 · ×2.52</div>
+      <div class="tl-tags">
+        <span class="t-tag up">+10.25%</span>
+        <span class="t-tag mul">×2.52</span>
+      </div>
+      <div class="tl-desc">3/4 폭락(346,000) 후 첫 대형 양봉. 저점 매수세 유입 확인.</div>
+    </div>
+    <div class="tl-card minor">
+      <div class="tl-date">2026.03.30</div>
+      <div class="tl-price">410,000원</div>
+      <div class="tl-meta">3,039억 · ×2.03</div>
+      <div class="tl-tags">
+        <span class="t-tag up">+3.93%</span>
+        <span class="t-tag mul">×2.03</span>
+      </div>
+      <div class="tl-desc">410,000원 돌파. 반등 추세 확인. MA 정배열 형성 시작.</div>
+    </div>
+    <div class="tl-card major">
+      <div class="tl-date">2026.04.21 ★</div>
+      <div class="tl-price">478,000원</div>
+      <div class="tl-meta">6,361억 · ×4.34</div>
+      <div class="tl-tags">
+        <span class="t-tag up">+11.42%</span>
+        <span class="t-tag mul">×4.34 핵심</span>
+      </div>
+      <div class="tl-desc">1차 모멘텀 폭발. 6,361억 대거래. 배터리/전기차 테마 급등 촉발.</div>
+    </div>
+    <div class="tl-card major">
+      <div class="tl-date">2026.05.28 ★★</div>
+      <div class="tl-price">442,000원</div>
+      <div class="tl-meta">7,190억 · ×4.70</div>
+      <div class="tl-tags">
+        <span class="t-tag up">+15.25%</span>
+        <span class="t-tag mul">×4.70 75일 최대</span>
+      </div>
+      <div class="tl-desc">75일 최대 거래. 383,500→442,000원 단일봉 +15.25%. 2차 모멘텀 최대.</div>
+    </div>
+    <div class="tl-card minor">
+      <div class="tl-date">2026.05.29</div>
+      <div class="tl-price">458,000원</div>
+      <div class="tl-meta">5,841억 · ×2.20</div>
+      <div class="tl-tags">
+        <span class="t-tag up">+3.62%</span>
+        <span class="t-tag mul">×2.20</span>
+      </div>
+      <div class="tl-desc">5/28 급등 연속 상승. 458,000원 마감. 전고점 향해 전진 중.</div>
+    </div>
+    <div class="tl-card pivot">
+      <div class="tl-date">2026.06.02 (전고점)</div>
+      <div class="tl-price">442,500원</div>
+      <div class="tl-meta">6,974억 · ×1.77</div>
+      <div class="tl-tags">
+        <span class="t-tag dn">-2.75%</span>
+        <span class="t-tag warn">고가 497,500 반락</span>
+      </div>
+      <div class="tl-desc">장중 497,500원 전고점 도달 후 급락 음봉 마감. 대규모 매도 출현. 상승 추세 종료.</div>
+    </div>
+    <div class="tl-card minor">
+      <div class="tl-date">2026.06.19</div>
+      <div class="tl-price">404,500원</div>
+      <div class="tl-meta">3,056억 · ×2.24</div>
+      <div class="tl-tags">
+        <span class="t-tag up">+1.13%</span>
+        <span class="t-tag mul">×2.24</span>
+      </div>
+      <div class="tl-desc">하락 추세 중 거래 급증 반등 시도. 다음날(6/22) -4.7% 재하락. 반등 실패.</div>
+    </div>
+    <div class="tl-card today">
+      <div class="tl-date" style="color:var(--up);">2026.06.23 (오늘 · KIS)</div>
+      <div class="tl-price" style="color:var(--down);">362,000원</div>
+      <div class="tl-meta">1,815억 · ×1.12</div>
+      <div class="tl-tags">
+        <span class="t-tag dn">-6.10%</span>
+        <span class="t-tag warn">BB하단 이탈</span>
+      </div>
+      <div class="tl-desc">갭업(387,500) 출발 후 급락 마감. BB 하단(364,779) 하향 이탈 확정.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 3. BB하단 이탈 경보 + 가격 사이클 -->
+<section class="section">
+  <div class="sec-title">BB 하단 이탈 경보 · 전고점 이후 하락 사이클</div>
+  <div class="grid2">
+    <div class="alert-box">
+      <div class="alert-title">⚠ 볼린저밴드 하단 이탈</div>
+      <div class="alert-row">
+        <span class="alert-key">BB 하단 (6/22 기준)</span>
+        <span class="alert-val">364,779원</span>
+      </div>
+      <div class="alert-row">
+        <span class="alert-key">오늘 종가 (KIS)</span>
+        <span class="alert-val" style="color:var(--down);font-weight:700;">362,000원 ▼</span>
+      </div>
+      <div class="alert-row">
+        <span class="alert-key">이탈 폭</span>
+        <span class="alert-val" style="color:var(--up);font-weight:700;">-2,779원 (-0.76%)</span>
+      </div>
+      <div class="alert-row">
+        <span class="alert-key">오늘 저가</span>
+        <span class="alert-val" style="color:var(--down);font-weight:700;">360,000원 (-1.31% 이탈)</span>
+      </div>
+      <div class="alert-row">
+        <span class="alert-key">6월 초 전고점</span>
+        <span class="alert-val">497,500원 (6/2 장중)</span>
+      </div>
+      <div class="alert-row">
+        <span class="alert-key">전고점 대비 하락</span>
+        <span class="alert-val" style="color:var(--up);font-weight:700;">-27.2% (135,500원)</span>
+      </div>
+      <div class="alert-row">
+        <span class="alert-key">75일 저점 (3/4)</span>
+        <span class="alert-val">346,000원</span>
+      </div>
+      <div class="alert-row">
+        <span class="alert-key">75일 저점까지 남은 거리</span>
+        <span class="alert-val">-4.4% (16,000원)</span>
+      </div>
+      <div style="margin-top:12px;padding:10px 12px;background:rgba(185,28,28,.08);border-radius:8px;">
+        <div style="font-size:13px;font-weight:700;color:var(--up);margin-bottom:4px;">단기 판단</div>
+        <div style="font-size:13px;font-weight:500;color:var(--txt2);line-height:1.6;">BB 하단 이탈 + MACD 음수 + MA 역배열 삼중 신호. 360,000원 지지 확인이 핵심. 75일 저점 346,000원 재시험 가능성 존재.</div>
+      </div>
+    </div>
+    <div class="pattern-box">
+      <div class="pattern-title">전고점 이후 하락 사이클 분석</div>
+      <div class="p-row">
+        <div class="p-num">1</div>
+        <div class="p-content">
+          <div class="p-date">3/4 · 75일 저점 형성</div>
+          <div class="p-desc">346,000원 폭락(-11.58%, 3,005억). 저점 확인 후 3/24 +10.25% 반등 시작.</div>
+        </div>
+      </div>
+      <div class="p-row">
+        <div class="p-num">2</div>
+        <div class="p-content">
+          <div class="p-date">4/21 · 1차 급등 폭발</div>
+          <div class="p-desc">6,361억 ×4.34 대거래. 478,000원 달성. 배터리 테마 핵심 수혜.</div>
+        </div>
+      </div>
+      <div class="p-row">
+        <div class="p-num">3</div>
+        <div class="p-content">
+          <div class="p-date">5/20 · 1차 조정 저점</div>
+          <div class="p-desc">382,000원 (5월 저점). 과매도 구간 도달 후 5/28 2차 급등 촉발.</div>
+        </div>
+      </div>
+      <div class="p-row">
+        <div class="p-num">4</div>
+        <div class="p-content">
+          <div class="p-date">5/28~29 · 2차 최대 급등</div>
+          <div class="p-desc">7,190억 ×4.7 최대 거래. 383,500→458,000원 2일 연속. 전고점 접근.</div>
+        </div>
+      </div>
+      <div class="p-row">
+        <div class="p-num">5</div>
+        <div class="p-content">
+          <div class="p-date">6/2 · 전고점 반락 (추세 전환)</div>
+          <div class="p-desc">497,500원 장중 고점 후 6,974억 매도 폭발로 442,500원 음봉. 상승 추세 종료 신호.</div>
+        </div>
+      </div>
+      <div class="p-row">
+        <div class="p-num">6</div>
+        <div class="p-content">
+          <div class="p-date">6/23 (오늘) · BB하단 이탈</div>
+          <div class="p-desc">362,000원(-6.10%). BB하단 하향 이탈. 75일 저점 346,000원 방향 테스트 진행 중.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 4. 지지저항 구조 + 시나리오 -->
+<section class="section">
+  <div class="sec-title">지지·저항 구조 및 매매 시나리오</div>
+  <div class="grid2">
+    <!-- SVG 가격 구조도 -->
+    <div class="card" style="padding:16px;">
+      <div class="card-title" style="margin-bottom:10px;">가격 레벨 구조도 · 2026.06.23 기준</div>
+      <div class="svg-scroll">
+        <!-- y(p) = 18 + (515000 - p) / 185000 * 454 -->
+        <svg viewBox="0 0 680 510" style="width:100%;min-width:560px;display:block;">
+          <!-- 저항 영역 (현재가 상방) -->
+          <rect x="192" y="18" width="343" height="375" fill="rgba(185,28,28,.025)"/>
+          <!-- 지지 영역 (75일저점 상방) -->
+          <rect x="192" y="393" width="343" height="40" fill="rgba(12,107,66,.05)"/>
+
+          <!-- 가격 그리드선 (20,000원 단위) -->
+          <line x1="192" y1="55" x2="535" y2="55" stroke="#DDE8F5" stroke-width="1" stroke-dasharray="3,4"/>
+          <text x="187" y="59" text-anchor="end" font-size="11" fill="#617A9B" font-weight="500">500,000</text>
+          <line x1="192" y1="104" x2="535" y2="104" stroke="#DDE8F5" stroke-width="1" stroke-dasharray="3,4"/>
+          <text x="187" y="108" text-anchor="end" font-size="11" fill="#617A9B" font-weight="500">480,000</text>
+          <line x1="192" y1="153" x2="535" y2="153" stroke="#DDE8F5" stroke-width="1" stroke-dasharray="3,4"/>
+          <text x="187" y="157" text-anchor="end" font-size="11" fill="#617A9B" font-weight="500">460,000</text>
+          <line x1="192" y1="202" x2="535" y2="202" stroke="#DDE8F5" stroke-width="1" stroke-dasharray="3,4"/>
+          <text x="187" y="206" text-anchor="end" font-size="11" fill="#617A9B" font-weight="500">440,000</text>
+          <line x1="192" y1="251" x2="535" y2="251" stroke="#DDE8F5" stroke-width="1" stroke-dasharray="3,4"/>
+          <text x="187" y="255" text-anchor="end" font-size="11" fill="#617A9B" font-weight="500">420,000</text>
+          <line x1="192" y1="299" x2="535" y2="299" stroke="#DDE8F5" stroke-width="1" stroke-dasharray="3,4"/>
+          <text x="187" y="303" text-anchor="end" font-size="11" fill="#617A9B" font-weight="500">400,000</text>
+          <line x1="192" y1="350" x2="535" y2="350" stroke="#DDE8F5" stroke-width="1" stroke-dasharray="3,4"/>
+          <text x="187" y="354" text-anchor="end" font-size="11" fill="#617A9B" font-weight="500">380,000</text>
+          <line x1="192" y1="398" x2="535" y2="398" stroke="#DDE8F5" stroke-width="1" stroke-dasharray="3,4"/>
+          <text x="187" y="402" text-anchor="end" font-size="11" fill="#617A9B" font-weight="500">360,000</text>
+          <line x1="192" y1="448" x2="535" y2="448" stroke="#DDE8F5" stroke-width="1" stroke-dasharray="3,4"/>
+          <text x="187" y="452" text-anchor="end" font-size="11" fill="#617A9B" font-weight="500">340,000</text>
+
+          <!-- 전고점 497,500 y=61 금색 -->
+          <line x1="192" y1="61" x2="535" y2="61" stroke="#A86500" stroke-width="1.5" stroke-dasharray="6,3"/>
+          <text x="540" y="65" font-size="12" font-weight="700" fill="#A86500">전고점 497,500</text>
+
+          <!-- BB상단 455,921 y=163 빨강점선 -->
+          <line x1="192" y1="163" x2="535" y2="163" stroke="#B91C1C" stroke-width="1" stroke-dasharray="4,3"/>
+          <text x="540" y="167" font-size="12" font-weight="700" fill="#B91C1C">BB상단 455,921</text>
+
+          <!-- MA60 423,558 y=242 파랑 -->
+          <line x1="192" y1="242" x2="535" y2="242" stroke="#1558B0" stroke-width="1.5" stroke-dasharray="5,3"/>
+          <text x="9" y="244" font-size="12" font-weight="700" fill="#1558B0">MA60</text>
+          <text x="9" y="256" font-size="12" font-weight="600" fill="#1558B0">423,558</text>
+
+          <!-- MA20 410,350 y=275 파랑점선 -->
+          <line x1="192" y1="275" x2="535" y2="275" stroke="#1558B0" stroke-width="1" stroke-dasharray="4,3"/>
+          <text x="540" y="279" font-size="12" font-weight="700" fill="#1558B0">MA20 410,350</text>
+
+          <!-- MA10 396,900 y=299 / MA5 393,600 y=316 파랑얇은 -->
+          <line x1="192" y1="299" x2="535" y2="299" stroke="#3B82F6" stroke-width="1" stroke-dasharray="3,4"/>
+          <line x1="192" y1="316" x2="535" y2="316" stroke="#3B82F6" stroke-width="1" stroke-dasharray="2,4"/>
+          <text x="9" y="300" font-size="12" font-weight="700" fill="#3B82F6">MA10 396,900</text>
+          <text x="9" y="319" font-size="12" font-weight="700" fill="#3B82F6">MA5 393,600</text>
+
+          <!-- 전일종가 385,500 y=336 -->
+          <line x1="192" y1="336" x2="535" y2="336" stroke="#5E7D9E" stroke-width="1" stroke-dasharray="3,4"/>
+          <text x="540" y="340" font-size="12" font-weight="600" fill="#5E7D9E">전일종가 385,500</text>
+
+          <!-- BB하단 364,779 y=387 초록 -->
+          <line x1="192" y1="387" x2="535" y2="387" stroke="#0C6B42" stroke-width="1.5" stroke-dasharray="5,3"/>
+          <line x1="192" y1="387" x2="184" y2="372" stroke="#0C6B42" stroke-width="0.8"/>
+          <text x="9" y="370" font-size="12" font-weight="700" fill="#0C6B42">BB하단</text>
+          <text x="9" y="382" font-size="12" font-weight="600" fill="#0C6B42">364,779</text>
+
+          <!-- 6/11 스윙저점 367,000 y=381 초록 -->
+          <line x1="192" y1="381" x2="535" y2="381" stroke="#0C6B42" stroke-width="1" stroke-dasharray="3,4"/>
+          <text x="540" y="378" font-size="12" font-weight="600" fill="#0C6B42">6/11저점 367,000</text>
+
+          <!-- 현재가 362,000 y=393 네이비굵은 -->
+          <line x1="192" y1="393" x2="535" y2="393" stroke="#1A2535" stroke-width="2.5"/>
+          <text x="540" y="393" font-size="13" font-weight="800" fill="#1A2535">● 362,000</text>
+          <text x="540" y="406" font-size="12" font-weight="700" fill="#B91C1C">▼ -6.10% (6/23)</text>
+
+          <!-- 오늘 저가 360,000 y=398 빨강얇은 -->
+          <line x1="192" y1="398" x2="535" y2="398" stroke="#B91C1C" stroke-width="1" stroke-dasharray="2,3"/>
+          <text x="540" y="420" font-size="12" font-weight="600" fill="#B91C1C">오늘저가 360,000</text>
+
+          <!-- 75일저점 346,000 y=433 회색굵은 -->
+          <line x1="192" y1="433" x2="535" y2="433" stroke="#3D5068" stroke-width="1.5" stroke-dasharray="5,4"/>
+          <text x="9" y="430" font-size="12" font-weight="700" fill="#3D5068">75일저점</text>
+          <text x="9" y="442" font-size="12" font-weight="600" fill="#3D5068">346,000 (3/4)</text>
+
+          <!-- 차트 테두리 -->
+          <rect x="192" y="18" width="343" height="454" fill="none" stroke="#C8DCF0" stroke-width="1"/>
+
+          <!-- 범례 -->
+          <line x1="195" y1="489" x2="215" y2="489" stroke="#A86500" stroke-width="1.5" stroke-dasharray="6,3"/>
+          <text x="218" y="493" font-size="12" fill="#3D5068" font-weight="600">저항선</text>
+          <line x1="258" y1="489" x2="278" y2="489" stroke="#0C6B42" stroke-width="1.5" stroke-dasharray="5,3"/>
+          <text x="281" y="493" font-size="12" fill="#3D5068" font-weight="600">지지선</text>
+          <line x1="320" y1="489" x2="340" y2="489" stroke="#1A2535" stroke-width="2.5"/>
+          <text x="343" y="493" font-size="12" fill="#3D5068" font-weight="600">현재가</text>
+          <line x1="385" y1="489" x2="405" y2="489" stroke="#B91C1C" stroke-width="1" stroke-dasharray="2,3"/>
+          <text x="408" y="493" font-size="12" fill="#3D5068" font-weight="600">저가/BB이탈</text>
+          <line x1="475" y1="489" x2="495" y2="489" stroke="#3B82F6" stroke-width="1" stroke-dasharray="3,4"/>
+          <text x="498" y="493" font-size="12" fill="#3D5068" font-weight="600">MA</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- 시나리오 + 대응 -->
+    <div>
+      <div class="sc-wrap">
+        <div class="sc-bull">
+          <div class="sc-title">시나리오 A — 기술적 반등 (단기 가능)</div>
+          <table class="sc-tbl">
+            <tr><td>전 제</td><td>360,000원 지지 확인 + 스토캐스틱 과매도 반등</td></tr>
+            <tr><td>1차 목표</td><td>375,000~380,000원 (BB하단 근처 회복)</td></tr>
+            <tr><td>2차 목표</td><td>393,000~400,000원 (MA5 회복)</td></tr>
+            <tr><td>장기 목표</td><td>410,000원 (MA20 회복)</td></tr>
+            <tr><td>기 간</td><td>1~2주 (단기 기술적 반등)</td></tr>
+            <tr><td>수익/손절</td><td>목표 +4~10% / 손절 345,000원 이탈</td></tr>
+          </table>
+          <div class="sc-memo">BB하단 이탈 후 과매도 반등 가능. 단, MACD 음수·MA 역배열 상태에서 반등폭 제한. 거래대금 증가 없이는 신뢰도 낮음.</div>
+        </div>
+        <div class="sc-bear">
+          <div class="sc-title">시나리오 B — 추세 하락 지속 (주의)</div>
+          <table class="sc-tbl">
+            <tr><td>전 제</td><td>360,000원 지지 실패 + 매도세 지속</td></tr>
+            <tr><td>1차 지지</td><td>346,000원 (75일 저점 · 3/4)</td></tr>
+            <tr><td>2차 지지</td><td>330,000원 수준 (기술적 추정, 이전 지지 없음)</td></tr>
+            <tr><td>리스크</td><td>5/28 급등 전 수준(383,500) 완전 반납 → 추가 목표 부재</td></tr>
+            <tr><td>손절기준</td><td>보유 시 360,000원 종가 이탈 즉시</td></tr>
+          </table>
+          <div class="sc-memo">BB하단 이탈·MACD 음수·MA 역배열 삼중 하락 신호. 6/2 전고점(497,500)에서 오늘(362,000)까지 -27.2% 하락 중. 추세 반전 확인 전 신규 매수 위험 구간.</div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:14px;">
+        <div class="card-title" style="margin-bottom:10px;">단기 대응 포인트</div>
+        <table class="sig-tbl">
+          <thead><tr><th>조건</th><th>가격</th><th>판단</th></tr></thead>
+          <tbody>
+            <tr><td>360,000원 지지 확인</td><td>360,000~362,000</td><td><span class="s-neu">관망/탐색</span></td></tr>
+            <tr><td>BB하단 회복 (365,000+)</td><td>365,000원 이상</td><td><span class="s-up">단기 반등 신호</span></td></tr>
+            <tr><td>MA5 회복 (393,000+)</td><td>393,000원 이상</td><td><span class="s-up">추세 개선 조짐</span></td></tr>
+            <tr><td>360,000원 이탈 (종가)</td><td>360,000원 미만</td><td><span class="s-dn">손절 고려</span></td></tr>
+            <tr><td>346,000원 75일저점 접근</td><td>346,000~350,000</td><td><span class="s-warn">추가 하락 위험</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 5. 일별 시세 테이블 -->
+<section class="section">
+  <div class="sec-title">일별 시세 (76거래일 · 최신순 · ★=거래대금 급증)</div>
+  <div class="tbl-wrap">
+    <table class="dtbl">
+      <thead>
+        <tr>
+          <th style="text-align:left;">날짜</th>
+          <th>종가</th><th>등락%</th><th>시가</th><th>고가</th><th>저가</th>
+          <th>거래대금(억)</th><th>v배수</th><th>MA5</th><th>MA20</th><th>MA60</th>
+          <th>RSI</th><th>MACD히스토</th><th>BB위치%</th>
+        </tr>
+      </thead>
+      <tbody id="tBody"></tbody>
+    </table>
+  </div>
+</section>
+
+</main>
+<footer class="footer">
+  ※ 본 리포트는 기술적 분석 데이터 기반이며 투자 권유가 아닙니다. 투자 결정은 본인의 판단과 책임 하에 이루어져야 합니다.<br>
+  데이터: KRX API (2026/03/04~06/22, 75거래일) · KIS API (2026/06/23 당일) · 생성: 2026-06-23 16:44
+</footer>
+
+<script>
+const KIS={d:'20260623',o:387500,h:399500,l:360000,c:362000,chg:-6.10,amt:1815,vr:1.12,ma5:393600,ma20:null,ma60:null,rsi:null,hist:null,bbPos:'이탈',kis:true};
+const KRX=[{"d":"20260304","o":380000,"h":390000,"l":346000,"c":347500,"chg":-11.58,"amt":3005,"vr":null,"ma5":null,"ma20":null,"ma60":null,"rsi":0,"hist":0,"bbPos":"N/A"},{"d":"20260305","o":376500,"h":382000,"l":366000,"c":371500,"chg":6.91,"amt":2027,"vr":0.67,"ma5":null,"ma20":null,"ma60":null,"rsi":0,"hist":1532,"bbPos":"N/A"},{"d":"20260306","o":372000,"h":382500,"l":365000,"c":377500,"chg":1.62,"amt":1309,"vr":0.52,"ma5":null,"ma20":null,"ma60":null,"rsi":0,"hist":2791,"bbPos":"N/A"},{"d":"20260309","o":360000,"h":364500,"l":350500,"c":359500,"chg":-4.77,"amt":1474,"vr":0.7,"ma5":null,"ma20":null,"ma60":null,"rsi":0,"hist":2275,"bbPos":"N/A"},{"d":"20260310","o":375500,"h":376500,"l":360000,"c":367000,"chg":2.09,"amt":1094,"vr":0.56,"ma5":364600,"ma20":null,"ma60":null,"rsi":0,"hist":2296,"bbPos":"N/A"},{"d":"20260311","o":375000,"h":380750,"l":367000,"c":369500,"chg":0.68,"amt":987,"vr":0.55,"ma5":369000,"ma20":null,"ma60":null,"rsi":0,"hist":2328,"bbPos":"N/A"},{"d":"20260312","o":369500,"h":384000,"l":367000,"c":384000,"chg":3.92,"amt":1304,"vr":0.95,"ma5":371500,"ma20":null,"ma60":null,"rsi":0,"hist":3126,"bbPos":"N/A"},{"d":"20260313","o":370000,"h":372500,"l":363500,"c":369000,"chg":-3.91,"amt":1363,"vr":1.11,"ma5":369800,"ma20":null,"ma60":null,"rsi":0,"hist":2472,"bbPos":"N/A"},{"d":"20260316","o":368500,"h":373000,"l":363500,"c":366000,"chg":-0.81,"amt":1029,"vr":0.83,"ma5":371100,"ma20":null,"ma60":null,"rsi":0,"hist":1703,"bbPos":"N/A"},{"d":"20260317","o":371000,"h":380500,"l":370000,"c":380500,"chg":3.96,"amt":1298,"vr":1.12,"ma5":373800,"ma20":null,"ma60":null,"rsi":0,"hist":2015,"bbPos":"N/A"},{"d":"20260318","o":390500,"h":390500,"l":381500,"c":383500,"chg":0.79,"amt":1074,"vr":0.9,"ma5":376600,"ma20":null,"ma60":null,"rsi":0,"hist":2249,"bbPos":"N/A"},{"d":"20260319","o":374500,"h":378500,"l":371000,"c":371000,"chg":-3.26,"amt":798,"vr":0.66,"ma5":374000,"ma20":null,"ma60":null,"rsi":0,"hist":1429,"bbPos":"N/A"},{"d":"20260320","o":377000,"h":378000,"l":372000,"c":375500,"chg":1.21,"amt":752,"vr":0.68,"ma5":375300,"ma20":null,"ma60":null,"rsi":0,"hist":1071,"bbPos":"N/A"},{"d":"20260323","o":362000,"h":365000,"l":355000,"c":356000,"chg":-5.19,"amt":1084,"vr":1.09,"ma5":373300,"ma20":null,"ma60":null,"rsi":0,"hist":-511,"bbPos":"N/A"},{"d":"20260324","o":371500,"h":392500,"l":368000,"c":392500,"chg":10.25,"amt":2519,"vr":2.52,"ma5":375700,"ma20":null,"ma60":null,"rsi":62.4,"hist":797,"bbPos":"N/A"},{"d":"20260325","o":392000,"h":400000,"l":386500,"c":394000,"chg":0.38,"amt":1386,"vr":1.11,"ma5":377800,"ma20":null,"ma60":null,"rsi":62.8,"hist":1613,"bbPos":"N/A"},{"d":"20260326","o":392500,"h":393000,"l":380000,"c":384500,"chg":-2.41,"amt":1060,"vr":0.81,"ma5":380500,"ma20":null,"ma60":null,"rsi":59.2,"hist":1371,"bbPos":"N/A"},{"d":"20260327","o":374000,"h":396000,"l":366000,"c":394500,"chg":2.6,"amt":1432,"vr":1.05,"ma5":384300,"ma20":null,"ma60":null,"rsi":61.7,"hist":1721,"bbPos":"N/A"},{"d":"20260330","o":379500,"h":414000,"l":377000,"c":410000,"chg":3.93,"amt":3039,"vr":2.03,"ma5":395100,"ma20":null,"ma60":null,"rsi":65.2,"hist":2770,"bbPos":"N/A"},{"d":"20260331","o":406000,"h":410000,"l":390500,"c":394500,"chg":-3.78,"amt":2069,"vr":1.1,"ma5":395500,"ma20":377400,"ma60":null,"rsi":59.3,"hist":2218,"bbPos":78.8},{"d":"20260401","o":409500,"h":410000,"l":393500,"c":407000,"chg":3.17,"amt":1384,"vr":0.77,"ma5":398100,"ma20":380375,"ma60":null,"rsi":62.3,"hist":2473,"bbPos":95.8},{"d":"20260402","o":407500,"h":421500,"l":399500,"c":404500,"chg":-0.61,"amt":2177,"vr":1.21,"ma5":402100,"ma20":382025,"ma60":null,"rsi":61.3,"hist":2258,"bbPos":86.8},{"d":"20260403","o":410000,"h":414500,"l":396500,"c":398500,"chg":-1.48,"amt":1021,"vr":0.51,"ma5":402900,"ma20":383075,"ma60":null,"rsi":59,"hist":1530,"bbPos":74.6},{"d":"20260406","o":399500,"h":418000,"l":399500,"c":412500,"chg":3.51,"amt":1621,"vr":0.84,"ma5":403400,"ma20":385725,"ma60":null,"rsi":62.6,"hist":1793,"bbPos":92.1},{"d":"20260407","o":408000,"h":423000,"l":406000,"c":408500,"chg":-0.97,"amt":1287,"vr":0.78,"ma5":406200,"ma20":387800,"ma60":null,"rsi":60.9,"hist":1509,"bbPos":82.3},{"d":"20260408","o":419500,"h":422000,"l":400500,"c":406000,"chg":-0.61,"amt":2117,"vr":1.41,"ma5":406000,"ma20":389625,"ma60":null,"rsi":59.9,"hist":991,"bbPos":75.7},{"d":"20260409","o":408000,"h":422000,"l":403000,"c":421000,"chg":3.69,"amt":3009,"vr":1.83,"ma5":409300,"ma20":391475,"ma60":null,"rsi":63.9,"hist":1467,"bbPos":92.7},{"d":"20260410","o":421000,"h":421000,"l":410500,"c":412000,"chg":-2.14,"amt":1134,"vr":0.63,"ma5":412000,"ma20":393625,"ma60":null,"rsi":60,"hist":1006,"bbPos":77},{"d":"20260413","o":409500,"h":414500,"l":399000,"c":401500,"chg":-2.55,"amt":881,"vr":0.48,"ma5":409800,"ma20":395400,"ma60":null,"rsi":55.7,"hist":-115,"bbPos":59.6},{"d":"20260414","o":406500,"h":406500,"l":399500,"c":400000,"chg":-0.37,"amt":1082,"vr":0.64,"ma5":408100,"ma20":396375,"ma60":null,"rsi":55.1,"hist":-1018,"bbPos":55.8},{"d":"20260415","o":406000,"h":412000,"l":403500,"c":408000,"chg":2,"amt":1108,"vr":0.67,"ma5":408500,"ma20":397600,"ma60":null,"rsi":57.7,"hist":-1127,"bbPos":66.9},{"d":"20260416","o":412000,"h":416500,"l":408500,"c":416000,"chg":1.96,"amt":1312,"vr":0.91,"ma5":407500,"ma20":399850,"ma60":null,"rsi":60.3,"hist":-731,"bbPos":77.6},{"d":"20260417","o":415500,"h":422000,"l":412000,"c":418000,"chg":0.48,"amt":1407,"vr":1.27,"ma5":408700,"ma20":401975,"ma60":null,"rsi":60.9,"hist":-420,"bbPos":78.6},{"d":"20260420","o":419500,"h":435500,"l":416500,"c":429000,"chg":2.63,"amt":2423,"vr":2.09,"ma5":414200,"ma20":405625,"ma60":null,"rsi":64.2,"hist":397,"bbPos":104.9},{"d":"20260421","o":441500,"h":478000,"l":434000,"c":478000,"chg":11.42,"amt":6361,"vr":4.34,"ma5":429800,"ma20":409900,"ma60":null,"rsi":74.6,"hist":3912,"bbPos":141.2},{"d":"20260422","o":491500,"h":493000,"l":468000,"c":484500,"chg":1.36,"amt":4241,"vr":1.68,"ma5":445100,"ma20":414425,"ma60":null,"rsi":75.6,"hist":6212,"bbPos":121.9},{"d":"20260423","o":481500,"h":484000,"l":460000,"c":466500,"chg":-3.72,"amt":2480,"vr":0.79,"ma5":455200,"ma20":418525,"ma60":null,"rsi":67.6,"hist":6054,"bbPos":96.4},{"d":"20260424","o":473000,"h":486000,"l":464000,"c":481000,"chg":3.11,"amt":1917,"vr":0.57,"ma5":467800,"ma20":422850,"ma60":null,"rsi":70.3,"hist":6422,"bbPos":100.9},{"d":"20260427","o":478500,"h":481000,"l":461000,"c":464000,"chg":-3.53,"amt":2017,"vr":0.58,"ma5":474800,"ma20":425550,"ma60":null,"rsi":63.6,"hist":5077,"bbPos":82.3},{"d":"20260428","o":471500,"h":478000,"l":465000,"c":472000,"chg":1.72,"amt":2030,"vr":0.6,"ma5":473600,"ma20":429425,"ma60":null,"rsi":65.3,"hist":4312,"bbPos":84.9},{"d":"20260429","o":472000,"h":476000,"l":464000,"c":473000,"chg":0.21,"amt":1443,"vr":0.57,"ma5":471300,"ma20":432725,"ma60":null,"rsi":65.5,"hist":3494,"bbPos":82},{"d":"20260430","o":471000,"h":471500,"l":457000,"c":460500,"chg":-2.64,"amt":2245,"vr":1.14,"ma5":470100,"ma20":435525,"ma60":null,"rsi":60.4,"hist":1816,"bbPos":70},{"d":"20260504","o":469000,"h":478000,"l":461000,"c":472000,"chg":2.5,"amt":2000,"vr":1.04,"ma5":468300,"ma20":439200,"ma60":null,"rsi":63.2,"hist":1215,"bbPos":76.4},{"d":"20260506","o":476000,"h":486500,"l":466000,"c":482000,"chg":2.12,"amt":2822,"vr":1.45,"ma5":471900,"ma20":442675,"ma60":null,"rsi":65.5,"hist":1222,"bbPos":81},{"d":"20260507","o":482000,"h":483000,"l":464000,"c":483000,"chg":0.21,"amt":2202,"vr":1.04,"ma5":474100,"ma20":446400,"ma60":null,"rsi":65.8,"hist":1032,"bbPos":78.7},{"d":"20260508","o":479500,"h":489500,"l":471500,"c":476500,"chg":-1.35,"amt":1693,"vr":0.79,"ma5":474800,"ma20":449925,"ma60":null,"rsi":62.8,"hist":248,"bbPos":71.4},{"d":"20260511","o":478000,"h":478500,"l":463000,"c":468000,"chg":-1.78,"amt":1912,"vr":0.87,"ma5":476300,"ma20":452275,"ma60":null,"rsi":59.1,"hist":-995,"bbPos":62.8},{"d":"20260512","o":470000,"h":480000,"l":430500,"c":443000,"chg":-5.34,"amt":2987,"vr":1.41,"ma5":470500,"ma20":453825,"ma60":null,"rsi":49.8,"hist":-3512,"bbPos":40.8},{"d":"20260513","o":443500,"h":445000,"l":425000,"c":430000,"chg":-2.93,"amt":1967,"vr":0.85,"ma5":460100,"ma20":455250,"ma60":null,"rsi":45.7,"hist":-5922,"bbPos":26.9},{"d":"20260514","o":447000,"h":447000,"l":432000,"c":442000,"chg":2.79,"amt":1614,"vr":0.75,"ma5":451900,"ma20":457350,"ma60":null,"rsi":49.8,"hist":-6529,"bbPos":34.3},{"d":"20260515","o":450000,"h":470000,"l":410500,"c":417000,"chg":-5.66,"amt":3455,"vr":1.7,"ma5":440000,"ma20":457800,"ma60":null,"rsi":42.6,"hist":-8321,"bbPos":6.8},{"d":"20260518","o":414500,"h":416500,"l":391500,"c":408000,"chg":-2.16,"amt":1502,"vr":0.63,"ma5":428000,"ma20":457400,"ma60":null,"rsi":40.4,"hist":-9721,"bbPos":-0.7},{"d":"20260519","o":411000,"h":416000,"l":389500,"c":400000,"chg":-1.96,"amt":1501,"vr":0.65,"ma5":419400,"ma20":456500,"ma60":null,"rsi":38.4,"hist":-10716,"bbPos":-4.1},{"d":"20260520","o":404000,"h":406000,"l":382000,"c":384500,"chg":-3.88,"amt":1597,"vr":0.8,"ma5":410300,"ma20":454275,"ma60":null,"rsi":34.9,"hist":-11860,"bbPos":-8.2},{"d":"20260521","o":397500,"h":401000,"l":391000,"c":401000,"chg":4.29,"amt":1197,"vr":0.62,"ma5":402100,"ma20":450425,"ma60":null,"rsi":41.1,"hist":-10968,"bbPos":10.8},{"d":"20260522","o":411500,"h":416000,"l":394500,"c":398500,"chg":-0.62,"amt":1757,"vr":0.95,"ma5":398400,"ma20":446125,"ma60":null,"rsi":40.5,"hist":-10034,"bbPos":13.3},{"d":"20260526","o":408000,"h":411000,"l":397000,"c":399500,"chg":0.25,"amt":1290,"vr":0.85,"ma5":396700,"ma20":442775,"ma60":null,"rsi":40.9,"hist":-8876,"bbPos":17.8},{"d":"20260527","o":400500,"h":404000,"l":383000,"c":383500,"chg":-4.01,"amt":1811,"vr":1.23,"ma5":393400,"ma20":437900,"ma60":null,"rsi":36.7,"hist":-8703,"bbPos":10.9},{"d":"20260528","o":429500,"h":447000,"l":413000,"c":442000,"chg":15.25,"amt":7190,"vr":4.7,"ma5":404900,"ma20":436800,"ma60":null,"rsi":54.7,"hist":-4383,"bbPos":53.8},{"d":"20260529","o":444500,"h":465000,"l":432000,"c":458000,"chg":3.62,"amt":5841,"vr":2.2,"ma5":416300,"ma20":436100,"ma60":414308,"rsi":58.2,"hist":-392,"bbPos":66.2},{"d":"20260601","o":469500,"h":476000,"l":446000,"c":455000,"chg":-0.66,"amt":3575,"vr":1,"ma5":427600,"ma20":435200,"ma60":416100,"rsi":57.3,"hist":1972,"bbPos":65},{"d":"20260602","o":458500,"h":497500,"l":438000,"c":442500,"chg":-2.75,"amt":6974,"vr":1.77,"ma5":436200,"ma20":434300,"ma60":417283,"rsi":53.6,"hist":2581,"bbPos":56.3},{"d":"20260604","o":448000,"h":463000,"l":413500,"c":422000,"chg":-4.63,"amt":3014,"vr":0.59,"ma5":443900,"ma20":431800,"ma60":418025,"rsi":48.1,"hist":1543,"bbPos":42.2},{"d":"20260605","o":422500,"h":428500,"l":405500,"c":414000,"chg":-1.9,"amt":1840,"vr":0.35,"ma5":438300,"ma20":428400,"ma60":418933,"rsi":46.2,"hist":320,"bbPos":37.7},{"d":"20260608","o":388500,"h":404000,"l":383000,"c":388500,"chg":-6.16,"amt":1652,"vr":0.39,"ma5":424400,"ma20":423675,"ma60":419292,"rsi":40.4,"hist":-2072,"bbPos":18.3},{"d":"20260609","o":393500,"h":401500,"l":385500,"c":396500,"chg":2.06,"amt":1659,"vr":0.49,"ma5":412700,"ma20":419675,"ma60":419742,"rsi":42.8,"hist":-2929,"bbPos":27.3},{"d":"20260610","o":393000,"h":407000,"l":375000,"c":385500,"chg":-2.77,"amt":1367,"vr":0.45,"ma5":401300,"ma20":415550,"ma60":419767,"rsi":40.4,"hist":-3984,"bbPos":18.7},{"d":"20260611","o":377000,"h":392000,"l":367000,"c":384500,"chg":-0.26,"amt":1717,"vr":0.9,"ma5":393800,"ma20":412625,"ma60":420025,"rsi":40.2,"hist":-4461,"bbPos":20.8},{"d":"20260612","o":399500,"h":414000,"l":392000,"c":400000,"chg":4.03,"amt":1849,"vr":1.12,"ma5":391000,"ma20":411125,"ma60":420592,"rsi":45.2,"hist":-3488,"bbPos":38.3},{"d":"20260615","o":412000,"h":425000,"l":407000,"c":420500,"chg":5.13,"amt":1302,"vr":0.79,"ma5":397400,"ma20":410050,"ma60":421258,"rsi":51,"hist":-1329,"bbPos":61.4},{"d":"20260616","o":423000,"h":423500,"l":406500,"c":410500,"chg":-2.38,"amt":1350,"vr":0.85,"ma5":400200,"ma20":409725,"ma60":421708,"rsi":48.3,"hist":-484,"bbPos":50.8},{"d":"20260617","o":414000,"h":421500,"l":406000,"c":416000,"chg":1.34,"amt":930,"vr":0.61,"ma5":406300,"ma20":410125,"ma60":422458,"rsi":49.9,"hist":483,"bbPos":56.4},{"d":"20260618","o":411500,"h":415000,"l":398000,"c":400000,"chg":-3.85,"amt":1377,"vr":0.96,"ma5":409400,"ma20":410125,"ma60":422867,"rsi":45.6,"hist":103,"bbPos":38.9},{"d":"20260619","o":402000,"h":422000,"l":391000,"c":404500,"chg":1.13,"amt":3056,"vr":2.24,"ma5":410300,"ma20":411125,"ma60":423675,"rsi":47,"hist":207,"bbPos":42.5},{"d":"20260622","o":407500,"h":407500,"l":385000,"c":385500,"chg":-4.7,"amt":1406,"vr":0.88,"ma5":403300,"ma20":410350,"ma60":423558,"rsi":42.1,"hist":-892,"bbPos":22.7}];
+
+const ALL=[KIS,...KRX].sort((a,b)=>b.d.localeCompare(a.d));
+
+function N(v,d=0){if(v===null||v===undefined)return null;return Number(v).toLocaleString('ko-KR',{minimumFractionDigits:d,maximumFractionDigits:d});}
+function dash(){return '<span class="t-muted">—</span>';}
+function fC(v){if(v===null||v===0&&!v)return dash();const n=Number(v);const cls=n>0?'t-up':'t-dn';const s=n>0?'▲':'▼';return`<span class="${cls}">${s}${Math.abs(n).toFixed(2)}%</span>`;}
+function fV(v){if(!v)return dash();const n=Number(v);const s=n>=2.0?'<span class="tb tb-spk">★</span>':'';return`${s}×${n.toFixed(2)}`;}
+function fBB(v){if(v===null||v===undefined||v==='N/A')return dash();if(v==='이탈')return'<span style="color:var(--up);font-weight:800;">이탈!</span>';const n=Number(v);let st='';if(n<10)st='color:var(--down);font-weight:700';else if(n>90)st='color:var(--up);font-weight:700';else if(n<25)st='color:var(--down)';return`<span style="${st}">${n.toFixed(1)}%</span>`;}
+function fR(v){if(!v||v===0)return dash();const n=Number(v);let st='';if(n<30)st='color:var(--down);font-weight:700';else if(n>70)st='color:var(--up);font-weight:700';else if(n<42)st='color:var(--down)';return`<span style="${st}">${n.toFixed(1)}</span>`;}
+function fH(v){if(v===null||v===undefined)return dash();const n=Number(v);if(n===0)return dash();const cls=n>0?'t-up':'t-dn';return`<span class="${cls}">${Number(n).toLocaleString('ko-KR',{maximumFractionDigits:0})}</span>`;}
+function fMA(v){if(!v)return dash();return Number(Math.round(v)).toLocaleString('ko-KR');}
+
+const tb=document.getElementById('tBody');
+ALL.forEach(r=>{
+  const tr=document.createElement('tr');
+  let rc='';
+  if(r.kis)rc='row-today';
+  else if(r.vr&&r.vr>=2.0)rc='row-spike';
+  if(rc)tr.className=rc;
+  const ds=r.d.replace(/(\d{4})(\d{2})(\d{2})/,'$1.$2.$3');
+  const badge=r.kis?'<span class="tb tb-kis">KIS</span>':(r.vr&&r.vr>=2.0?'<span class="tb tb-spk">급증</span>':'');
+  const c=r.c,o=r.o,h=r.h,l=r.l;
+  const cCls=r.chg>0?'t-up':r.chg<0?'t-dn':'';
+  tr.innerHTML=`
+    <td>${ds} ${badge}</td>
+    <td class="${cCls}">${N(c)}</td>
+    <td>${fC(r.chg)}</td>
+    <td>${N(o)}</td>
+    <td class="t-up">${N(h)}</td>
+    <td class="t-dn">${N(l)}</td>
+    <td>${N(r.amt)}</td>
+    <td>${fV(r.vr)}</td>
+    <td>${fMA(r.ma5)}</td>
+    <td>${fMA(r.ma20)}</td>
+    <td>${fMA(r.ma60)}</td>
+    <td>${fR(r.rsi)}</td>
+    <td>${fH(r.hist)}</td>
+    <td>${fBB(r.bbPos)}</td>
+  `;
+  tb.appendChild(tr);
+});
+</script>
+</body>
+</html>

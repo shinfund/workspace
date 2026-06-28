@@ -7,8 +7,10 @@ scripts/kis_token.json
 # 의존성
 node_modules/
 
-# 개인 데이터
-data/
+# 원시 데이터 (바이너리·대용량 제외, HTML 리포트는 추적)
+data/**/*.xlsx
+data/**/*.hwp
+data/**/*.hwpx
 
 # 로그·임시 파일
 scripts/report_*.txt

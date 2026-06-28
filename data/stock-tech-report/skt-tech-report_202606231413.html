@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SK텔레콤 기술적 분석 리포트</title>
+<style>
+:root{--bg:#F4F8FD;--card:#FFFFFF;--card2:#EEF4FB;--border:#D5E5F5;--border2:#E8F0F9;--txt:#1A2535;--txt2:#354E6B;--txt3:#3D5775;--up:#B91C1C;--up-bg:#FEF2F2;--down:#1558B0;--down-bg:#EFF6FF;--accent:#1A56A8;--accent-bg:#E8F0FC;--gold:#955C00;--gold-bg:#FEF3E2;--warn:#925400;--warn-bg:#FEF0E2;--primary:#0C447C;--primary2:#1860A5;--shadow:0 2px 12px rgba(26,86,168,.07);}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--txt);font-family:'Noto Sans KR',-apple-system,sans-serif;font-size:15px;line-height:1.5;}
+/* ── HEADER ── */
+.header{background:linear-gradient(135deg,#0C447C,#1860A5);padding:14px 24px 12px;position:sticky;top:0;z-index:50;box-shadow:0 2px 12px rgba(12,68,124,.2);-webkit-transform:translateZ(0);transform:translateZ(0);}
+.h-top{display:flex;align-items:center;gap:16px;}
+.h-stock-info{display:flex;flex-direction:column;gap:4px;flex-shrink:0;min-width:180px;}
+.h-name-row{display:flex;align-items:baseline;gap:8px;}
+.h-name{color:#fff;font-weight:800;font-size:20px;}
+.h-code{color:rgba(255,255,255,.82);font-weight:600;font-size:13px;}
+.h-date{font-size:12px;font-weight:500;color:rgba(255,255,255,.75);margin-top:2px;white-space:nowrap;}
+.h-price-block{display:flex;align-items:center;gap:12px;flex:1;justify-content:center;}
+.h-price{font-size:30px;font-weight:800;letter-spacing:-.5px;white-space:nowrap;}
+.h-chg-group{display:flex;align-items:baseline;gap:5px;white-space:nowrap;flex-shrink:0;}
+.h-chg-arrow,.h-chg-amt,.h-chg-rate{font-size:15px;font-weight:700;}
+.h-trade{font-size:13px;font-weight:600;color:rgba(255,255,255,.88);padding-left:8px;border-left:1px solid rgba(255,255,255,.25);white-space:nowrap;}
+.h-badges-block{display:flex;flex-wrap:wrap;gap:5px;justify-content:flex-end;flex-shrink:0;max-width:400px;}
+.badge{display:inline-flex;align-items:center;padding:2px 7px;border-radius:20px;font-size:12px;font-weight:700;}
+.bg-red{background:rgba(239,68,68,.2);color:#FCA5A5;border:1px solid rgba(252,165,165,.4);}
+.bg-blue{background:rgba(147,197,253,.18);color:#93C5FD;border:1px solid rgba(147,197,253,.45);}
+.bg-amber{background:rgba(253,186,116,.18);color:#FCD34D;border:1px solid rgba(253,186,116,.45);}
+.bg-green{background:rgba(16,185,129,.2);color:#6EE7B7;border:1px solid rgba(110,231,183,.4);}
+.h-bottom{border-top:1px solid rgba(255,255,255,.15);margin-top:11px;padding-top:9px;display:flex;flex-wrap:wrap;align-items:center;row-gap:4px;}
+.h-item{font-size:12px;font-weight:500;color:rgba(255,255,255,.85);padding:0 14px;border-right:1px solid rgba(255,255,255,.2);white-space:nowrap;line-height:1.7;}
+.h-item:first-child{padding-left:0;}
+.h-item:last-child{border-right:none;}
+.h-item strong{color:#fff;font-weight:700;}
+.hi-up{color:#F87171;font-weight:700;}
+.hi-dn{color:#4ADE80;font-weight:700;}
+.hi-gold{color:#FCD34D;font-weight:700;}
+/* ── MAIN ── */
+.main{max-width:1200px;margin:0 auto;padding:20px 16px 40px;}
+.sec-title{font-size:16px;font-weight:800;color:var(--txt);margin-bottom:14px;padding-left:10px;border-left:4px solid var(--primary2);}
+.section{margin-bottom:28px;}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+.grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 20px;box-shadow:var(--shadow);}
+.card-title{font-size:13px;font-weight:700;color:var(--txt2);margin-bottom:8px;}
+.card-val{font-size:22px;font-weight:800;color:var(--txt);}
+.card-sub{font-size:12px;font-weight:500;color:var(--txt3);margin-top:4px;}
+.c-up{color:var(--up);}
+.c-down{color:var(--down);}
+.c-warn{color:var(--warn);}
+.c-accent{color:var(--accent);}
+.kv{display:flex;justify-content:space-between;font-size:13px;margin:5px 0;}
+.kv-lbl{color:var(--txt3);font-weight:600;}
+.kv-val{font-weight:700;color:var(--txt);}
+.pnl-card{background:var(--down-bg);border:1px solid #BFDBFE;border-radius:12px;padding:18px 20px;box-shadow:var(--shadow);}
+/* ── TABLE ── */
+.tbl-wrap{overflow-x:auto;border-radius:12px;box-shadow:var(--shadow);-webkit-transform:translateZ(0);transform:translateZ(0);}
+table{width:100%;border-collapse:collapse;font-size:13px;background:var(--card);}
+thead th{background:var(--primary);color:#fff;padding:10px 12px;text-align:center;font-weight:700;white-space:nowrap;}
+tbody tr:nth-child(even){background:var(--card2);}
+tbody tr:hover{background:#E0EEFA;}
+td{padding:8px 12px;text-align:center;color:var(--txt2);white-space:nowrap;}
+td:first-child{font-weight:700;color:var(--txt);}
+.td-up{color:var(--up);font-weight:700;}
+.td-dn{color:var(--down);font-weight:700;}
+.tr-today{background:#FFF9E6!important;border-left:4px solid #F59E0B;}
+.tr-peak{background:#FDECEA!important;}
+/* ── TIMELINE ── */
+.tl-wrap{display:flex;flex-direction:column;gap:0;}
+.tl-item{display:flex;gap:0;}
+.tl-dot-col{display:flex;flex-direction:column;align-items:center;width:36px;flex-shrink:0;}
+.tl-dot{width:12px;height:12px;border-radius:50%;margin-top:4px;flex-shrink:0;}
+.tl-line{width:2px;flex:1;min-height:20px;background:var(--border);}
+.tl-body{padding:0 0 20px 12px;flex:1;}
+.tl-title{font-size:14px;font-weight:700;color:var(--txt);}
+.tl-desc{font-size:13px;font-weight:500;color:var(--txt2);margin-top:2px;}
+.tl-meta{font-size:13px;font-weight:500;color:var(--txt3);margin-top:4px;}
+.dot-red{background:#C0392B;}
+.dot-blue{background:var(--accent);}
+.dot-gold{background:#B45309;}
+.dot-gray{background:#94A3B8;}
+.dot-warn{background:var(--warn);}
+/* ── SCENARIO ── */
+.sc-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 20px;box-shadow:var(--shadow);}
+.sc-bull{background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:16px;}
+.sc-bear{background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:16px;}
+.sc-title{font-size:13px;font-weight:800;margin-bottom:10px;}
+.sc-key{color:var(--txt3);font-weight:600;font-size:13px;}
+.sc-row{display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid rgba(0,0,0,.06);}
+.sc-row:last-child{border-bottom:none;}
+.scenario-wrap{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+/* ── SIGNAL TABLE ── */
+.signal-table{width:100%;border-collapse:collapse;}
+.signal-table th{font-size:13px;font-weight:700;color:var(--txt2);padding:8px 12px;text-align:left;background:var(--card2);border-bottom:2px solid var(--border);}
+.signal-table td{font-size:13px;padding:8px 12px;border-bottom:1px solid var(--border2);}
+.signal-table tr:last-child td{border-bottom:none;}
+.sig-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:700;}
+.sig-up{background:var(--up-bg);color:var(--up);}
+.sig-dn{background:var(--down-bg);color:var(--down);}
+.sig-neutral{background:var(--accent-bg);color:var(--accent);}
+/* ── PROGRESS BAR ── */
+.progress-bg{background:#E2ECF7;border-radius:8px;height:12px;overflow:hidden;margin:8px 0 4px;}
+.progress-fg{height:100%;border-radius:8px;}
+/* ── SVG 스크롤 래퍼 ── */
+.svg-scroll{overflow-x:auto;-webkit-transform:translateZ(0);transform:translateZ(0);}
+/* ── RESPONSIVE ── */
+@media(max-width:1023px){
+  .grid4{grid-template-columns:repeat(2,1fr);}
+  .grid3{grid-template-columns:repeat(2,1fr);}
+  .h-badges-block{max-width:240px;}
+}
+/* 중간 창 크기 (PC 반쪽 ~900px): 가격 폰트 축소로 3열 유지 */
+@media(max-width:900px){
+  .h-price{font-size:24px;}
+  .h-chg-arrow,.h-chg-amt,.h-chg-rate{font-size:13px;}
+  .h-trade{font-size:12px;}
+  .h-badges-block{max-width:180px;}
+}
+@media(max-width:767px){
+  .h-top{flex-wrap:wrap;}
+  .h-price-block{justify-content:flex-start;flex:none;width:100%;}
+  .h-badges-block{justify-content:flex-start;max-width:100%;}
+}
+@media(max-width:639px){
+  .grid4,.grid3,.grid2{grid-template-columns:1fr;}
+  body{font-size:14px;}
+  .header{padding:10px 14px 9px;}
+  .h-name{font-size:17px;}
+  .h-price{font-size:22px;}
+  .h-item{padding:0 8px;line-height:1.6;}
+  .h-bottom{margin-top:8px;padding-top:7px;row-gap:3px;}
+  .main{padding:14px 12px 32px;}
+  .section{margin-bottom:20px;}
+  .card{padding:14px 16px;}
+  .scenario-wrap{grid-template-columns:1fr;}
+  .sc-bull,.sc-bear{padding:12px;}
+  .sec-title{font-size:15px;}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="h-top">
+    <div class="h-stock-info">
+      <div class="h-name-row">
+        <span class="h-name">SK텔레콤</span>
+        <span class="h-code">017670 · KOSPI</span>
+      </div>
+      <div class="h-date">KRX 기준: 2026-06-19 &nbsp;|&nbsp; KIS 실시간: 2026-06-22 장중</div>
+    </div>
+    <div class="h-price-block">
+      <span class="h-price" style="color:#4ADE80;">93,200원</span>
+      <div class="h-chg-group" style="color:#4ADE80;">
+        <span class="h-chg-arrow">▼</span>
+        <span class="h-chg-amt">1,700원</span>
+        <span class="h-chg-rate">(-1.79%)</span>
+      </div>
+      <span class="h-trade">거래대금 737.8억</span>
+    </div>
+    <div class="h-badges-block">
+      <span class="badge bg-red">MA 역배열</span>
+      <span class="badge bg-red">MACD -1,769</span>
+      <span class="badge bg-amber">RSI 42.8</span>
+      <span class="badge bg-blue">Stoch 6.7↓</span>
+      <span class="badge bg-amber">BB 하단근접</span>
+    </div>
+  </div>
+  <div class="h-bottom">
+    <div class="h-item">전일종가 <strong>94,900</strong></div>
+    <div class="h-item">시가 <strong>95,100</strong> · 고가 <span class="hi-up">95,200</span> · 저가 <span class="hi-dn">92,500</span></div>
+    <div class="h-item">거래량 <strong>79.1만주</strong></div>
+    <div class="h-item">52주 <span class="hi-up">139,500</span> / <span class="hi-dn">51,400</span></div>
+    <div class="h-item">BB 상단 <strong>116,985</strong> · 하단 <span class="hi-dn">90,725</span></div>
+    <div class="h-item">MA60 <strong>96,205</strong> · 지지 <span class="hi-gold">91,700</span></div>
+    <div class="h-item">PER <strong>49.03</strong> · PBR <strong>1.54</strong> · 시총 <strong>20.0조</strong></div>
+    <div class="h-item" style="background:rgba(252,211,77,.15);border-radius:5px;padding:0 12px;"><span class="hi-gold">▶ 매수가 95,120원</span></div>
+  </div>
+</div>
+
+<div class="main">
+
+<!-- 매수 포지션 P&L -->
+<div class="section">
+  <div class="sec-title">매수 포지션 현황 (2026.06.22 장중)</div>
+  <div class="grid3">
+    <div class="pnl-card">
+      <div class="card-title c-down">평가 손익</div>
+      <div style="font-size:28px;font-weight:800;color:var(--down);margin:6px 0;">-2,040원</div>
+      <div style="font-size:17px;font-weight:700;color:var(--down);">-2.14%</div>
+      <div class="card-sub" style="margin-top:8px;">매수가 95,120 → 현재 93,200원</div>
+    </div>
+    <div class="card">
+      <div class="card-title">BEP / 진입 분석</div>
+      <div class="card-val">95,120원</div>
+      <div class="card-sub">매수가 = BEP (수수료 미포함)</div>
+      <div style="margin-top:10px;">
+        <div class="kv"><span class="kv-lbl">오늘 시가</span><span class="kv-val">95,100원</span></div>
+        <div class="kv"><span class="kv-lbl">오늘 고가</span><span class="kv-val">95,200원</span></div>
+        <div class="kv"><span class="kv-lbl">오늘 저가</span><span class="kv-val c-down">92,500원</span></div>
+      </div>
+      <div style="margin-top:8px;font-size:12px;font-weight:600;color:var(--warn);background:var(--warn-bg);padding:6px 10px;border-radius:6px;">시초가 갭업 매수 → 이후 하락 진행 중</div>
+    </div>
+    <div class="card">
+      <div class="card-title">주요 가격까지 거리</div>
+      <div style="margin-top:8px;">
+        <div class="kv"><span class="kv-lbl">BEP 회복</span><span class="kv-val c-up">+1,920원 (+2.06%)</span></div>
+        <div class="kv"><span class="kv-lbl">MA60 탈환</span><span class="kv-val c-up">+3,005원 (+3.22%)</span></div>
+        <div class="kv"><span class="kv-lbl">1차 지지선</span><span class="kv-val c-down">-1,500원 (-1.61%)</span></div>
+        <div class="kv"><span class="kv-lbl">BB 하단</span><span class="kv-val c-down">-2,475원 (-2.66%)</span></div>
+        <div class="kv" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border2);"><span class="kv-lbl">손절:목표 R/R</span><span class="kv-val c-accent">1 : 1.3</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 핵심 지표 카드 -->
+<div class="section">
+  <div class="sec-title">핵심 기술 지표 (KRX 6/19 기준 + KIS 6/22 장중)</div>
+  <div class="grid4">
+    <div class="card">
+      <div class="card-title">이동평균 배열</div>
+      <div class="card-val c-down">완전 역배열</div>
+      <div style="margin-top:10px;">
+        <div class="kv"><span class="kv-lbl">MA20</span><span style="font-weight:700;color:var(--down);">103,855</span></div>
+        <div class="kv"><span class="kv-lbl">MA10</span><span style="font-weight:700;color:var(--down);">101,880</span></div>
+        <div class="kv"><span class="kv-lbl">MA5</span><span style="font-weight:700;color:var(--down);">99,060</span></div>
+        <div class="kv"><span class="kv-lbl">MA60</span><span style="font-weight:700;color:var(--down);">96,205</span></div>
+        <div class="kv" style="margin-top:6px;border-top:1px solid var(--border2);padding-top:6px;"><span class="kv-lbl">현재가</span><span style="font-weight:800;">93,200</span></div>
+      </div>
+      <div class="card-sub" style="margin-top:4px;color:var(--down);font-weight:600;">현재가 모든 MA 하회</div>
+    </div>
+    <div class="card">
+      <div class="card-title">RSI (14)</div>
+      <div class="card-val c-warn">42.8</div>
+      <div class="progress-bg" style="margin-top:10px;">
+        <div class="progress-fg" style="width:42.8%;background:linear-gradient(90deg,#E2ECF7,#925400);"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:500;color:var(--txt3);">
+        <span>30 과매도</span><span>50 중립</span><span>70 과매수</span>
+      </div>
+      <div class="card-sub" style="margin-top:6px;">중립 하단 · RSI 과매도 미진입</div>
+    </div>
+    <div class="card">
+      <div class="card-title">MACD 히스토그램</div>
+      <div class="card-val c-down">-1,769</div>
+      <div style="margin-top:10px;">
+        <div class="kv"><span class="kv-lbl">MACD</span><span style="color:var(--down);font-weight:700;">-260.7</span></div>
+        <div class="kv"><span class="kv-lbl">Signal</span><span style="font-weight:700;">+1,508.7</span></div>
+        <div class="kv"><span class="kv-lbl">Hist 추세</span><span style="color:var(--down);font-weight:700;">음전환 확대</span></div>
+      </div>
+      <div class="card-sub" style="margin-top:4px;">6/10 음전환 후 지속 확대</div>
+    </div>
+    <div class="card">
+      <div class="card-title">스토캐스틱 (14)</div>
+      <div class="card-val c-accent">K 6.7 / D 5.0</div>
+      <div style="margin-top:10px;background:#E2ECF7;border-radius:8px;height:16px;overflow:hidden;">
+        <div style="width:6.7%;height:100%;background:var(--accent);border-radius:8px;"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:500;color:var(--txt3);margin-top:4px;">
+        <span>0</span><span>20 과매도</span><span>80 과매수</span><span>100</span>
+      </div>
+      <div class="card-sub" style="margin-top:6px;color:var(--accent);font-weight:700;">극단적 과매도 — 단기 반등 신호</div>
+    </div>
+    <div class="card">
+      <div class="card-title">볼린저밴드 위치</div>
+      <div class="card-val c-warn">9.4%</div>
+      <div style="margin-top:10px;">
+        <div class="kv"><span class="kv-lbl">상단</span><span style="font-weight:700;">116,985</span></div>
+        <div class="kv"><span class="kv-lbl">중간(MA20)</span><span style="font-weight:700;">103,855</span></div>
+        <div class="kv"><span class="kv-lbl">하단</span><span style="color:var(--warn);font-weight:700;">90,725</span></div>
+        <div class="kv"><span class="kv-lbl">밴드폭</span><span style="font-weight:700;">12.6%</span></div>
+      </div>
+      <div class="card-sub" style="margin-top:4px;">하단까지 -2,475원 (-2.66%)</div>
+    </div>
+    <div class="card">
+      <div class="card-title">지지 / 저항 구조</div>
+      <div style="margin-top:8px;">
+        <div class="kv" style="padding:4px 8px;background:var(--down-bg);border-radius:5px;margin-bottom:4px;"><span class="kv-lbl">전고점 저항</span><span style="color:var(--down);font-weight:700;">139,500</span></div>
+        <div class="kv"><span class="kv-lbl">MA60 저항</span><span style="color:var(--down);font-weight:700;">96,205</span></div>
+        <div class="kv" style="padding:4px 8px;background:var(--warn-bg);border-radius:5px;"><span style="color:var(--warn);font-weight:700;">현재가 (장중)</span><span style="font-weight:800;">93,200</span></div>
+        <div class="kv" style="margin-top:4px;"><span class="kv-lbl">1차 지지</span><span style="color:var(--up);font-weight:700;">91,700</span></div>
+        <div class="kv"><span class="kv-lbl">BB 하단</span><span style="color:var(--up);font-weight:700;">90,725</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">밸류에이션</div>
+      <div style="margin-top:8px;">
+        <div class="kv"><span class="kv-lbl">PER</span><span style="font-weight:700;">49.03배</span></div>
+        <div class="kv"><span class="kv-lbl">PBR</span><span style="font-weight:700;">1.54배</span></div>
+        <div class="kv"><span class="kv-lbl">시가총액</span><span style="font-weight:700;">20.0조</span></div>
+        <div class="kv" style="margin-top:6px;border-top:1px solid var(--border2);padding-top:6px;"><span class="kv-lbl">전고점 대비</span><span style="color:var(--down);font-weight:700;">-33.2%</span></div>
+        <div class="kv"><span class="kv-lbl">전저점 대비</span><span style="color:var(--up);font-weight:700;">+81.3%</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">거래대금</div>
+      <div class="card-val c-warn">2,511억</div>
+      <div class="card-sub">6/19 KRX (volRatio 1.9배)</div>
+      <div style="margin-top:10px;padding:10px;background:var(--card2);border-radius:8px;border:1px solid var(--border2);">
+        <div style="font-size:12px;font-weight:600;color:var(--txt3);">6/22 장중 (KIS)</div>
+        <div style="font-size:18px;font-weight:800;color:var(--accent);margin-top:2px;">737.8억</div>
+        <div style="font-size:12px;font-weight:500;color:var(--txt3);">거래량 79.1만주</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 천장 형성 타임라인 -->
+<div class="section">
+  <div class="sec-title">6/2 전고점 형성 → 현재 급락 타임라인 (15거래일, -33.2%)</div>
+  <div class="card">
+    <div class="tl-wrap">
+      <div class="tl-item">
+        <div class="tl-dot-col"><div class="tl-dot dot-gold"></div><div class="tl-line"></div></div>
+        <div class="tl-body">
+          <div class="tl-title">6/1 — 장대양봉 +11.53% → 112,200원</div>
+          <div class="tl-desc">시가 103,000 → 고가 120,300 → 종가 112,200. 거래대금 3,973억 (2.78배 급증)</div>
+          <div class="tl-meta">RSI 67.9 · MACD Hist +163 (첫 양전환) · 거래대금 폭발 1일차</div>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-dot-col"><div class="tl-dot dot-red"></div><div class="tl-line"></div></div>
+        <div class="tl-body">
+          <div class="tl-title">6/2 — 전고점 139,500원 형성 +11.59% (종가 125,200)</div>
+          <div class="tl-desc">시가 갭업 134,000 → 장중 139,500원 (거래대금 1조295억, 5.71배!) → 종가 125,200</div>
+          <div class="tl-meta">RSI 76.2 과매수 · 2일 연속 거래대금 폭발 = 단기 천장 신호</div>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-dot-col"><div class="tl-dot dot-red"></div><div class="tl-line"></div></div>
+        <div class="tl-body">
+          <div class="tl-title">6/4 — -13.02% 역대급 급락 → 108,900원</div>
+          <div class="tl-desc">시가 119,000 갭다운 → 종가 108,900. 전고점 대비 -22% 급락. 거래대금 3,384억 (매도 폭발)</div>
+          <div class="tl-meta">천장 확인 · MACD 음전환 진행 개시</div>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-dot-col"><div class="tl-dot dot-gray"></div><div class="tl-line"></div></div>
+        <div class="tl-body">
+          <div class="tl-title">6/8~6/9 — 대규모 매수/매도 공방 (108,100)</div>
+          <div class="tl-desc">6/8: 거래대금 4,969억 (팽팽한 공방) · 6/9: 108,100원 반등 시도</div>
+          <div class="tl-meta">모든 MA 현재가 상회 — 하락 추세 구조 유지 확인</div>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-dot-col"><div class="tl-dot dot-red"></div><div class="tl-line"></div></div>
+        <div class="tl-body">
+          <div class="tl-title">6/11 — 심리선 100,000원 붕괴 (-5.39%)</div>
+          <div class="tl-desc">저가 97,200 터치 → 스토캐스틱 K=10.4 과매도. 단기 반등(6/12~15) 후 재하락</div>
+          <div class="tl-meta">6/12 +3% / 6/15 +2.33% 반등 → MA5 저항 돌파 실패 → 재하락</div>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-dot-col"><div class="tl-dot dot-red"></div><div class="tl-line"></div></div>
+        <div class="tl-body">
+          <div class="tl-title">6/16~6/18 — 연속 급락 → 95,900원</div>
+          <div class="tl-desc">6/16: -5.03% → 100,100 / 6/18: -3.13% → 95,900 · stochK=0 (완전 과매도)</div>
+          <div class="tl-meta">MACD Hist -1,594 · 5MA(100,680)도 하향 이탈</div>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-dot-col"><div class="tl-dot dot-warn"></div><div class="tl-line"></div></div>
+        <div class="tl-body">
+          <div class="tl-title">6/19 — 저가 91,700 지지 확인 → 종가 94,900원 (KRX 기준일)</div>
+          <div class="tl-desc">저가 91,700(지지선 터치) → 종가 94,900 일중 +3,200 반등. 거래대금 2,511억 (1.9배)</div>
+          <div class="tl-meta">MACD 최초 음전환 확정 · stochK=6.7 · MA60(96,205) 재진입 실패</div>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-dot-col"><div class="tl-dot dot-blue"></div></div>
+        <div class="tl-body">
+          <div class="tl-title" style="color:var(--accent);">6/22 장중 — 갭업 95,100 → 현재 93,200원 (매수가 95,120)</div>
+          <div class="tl-desc">시가 갭업 95,100 → 고가 95,200(당일 고점) → 현재 93,200 하락 중. 저가 92,500</div>
+          <div class="tl-meta">매수가 95,120 ≈ 오늘 고가(95,200) 수준 진입 · 현재 -2.14%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 거래대금 폭발 SVG 바차트 -->
+<div class="section">
+  <div class="sec-title">6/1 이후 주요 거래대금 비교 (억원)</div>
+  <div class="card">
+    <div class="svg-scroll">
+    <svg viewBox="0 0 820 215" style="width:100%;min-width:620px;display:block;" xmlns="http://www.w3.org/2000/svg">
+      <text x="8" y="28" font-size="12" fill="#3D5775" font-weight="500">1조</text>
+      <text x="8" y="78" font-size="12" fill="#3D5775" font-weight="500">5000억</text>
+      <text x="8" y="128" font-size="12" fill="#3D5775" font-weight="500">2500억</text>
+      <text x="8" y="158" font-size="12" fill="#3D5775" font-weight="500">1000억</text>
+      <line x1="48" y1="24" x2="810" y2="24" stroke="#E2ECF7" stroke-width="1"/>
+      <line x1="48" y1="74" x2="810" y2="74" stroke="#E2ECF7" stroke-width="1"/>
+      <line x1="48" y1="124" x2="810" y2="124" stroke="#E2ECF7" stroke-width="1"/>
+      <line x1="48" y1="154" x2="810" y2="154" stroke="#E2ECF7" stroke-width="1"/>
+      <!-- 6/1: 3973억 → h=58 y=114 -->
+      <rect x="60" y="114" width="52" height="58" rx="4" fill="rgba(149,92,0,.6)"/>
+      <text x="86" y="108" text-anchor="middle" font-size="12" font-weight="bold" fill="#955C00">3,973억</text>
+      <text x="86" y="198" text-anchor="middle" font-size="12" fill="#354E6B">6/01</text>
+      <!-- 6/2: 10295억 → h=150 y=22 -->
+      <rect x="130" y="22" width="52" height="150" rx="4" fill="rgba(192,57,43,.8)"/>
+      <text x="156" y="16" text-anchor="middle" font-size="12" font-weight="bold" fill="#C0392B">1조295억</text>
+      <text x="156" y="198" text-anchor="middle" font-size="12" fill="#354E6B">6/02 ★</text>
+      <!-- 6/4: 3384억 → h=49 y=123 -->
+      <rect x="200" y="123" width="52" height="49" rx="4" fill="rgba(192,57,43,.55)"/>
+      <text x="226" y="117" text-anchor="middle" font-size="12" font-weight="bold" fill="#925400">3,384억</text>
+      <text x="226" y="198" text-anchor="middle" font-size="12" fill="#354E6B">6/04</text>
+      <!-- 6/8: 4969억 → h=72 y=100 -->
+      <rect x="270" y="100" width="52" height="72" rx="4" fill="rgba(192,57,43,.5)"/>
+      <text x="296" y="94" text-anchor="middle" font-size="12" font-weight="bold" fill="#C0392B">4,969억</text>
+      <text x="296" y="198" text-anchor="middle" font-size="12" fill="#354E6B">6/08</text>
+      <!-- 6/9: 4041억 → h=59 y=113 -->
+      <rect x="340" y="113" width="52" height="59" rx="4" fill="rgba(192,57,43,.4)"/>
+      <text x="366" y="107" text-anchor="middle" font-size="12" font-weight="bold" fill="#925400">4,041억</text>
+      <text x="366" y="198" text-anchor="middle" font-size="12" fill="#354E6B">6/09</text>
+      <!-- 6/11: 1959억 → h=28 y=144 -->
+      <rect x="410" y="144" width="52" height="28" rx="4" fill="rgba(91,33,182,.35)"/>
+      <text x="436" y="138" text-anchor="middle" font-size="12" font-weight="bold" fill="#5B21B6">1,959억</text>
+      <text x="436" y="198" text-anchor="middle" font-size="12" fill="#354E6B">6/11</text>
+      <!-- 6/16: 1649억 → h=24 y=148 -->
+      <rect x="480" y="148" width="52" height="24" rx="4" fill="rgba(91,33,182,.3)"/>
+      <text x="506" y="142" text-anchor="middle" font-size="12" font-weight="bold" fill="#5B21B6">1,649억</text>
+      <text x="506" y="198" text-anchor="middle" font-size="12" fill="#354E6B">6/16</text>
+      <!-- 6/19: 2511억 → h=37 y=135 -->
+      <rect x="550" y="135" width="52" height="37" rx="4" fill="rgba(26,86,168,.5)"/>
+      <text x="576" y="129" text-anchor="middle" font-size="12" font-weight="bold" fill="#1A56A8">2,511억</text>
+      <text x="576" y="198" text-anchor="middle" font-size="12" fill="#354E6B">6/19</text>
+      <!-- 6/22 장중: 738억 → h=11 y=161 -->
+      <rect x="620" y="161" width="52" height="11" rx="4" fill="rgba(26,86,168,.35)"/>
+      <text x="646" y="155" text-anchor="middle" font-size="12" font-weight="bold" fill="#1A56A8">738억</text>
+      <text x="646" y="198" text-anchor="middle" font-size="12" fill="#354E6B">6/22</text>
+      <text x="646" y="210" text-anchor="middle" font-size="12" fill="#3D5775">(장중)</text>
+      <!-- 범례 -->
+      <rect x="710" y="30" width="12" height="12" rx="2" fill="rgba(192,57,43,.8)"/>
+      <text x="727" y="41" font-size="12" fill="#354E6B">폭발 (2배 이상)</text>
+      <rect x="710" y="50" width="12" height="12" rx="2" fill="rgba(91,33,182,.35)"/>
+      <text x="727" y="61" font-size="12" fill="#354E6B">조정기 거래</text>
+      <rect x="710" y="70" width="12" height="12" rx="2" fill="rgba(26,86,168,.5)"/>
+      <text x="727" y="81" font-size="12" fill="#354E6B">6/19 + 오늘 장중</text>
+    </svg>
+    </div>
+    <div style="font-size:12px;font-weight:600;color:var(--txt3);text-align:center;margin-top:8px;">
+      6/2 거래대금 1조295억(5.71배) = 단기 천장의 핵심 신호 · 이후 거래대금 급감 = 매수세 약화
+    </div>
+  </div>
+</div>
+
+<!-- 지지·저항 구조 및 매매 시나리오 -->
+<div class="section">
+  <div class="sec-title">지지·저항 구조 및 매매 시나리오</div>
+  <div class="grid2">
+    <!-- SVG 가격 레벨 구조도 -->
+    <div class="card">
+      <div class="card-title">가격 레벨 구조 (현재가 93,200 기준)</div>
+      <div class="svg-scroll">
+      <svg viewBox="0 0 680 510" style="width:100%;min-width:560px;display:block;margin-top:4px" role="img" aria-label="SK텔레콤 지지저항 가격 구조도">
+        <rect width="680" height="510" fill="#F4F8FD" rx="10"/>
+        <rect x="192" y="18" width="343" height="454" fill="#FAFCFF" stroke="#D5E5F5" stroke-width="1" rx="3"/>
+        <!-- 저항 영역(현재가 위) -->
+        <rect x="192" y="18" width="343" height="288" fill="rgba(185,28,28,.03)"/>
+        <!-- 현재가 밴드 -->
+        <rect x="192" y="303" width="343" height="8" fill="rgba(12,68,124,.10)"/>
+        <!-- 지지 영역(1차지지 아래) -->
+        <rect x="192" y="315" width="343" height="157" fill="rgba(12,107,66,.04)"/>
+        <!-- 10K 간격 가이드라인 -->
+        <line x1="192" y1="98" x2="535" y2="98" stroke="#E5EEF8" stroke-width="1"/>
+        <line x1="192" y1="154" x2="535" y2="154" stroke="#E5EEF8" stroke-width="1"/>
+        <line x1="192" y1="211" x2="535" y2="211" stroke="#E5EEF8" stroke-width="1"/>
+        <line x1="192" y1="268" x2="535" y2="268" stroke="#E5EEF8" stroke-width="1"/>
+        <line x1="192" y1="325" x2="535" y2="325" stroke="#E5EEF8" stroke-width="1"/>
+        <line x1="192" y1="381" x2="535" y2="381" stroke="#E5EEF8" stroke-width="1"/>
+        <line x1="192" y1="438" x2="535" y2="438" stroke="#E5EEF8" stroke-width="1"/>
+        <!-- 가이드 레이블(차트 우측) -->
+        <text x="540" y="102" font-size="12" fill="#B8CCE0">130K</text>
+        <text x="540" y="158" font-size="12" fill="#B8CCE0">120K</text>
+        <text x="540" y="215" font-size="12" fill="#B8CCE0">110K</text>
+        <text x="540" y="272" font-size="12" fill="#B8CCE0">100K</text>
+        <text x="540" y="329" font-size="12" fill="#B8CCE0">90K</text>
+        <text x="540" y="385" font-size="12" fill="#B8CCE0">80K</text>
+        <text x="540" y="442" font-size="12" fill="#B8CCE0">70K</text>
+        <!-- 가격선 -->
+        <line x1="192" y1="44" x2="535" y2="44" stroke="#955C00" stroke-width="2" stroke-dasharray="8,4"/>
+        <line x1="192" y1="171" x2="535" y2="171" stroke="#C0392B" stroke-width="2" stroke-dasharray="6,3"/>
+        <line x1="192" y1="289" x2="535" y2="289" stroke="#1A56A8" stroke-width="1.5" stroke-dasharray="5,3"/>
+        <line x1="192" y1="296" x2="535" y2="296" stroke="#1A56A8" stroke-width="1.5" stroke-dasharray="3,3"/>
+        <line x1="192" y1="306" x2="535" y2="306" stroke="#0C447C" stroke-width="3"/>
+        <polygon points="188,302 188,310 194,306" fill="#0C447C"/>
+        <line x1="192" y1="310" x2="535" y2="310" stroke="#C0392B" stroke-width="1.5" stroke-dasharray="3,3"/>
+        <line x1="192" y1="315" x2="535" y2="315" stroke="#0C6B42" stroke-width="2.5"/>
+        <polygon points="188,311 188,319 194,315" fill="#0C6B42"/>
+        <line x1="192" y1="320" x2="535" y2="320" stroke="#0C6B42" stroke-width="1.5" stroke-dasharray="4,3"/>
+        <line x1="192" y1="444" x2="535" y2="444" stroke="#8B9BAA" stroke-width="1" stroke-dasharray="3,4"/>
+        <!-- 좌측 레이블 -->
+        <text x="187" y="48" text-anchor="end" font-size="12" fill="#955C00" font-weight="700">139,500</text>
+        <text x="187" y="175" text-anchor="end" font-size="12" fill="#C0392B" font-weight="700">116,985</text>
+        <text x="187" y="293" text-anchor="end" font-size="12" fill="#1A56A8" font-weight="700">96,205</text>
+        <text x="187" y="309" text-anchor="end" font-size="12" fill="#1A56A8" font-weight="700">95,120</text>
+        <line x1="189" y1="306" x2="192" y2="296" stroke="#1A56A8" stroke-width="1" stroke-dasharray="2,2" opacity="0.65"/>
+        <text x="187" y="325" text-anchor="end" font-size="13" fill="#0C447C" font-weight="800">93,200</text>
+        <line x1="189" y1="322" x2="192" y2="306" stroke="#0C447C" stroke-width="1" stroke-dasharray="2,2" opacity="0.65"/>
+        <text x="187" y="341" text-anchor="end" font-size="12" fill="#C0392B" font-weight="700">92,500</text>
+        <line x1="189" y1="338" x2="192" y2="310" stroke="#C0392B" stroke-width="1" stroke-dasharray="2,2" opacity="0.65"/>
+        <text x="187" y="357" text-anchor="end" font-size="13" fill="#0C6B42" font-weight="800">91,700</text>
+        <line x1="189" y1="354" x2="192" y2="315" stroke="#0C6B42" stroke-width="1" stroke-dasharray="2,2" opacity="0.65"/>
+        <text x="187" y="373" text-anchor="end" font-size="12" fill="#0C6B42" font-weight="700">90,725</text>
+        <line x1="189" y1="370" x2="192" y2="320" stroke="#0C6B42" stroke-width="1" stroke-dasharray="2,2" opacity="0.65"/>
+        <text x="187" y="441" text-anchor="end" font-size="12" fill="#8B9BAA">69,000</text>
+        <!-- 우측 레이블 -->
+        <text x="558" y="48" text-anchor="start" font-size="12" fill="#955C00" font-weight="700">전고점 +49.7%</text>
+        <text x="558" y="175" text-anchor="start" font-size="12" fill="#C0392B" font-weight="700">BB상단 +25.5%</text>
+        <text x="558" y="293" text-anchor="start" font-size="12" fill="#1A56A8">MA60 +3.2%</text>
+        <text x="558" y="309" text-anchor="start" font-size="12" fill="#1A56A8" font-weight="700">매수가 +2.1%</text>
+        <line x1="556" y1="306" x2="535" y2="296" stroke="#1A56A8" stroke-width="1" stroke-dasharray="2,2" opacity="0.65"/>
+        <text x="558" y="325" text-anchor="start" font-size="13" fill="#0C447C" font-weight="800">▶현재가 0%</text>
+        <line x1="556" y1="322" x2="535" y2="306" stroke="#0C447C" stroke-width="1" stroke-dasharray="2,2" opacity="0.65"/>
+        <text x="558" y="341" text-anchor="start" font-size="12" fill="#C0392B" font-weight="700">오늘저가 -0.8%</text>
+        <line x1="556" y1="338" x2="535" y2="310" stroke="#C0392B" stroke-width="1" stroke-dasharray="2,2" opacity="0.65"/>
+        <text x="558" y="357" text-anchor="start" font-size="13" fill="#0C6B42" font-weight="800">1차지지 -1.6%</text>
+        <line x1="556" y1="354" x2="535" y2="315" stroke="#0C6B42" stroke-width="1" stroke-dasharray="2,2" opacity="0.65"/>
+        <text x="558" y="373" text-anchor="start" font-size="12" fill="#0C6B42">BB하단 -2.7%</text>
+        <line x1="556" y1="370" x2="535" y2="320" stroke="#0C6B42" stroke-width="1" stroke-dasharray="2,2" opacity="0.65"/>
+        <text x="558" y="441" text-anchor="start" font-size="12" fill="#8B9BAA">75일저점 -26.0%</text>
+        <!-- 범례 -->
+        <rect x="192" y="480" width="343" height="22" fill="rgba(238,244,251,.9)" rx="3"/>
+        <line x1="200" y1="491" x2="218" y2="491" stroke="#C0392B" stroke-width="2" stroke-dasharray="5,2"/>
+        <text x="222" y="495" font-size="12" fill="#354E6B">저항</text>
+        <line x1="252" y1="491" x2="270" y2="491" stroke="#0C6B42" stroke-width="2"/>
+        <text x="274" y="495" font-size="12" fill="#354E6B">지지</text>
+        <line x1="304" y1="491" x2="322" y2="491" stroke="#0C447C" stroke-width="3"/>
+        <text x="326" y="495" font-size="12" fill="#354E6B">현재가</text>
+        <line x1="362" y1="491" x2="380" y2="491" stroke="#1A56A8" stroke-width="1.5" stroke-dasharray="3,2"/>
+        <text x="384" y="495" font-size="12" fill="#354E6B">매수가/저가</text>
+        <text x="452" y="495" font-size="12" fill="#8B9BAA">╌ 세선: 가격↔레이블</text>
+      </svg>
+      </div>
+    </div>
+
+    <!-- 매매 시나리오 + 단기 대응 -->
+    <div>
+      <div class="scenario-wrap">
+        <div class="sc-bull">
+          <div class="sc-title" style="color:var(--up)">🐂 상승 시나리오 (A)</div>
+          <div class="sc-row"><span class="sc-key">전제</span><span style="font-size:12px;color:var(--up)">91,700 지지 + 거래대금 반등</span></div>
+          <div class="sc-row"><span class="sc-key">1차 목표</span><span style="font-weight:700;color:var(--up)">95,120 (BEP 회복)</span></div>
+          <div class="sc-row"><span class="sc-key">2차 목표</span><span style="font-weight:700;color:var(--up)">96,205 (MA60 탈환)</span></div>
+          <div class="sc-row"><span class="sc-key">기간</span><span>1~5 거래일</span></div>
+          <div class="sc-row"><span class="sc-key">수익/손절</span><span style="font-weight:700;color:var(--up)">+3.2% / -1.6%</span></div>
+          <div style="margin-top:8px;font-size:12px;color:var(--up);background:rgba(185,28,28,.07);padding:6px 8px;border-radius:6px">Stoch K=6.7 극과매도 + BB하단 근접 → 단기 기술적 반등 가능</div>
+        </div>
+        <div class="sc-bear">
+          <div class="sc-title" style="color:var(--down)">🐻 하락 시나리오 (B)</div>
+          <div class="sc-row"><span class="sc-key">전제</span><span style="font-size:12px;color:var(--down)">91,700 일봉 종가 이탈</span></div>
+          <div class="sc-row"><span class="sc-key">1차 지지</span><span style="font-weight:700;color:var(--down)">90,725 (BB 하단)</span></div>
+          <div class="sc-row"><span class="sc-key">2차 지지</span><span style="font-weight:700;color:var(--down)">88,000~89,000</span></div>
+          <div class="sc-row"><span class="sc-key">손절 기준</span><span style="font-weight:700;color:var(--down)">91,700 이탈 즉시</span></div>
+          <div class="sc-row"><span class="sc-key">리스크</span><span style="color:var(--down)">매수가 대비 최대 -7%</span></div>
+          <div style="margin-top:8px;font-size:12px;color:var(--down);background:rgba(21,88,176,.07);padding:6px 8px;border-radius:6px">MA 완전 역배열 + MACD -1,769 → 중기 하락 추세 지속 가능</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">단기 대응 포인트</div>
+        <table class="signal-table">
+          <tr><th>조건</th><th style="text-align:right">가격</th><th style="text-align:center">판단</th></tr>
+          <tr><td>91,700 종가 지지</td><td style="text-align:right;font-weight:700">91,700</td><td style="text-align:center"><span class="sig-badge sig-up">홀드 유지</span></td></tr>
+          <tr><td>95,120 BEP 돌파</td><td style="text-align:right;font-weight:700">95,120</td><td style="text-align:center"><span class="sig-badge sig-neutral">일부 익절 고려</span></td></tr>
+          <tr><td>96,205 MA60 돌파</td><td style="text-align:right;font-weight:700">96,205↑</td><td style="text-align:center"><span class="sig-badge sig-neutral">추가 매수 고려</span></td></tr>
+          <tr><td>91,700 종가 이탈</td><td style="text-align:right;font-weight:700">91,700↓</td><td style="text-align:center"><span class="sig-badge sig-dn">손절 고려</span></td></tr>
+          <tr><td>거래대금 1,500억↑ + 반등</td><td style="text-align:right;font-weight:700">—</td><td style="text-align:center"><span class="sig-badge sig-up">기술적 반등 신호</span></td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BB 위치 + 리스크 관리 -->
+<div class="section">
+  <div class="sec-title">볼린저밴드 위치 · 리스크 관리</div>
+  <div class="card">
+    <div style="margin-bottom:20px;">
+      <div style="font-size:13px;font-weight:700;color:var(--txt2);margin-bottom:12px;">볼린저밴드 내 현재가 위치 (9.4% — 하단 근접)</div>
+      <div style="position:relative;background:#E2ECF7;border-radius:8px;height:24px;">
+        <div style="position:absolute;left:0;top:0;width:9.4%;height:100%;background:rgba(192,57,43,.35);border-radius:8px;"></div>
+        <div style="position:absolute;left:9.4%;top:-1px;width:3px;height:26px;background:var(--down);border-radius:2px;transform:translateX(-50%);"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:12px;font-weight:600;color:var(--txt3);">
+        <span>BB하단<br>90,725</span>
+        <span style="text-align:center;">▲ 현재 93,200<br>(9.4%)</span>
+        <span style="text-align:center;">중간<br>103,855</span>
+        <span style="text-align:right;">BB상단<br>116,985</span>
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--border2);padding-top:16px;">
+      <div class="grid3">
+        <div style="text-align:center;padding:14px;background:var(--down-bg);border-radius:10px;">
+          <div style="font-size:12px;font-weight:700;color:var(--txt2);">손절 라인</div>
+          <div style="font-size:18px;font-weight:800;color:var(--down);margin-top:6px;">91,700원</div>
+          <div style="font-size:12px;font-weight:500;color:var(--txt3);margin-top:4px;">매수가 대비 -3.59%</div>
+        </div>
+        <div style="text-align:center;padding:14px;background:var(--warn-bg);border-radius:10px;border:2px solid rgba(146,84,0,.2);">
+          <div style="font-size:12px;font-weight:700;color:var(--txt2);">현재 대응</div>
+          <div style="font-size:18px;font-weight:800;color:var(--warn);margin-top:6px;">관망 유지</div>
+          <div style="font-size:12px;font-weight:500;color:var(--txt3);margin-top:4px;">92,500 지지 확인 중</div>
+        </div>
+        <div style="text-align:center;padding:14px;background:var(--up-bg);border-radius:10px;">
+          <div style="font-size:12px;font-weight:700;color:var(--txt2);">BEP 회복 조건</div>
+          <div style="font-size:18px;font-weight:800;color:var(--up);margin-top:6px;">95,120원</div>
+          <div style="font-size:12px;font-weight:500;color:var(--txt3);margin-top:4px;">MA60(96,205) 탈환이 추세 전환 신호</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 일별 시세 테이블 -->
+<div class="section">
+  <div class="sec-title">일별 시세 (최근 20거래일 + 오늘 장중)</div>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>날짜</th><th>종가</th><th>등락률</th><th>시가</th><th>고가</th><th>저가</th>
+          <th>거래대금</th><th>MA5</th><th>MA20</th><th>RSI</th><th>MACD Hist</th><th>Stoch K</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="tr-today">
+          <td>06/22 ★KIS장중</td><td style="font-weight:800;">93,200</td>
+          <td class="td-dn">▼ -1.79%</td><td>95,100</td><td>95,200</td><td class="td-dn">92,500</td>
+          <td>737.8억</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>
+        </tr>
+        <tr>
+          <td>06/19</td><td>94,900</td><td class="td-dn">▼ -1.04%</td>
+          <td>94,100</td><td>97,400</td><td class="td-dn">91,700</td>
+          <td>2,511억</td><td>99,060</td><td>103,855</td><td class="td-dn">42.8</td><td class="td-dn">-1,769</td><td class="td-dn">6.7</td>
+        </tr>
+        <tr>
+          <td>06/18</td><td>95,900</td><td class="td-dn">▼ -3.13%</td>
+          <td>98,100</td><td>98,600</td><td class="td-dn">95,900</td>
+          <td>1,221억</td><td>100,680</td><td>104,015</td><td class="td-dn">43.7</td><td class="td-dn">-1,594</td><td class="td-dn">0.0</td>
+        </tr>
+        <tr>
+          <td>06/17</td><td>99,000</td><td class="td-dn">▼ -1.10%</td>
+          <td>99,900</td><td>100,000</td><td>98,500</td>
+          <td>766억</td><td>101,500</td><td>104,105</td><td class="td-dn">46.5</td><td class="td-dn">-1,310</td><td class="td-dn">8.2</td>
+        </tr>
+        <tr>
+          <td>06/16</td><td>100,100</td><td class="td-dn">▼ -5.03%</td>
+          <td>105,000</td><td>105,100</td><td>100,100</td>
+          <td>1,649억</td><td>102,840</td><td>104,180</td><td class="td-dn">47.6</td><td class="td-dn">-1,099</td><td class="td-dn">10.7</td>
+        </tr>
+        <tr>
+          <td>06/15</td><td>105,400</td><td class="td-up">▲ +2.33%</td>
+          <td>106,000</td><td>107,900</td><td>104,000</td>
+          <td>1,078억</td><td>104,440</td><td>104,240</td><td>52.7</td><td class="td-dn">-820</td><td>22.7</td>
+        </tr>
+        <tr>
+          <td>06/12</td><td>103,000</td><td class="td-up">▲ +3.00%</td>
+          <td>102,800</td><td>108,500</td><td>102,600</td>
+          <td>1,909억</td><td>104,700</td><td>104,105</td><td>50.5</td><td class="td-dn">-889</td><td>17.2</td>
+        </tr>
+        <tr>
+          <td>06/11</td><td>100,000</td><td class="td-dn">▼ -5.39%</td>
+          <td>100,000</td><td>102,000</td><td class="td-dn">97,200</td>
+          <td>1,959억</td><td>105,380</td><td>104,245</td><td class="td-dn">47.5</td><td class="td-dn">-726</td><td class="td-dn">10.4</td>
+        </tr>
+        <tr>
+          <td>06/10</td><td>105,700</td><td class="td-dn">▼ -2.22%</td>
+          <td>108,000</td><td>110,300</td><td>102,600</td>
+          <td>2,011억</td><td>107,160</td><td>104,415</td><td>53.1</td><td class="td-dn">-149</td><td>23.4</td>
+        </tr>
+        <tr>
+          <td>06/09</td><td>108,100</td><td class="td-up">▲ +1.31%</td>
+          <td>114,000</td><td>115,500</td><td>103,300</td>
+          <td>4,041억</td><td>111,060</td><td>104,040</td><td>55.6</td><td class="td-dn">-151</td><td>28.8</td>
+        </tr>
+        <tr>
+          <td>06/08</td><td>106,700</td><td class="td-up">▲ +0.28%</td>
+          <td>104,900</td><td>115,700</td><td>103,000</td>
+          <td>4,969억</td><td>111,880</td><td>103,310</td><td>54.4</td><td class="td-up">+320</td><td>25.6</td>
+        </tr>
+        <tr>
+          <td>06/05</td><td>106,400</td><td class="td-dn">▼ -2.30%</td>
+          <td>109,400</td><td>112,800</td><td>105,000</td>
+          <td>2,179억</td><td>110,660</td><td>102,635</td><td>54.2</td><td class="td-up">+655</td><td>24.9</td>
+        </tr>
+        <tr class="tr-peak">
+          <td>06/04</td><td class="td-dn">108,900</td><td class="td-dn">▼ -13.02%</td>
+          <td>119,000</td><td>120,000</td><td>107,800</td>
+          <td>3,384억</td><td>108,760</td><td>102,090</td><td>56.5</td><td class="td-up">+1,114</td><td>30.6</td>
+        </tr>
+        <tr class="tr-peak">
+          <td>06/02 ★전고점</td><td style="font-weight:800;color:var(--gold);">125,200</td>
+          <td class="td-up">▲ +11.59%</td><td>134,000</td>
+          <td style="color:var(--down);font-weight:700;">139,500</td><td>112,100</td>
+          <td style="font-weight:700;color:var(--down);">1조295억</td>
+          <td>107,060</td><td>101,515</td><td class="td-dn">76.2</td><td class="td-up">+1,451</td><td>67.6</td>
+        </tr>
+        <tr>
+          <td>06/01</td><td>112,200</td><td class="td-up">▲ +11.53%</td>
+          <td>103,000</td><td>120,300</td><td>100,100</td>
+          <td>3,973억</td><td>102,440</td><td>100,010</td><td class="td-dn">67.9</td><td class="td-up">+163</td><td>67.5</td>
+        </tr>
+        <tr>
+          <td>05/29</td><td>100,600</td><td class="td-up">▲ +3.82%</td>
+          <td>99,300</td><td>102,000</td><td>96,900</td>
+          <td>1,963억</td><td>100,560</td><td>99,180</td><td>54.9</td><td class="td-dn">-621</td><td>33.1</td>
+        </tr>
+        <tr>
+          <td>05/28</td><td>96,900</td><td class="td-dn">▼ -3.49%</td>
+          <td>98,900</td><td>99,200</td><td class="td-dn">95,400</td>
+          <td>882억</td><td>101,000</td><td>98,990</td><td class="td-dn">48.7</td><td class="td-dn">-678</td><td>21.1</td>
+        </tr>
+        <tr>
+          <td>05/27</td><td>100,400</td><td class="td-dn">▼ -1.67%</td>
+          <td>101,200</td><td>102,600</td><td>99,900</td>
+          <td>1,102억</td><td>101,240</td><td>99,045</td><td>55.3</td><td class="td-dn">-375</td><td>44.8</td>
+        </tr>
+        <tr>
+          <td>05/26</td><td>102,100</td><td class="td-dn">▼ -0.68%</td>
+          <td>102,400</td><td>103,800</td><td>99,600</td>
+          <td>1,103억</td><td>100,700</td><td>99,025</td><td>58.9</td><td class="td-dn">-259</td><td>53.2</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 종합 의견 -->
+<div class="section">
+  <div class="sec-title">종합 의견</div>
+  <div class="card" style="border-left:4px solid var(--warn);">
+    <div style="font-size:15px;font-weight:800;color:var(--warn);margin-bottom:10px;">단기 기술적 반등 가능 — 중기 하락 추세 유의</div>
+    <div style="font-size:13px;font-weight:500;color:var(--txt2);line-height:1.8;margin-bottom:16px;">
+      스토캐스틱 K=6.7 극단적 과매도와 BB 하단(90,725) 근접은 단기 반등 가능 신호입니다. 6/19 저가(91,700)가 1차 지지로 확인됐고, 오늘 저가(92,500)도 이를 상회하고 있습니다. 그러나 MA 완전 역배열(현재가 &lt; MA60 &lt; MA5 &lt; MA10 &lt; MA20)과 MACD Hist -1,769 확대는 중기 하락 추세가 강하다는 신호입니다. 매수가 95,120원은 오늘 갭업 시초가 수준으로 단기 고점에 해당하며, 반등하더라도 MA60(96,205) 탈환 여부가 핵심 관건입니다.
+    </div>
+    <div class="grid3">
+      <div style="text-align:center;padding:12px;background:var(--down-bg);border-radius:8px;">
+        <div style="font-size:12px;font-weight:700;color:var(--txt2);">손절 기준</div>
+        <div style="font-size:15px;font-weight:800;color:var(--down);margin-top:4px;">91,700원 이탈</div>
+        <div style="font-size:12px;font-weight:500;color:var(--txt3);margin-top:2px;">6/19 저가 = 핵심 지지선</div>
+      </div>
+      <div style="text-align:center;padding:12px;background:var(--warn-bg);border-radius:8px;">
+        <div style="font-size:12px;font-weight:700;color:var(--txt2);">현재 대응</div>
+        <div style="font-size:15px;font-weight:800;color:var(--warn);margin-top:4px;">관망 유지</div>
+        <div style="font-size:12px;font-weight:500;color:var(--txt3);margin-top:2px;">92,500 지지 확인 후 판단</div>
+      </div>
+      <div style="text-align:center;padding:12px;background:var(--up-bg);border-radius:8px;">
+        <div style="font-size:12px;font-weight:700;color:var(--txt2);">BEP 회복 조건</div>
+        <div style="font-size:15px;font-weight:800;color:var(--up);margin-top:4px;">MA60 96,205 탈환</div>
+        <div style="font-size:12px;font-weight:500;color:var(--txt3);margin-top:2px;">추세 전환의 첫 신호</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="text-align:center;font-size:12px;font-weight:500;color:var(--txt3);padding:20px 0 10px;">
+  KRX 기준일: 2026.06.19 (75거래일) · KIS 장중: 2026.06.22 · 최적화: 202606221725<br>
+  본 리포트는 기술적 분석이며 투자 권유가 아닙니다. 최종 투자 결정은 본인 책임입니다.
+</div>
+
+</div>
+</body>
+</html>

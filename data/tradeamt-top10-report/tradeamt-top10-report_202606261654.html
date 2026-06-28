@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>거래대금 TOP10 리포트 | 2026-06-26</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/pretendard.css">
+<style>
+:root {
+  --bg: #F1F5F9;
+  --card: #FFFFFF;
+  --primary: #2563EB;
+  --up: #EF4444;
+  --down: #3B82F6;
+  --muted: #3D5068;
+  --txt: #1A2535;
+  --border: #E2E8F0;
+  --header-bg: linear-gradient(135deg, #0F172A 0%, #1E293B 60%, #0F172A 100%);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg);
+  color: var(--txt);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* ── HEADER ── */
+.header {
+  background: var(--header-bg);
+  color: #fff;
+  padding: 16px 24px 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  transform: translateZ(0);
+  box-shadow: 0 2px 16px rgba(0,0,0,0.4);
+}
+.header-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.h-title { font-size: 18px; font-weight: 700; color: #fff; }
+.h-sub { font-size: 13px; color: rgba(255,255,255,0.9); margin-top: 2px; font-weight: 600; }
+.h-kpi-block {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  overflow-x: auto;
+}
+.h-kpi-item { text-align: center; min-width: 80px; }
+.h-kpi-val {
+  font-size: 20px;
+  font-weight: 800;
+  color: #fff;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+.h-kpi-lbl {
+  font-size: 11px;
+  color: rgba(255,255,255,0.9);
+  font-weight: 600;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+.h-badges-block { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+.h-badge {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.badge-green { background: #6EE7B7; color: #064E3B; }
+.badge-blue  { background: #93C5FD; color: #1E3A8A; }
+.badge-yellow{ background: #FCD34D; color: #78350F; }
+.header-bar {
+  margin-top: 12px;
+  padding: 8px 0;
+  border-top: 1px solid rgba(255,255,255,0.15);
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: rgba(255,255,255,0.9);
+  font-weight: 600;
+}
+.hbar-key { color: rgba(255,255,255,0.65); font-weight: 600; }
+
+/* ── MAIN ── */
+.main { max-width: 1400px; margin: 0 auto; padding: 20px 16px 40px; }
+
+/* ── KPI CARDS ── */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.kpi-card {
+  background: var(--card);
+  border-radius: 10px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  text-align: center;
+}
+.kpi-val { font-size: 22px; font-weight: 800; color: var(--txt); line-height: 1.2; }
+.kpi-lbl { font-size: 13px; font-weight: 600; color: var(--muted); margin-top: 4px; }
+.kpi-sub { font-size: 13px; font-weight: 600; color: var(--muted); margin-top: 2px; }
+.kpi-card.kpi-up     { border-top: 3px solid var(--up); }
+.kpi-card.kpi-down   { border-top: 3px solid var(--down); }
+.kpi-card.kpi-gold   { border-top: 3px solid #F59E0B; }
+.kpi-card.kpi-sky    { border-top: 3px solid #0EA5E9; }
+.kpi-card.kpi-purple { border-top: 3px solid #8B5CF6; }
+
+/* ── SECTION ── */
+.section {
+  background: var(--card);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  margin-bottom: 20px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.section-head {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--txt);
+  background: #F8FAFC;
+}
+
+/* ── TABLE ── */
+.tbl-wrap { overflow-x: auto; transform: translateZ(0); position: relative; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th {
+  background: #F8FAFC;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 10px 12px;
+  text-align: right;
+  border-bottom: 2px solid var(--border);
+  white-space: nowrap;
+}
+th:first-child, th.td-left { text-align: left; }
+td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #F1F5F9;
+  text-align: right;
+  color: var(--txt);
+  font-weight: 500;
+}
+td.td-left { text-align: left; word-break: keep-all; }
+tr:last-child td { border-bottom: none; }
+tr:hover { background: #F8FAFC; }
+.tr-star3 { border-left: 3px solid #F59E0B; background: #FFFBEB; }
+.tr-star3:hover { background: #FEF3C7; }
+.tr-star2 { border-left: 3px solid #3B82F6; background: #EFF6FF; }
+.tr-star2:hover { background: #DBEAFE; }
+.tr-warn  { border-left: 3px solid #EF4444; background: #FEF2F2; }
+.tr-warn:hover { background: #FEE2E2; }
+
+/* ── RANK BADGE ── */
+.rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+.r1 { background: #F59E0B; color: #fff; }
+.r2 { background: #94A3B8; color: #fff; }
+.r3 { background: #B45309; color: #fff; }
+.r-n { background: #E2E8F0; color: var(--muted); }
+
+/* ── STOCK ── */
+.stock-wrap { display: flex; flex-direction: column; gap: 2px; }
+.stock-name { font-weight: 700; color: var(--txt); font-size: 14px; }
+.stock-code { font-size: 12px; color: var(--muted); font-weight: 600; }
+.stock-meta { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.sector {
+  display: inline-block;
+  background: #EFF6FF;
+  color: #1D4ED8;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+.mkt-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.mkt-kospi  { background: #1D4ED8; color: #fff; }
+.mkt-kosdaq { background: #059669; color: #fff; }
+
+/* ── CHG ── */
+.t-up   { color: #EF4444; font-weight: 700; }
+.t-down { color: #3B82F6; font-weight: 700; }
+
+/* ── MUL BAR ── */
+.mul-wrap { display: flex; align-items: center; gap: 6px; }
+.mul-bar-bg { width: 60px; height: 6px; background: #E2E8F0; border-radius: 3px; overflow: hidden; flex-shrink: 0; }
+.mul-bar { height: 100%; border-radius: 3px; }
+.mul-hot  { background: #EF4444; }
+.mul-cold { background: #3B82F6; }
+.mul-val  { font-size: 12px; font-weight: 700; color: var(--muted); }
+
+/* ── M BADGE ── */
+.m-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.m-hot  { background: #FEE2E2; color: #DC2626; }
+.m-up   { background: #DCFCE7; color: #16A34A; }
+.m-warn { background: #FEF3C7; color: #D97706; }
+.m-gray { background: #F1F5F9; color: var(--muted); }
+
+/* ── ISSUE ── */
+.intensity-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.int-core   { background: #FEE2E2; color: #DC2626; }
+.int-strong { background: #FEF3C7; color: #D97706; }
+.int-normal { background: #E0F2FE; color: #0369A1; }
+.int-weak   { background: #F1F5F9; color: var(--muted); }
+.trigger-chip {
+  display: inline-block;
+  background: #F3F4F6;
+  color: #374151;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+}
+.score-bar-wrap { display: flex; align-items: center; gap: 6px; }
+.score-bar-bg { width: 50px; height: 6px; background: #E2E8F0; border-radius: 3px; overflow: hidden; }
+.score-bar-fill { height: 100%; border-radius: 3px; }
+.score-val { font-size: 12px; font-weight: 800; color: var(--txt); }
+.issue-summary { font-size: 13px; color: var(--txt); font-weight: 600; line-height: 1.6; }
+.issue-news { font-size: 11px; color: var(--muted); font-weight: 600; margin-top: 4px; border-top: 1px solid #F1F5F9; padding-top: 4px; }
+
+/* ── REC ── */
+.rec-title { font-size: 16px; font-weight: 800; color: var(--txt); margin: 20px 0 12px; display: flex; align-items: center; gap: 8px; }
+.rec-grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 16px; }
+.rec-grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-bottom: 16px; }
+.rec-card {
+  background: var(--card);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  padding: 16px;
+  border-left: 4px solid transparent;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.rec-s3 { border-left-color: #F59E0B; }
+.rec-s2 { border-left-color: #3B82F6; }
+.rec-card-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+.rec-name { font-size: 15px; font-weight: 800; color: var(--txt); }
+.rec-code { font-size: 12px; color: var(--muted); font-weight: 600; }
+.rec-price { font-size: 18px; font-weight: 800; }
+.rec-chg   { font-size: 13px; font-weight: 700; }
+.strategy-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.strategy-tag { background: #F1F5F9; color: #374151; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 8px; }
+.rec-rows { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.rec-row { display: flex; gap: 6px; }
+.rec-row-k { color: var(--muted); font-weight: 700; min-width: 56px; flex-shrink: 0; }
+.rec-row-v { color: var(--txt); font-weight: 600; }
+.note-box {
+  background: #F8FAFC;
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+  line-height: 1.6;
+  border-left: 2px solid var(--border);
+}
+
+/* ── PRIORITY ── */
+.priority-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+}
+.pb-1 { background: #F59E0B; }
+.pb-2 { background: #94A3B8; }
+.pb-3 { background: #B45309; }
+
+/* ── CANDLE ── */
+.candle-up   { color: #EF4444; font-weight: 800; font-size: 15px; }
+.candle-down { color: #3B82F6; font-weight: 800; font-size: 15px; }
+
+/* ── DISCLAIMER ── */
+.disclaimer {
+  background: #FFF7ED;
+  border: 1px solid #FED7AA;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 12px;
+  color: #92400E;
+  font-weight: 600;
+  line-height: 1.7;
+  margin-top: 20px;
+}
+
+/* ── RESPONSIVE ── */
+@media (min-width: 1400px) { .main { padding: 20px 24px 40px; } }
+@media (max-width: 1199px) {
+  .rec-grid3 { grid-template-columns: repeat(2, 1fr); }
+  .kpi-grid  { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 1023px) {
+  .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+  .h-kpi-val { font-size: 17px; }
+  .h-kpi-block { gap: 14px; }
+}
+@media (max-width: 900px) {
+  .header-top { flex-direction: column; }
+  .h-badges-block { align-items: flex-start; flex-direction: row; flex-wrap: wrap; }
+  .rec-grid3 { grid-template-columns: 1fr; }
+  .rec-grid2 { grid-template-columns: 1fr; }
+  .tbl-wrap::after {
+    content: '';
+    position: absolute;
+    right: 0; top: 0; bottom: 0;
+    width: 30px;
+    background: linear-gradient(to left, rgba(255,255,255,0.8), transparent);
+    pointer-events: none;
+  }
+}
+@media (max-width: 639px) {
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .h-title { font-size: 15px; }
+  .kpi-val { font-size: 18px; }
+  .main { padding: 12px 12px 32px; }
+}
+@media (max-width: 479px) {
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .header-bar { font-size: 11px; gap: 10px; }
+  .h-badges-block { width: 100%; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ HEADER ═══ -->
+<div class="header">
+  <div class="header-top">
+    <div>
+      <div class="h-title">거래대금 TOP10 리포트</div>
+      <div class="h-sub">2026-06-26 | KIS + KRX | KOSPI+KOSDAQ</div>
+    </div>
+    <div class="h-kpi-block">
+      <div class="h-kpi-item">
+        <div class="h-kpi-val">10</div>
+        <div class="h-kpi-lbl">분석 종목</div>
+      </div>
+      <div class="h-kpi-item">
+        <div class="h-kpi-val" style="color:#FCD34D;">1개</div>
+        <div class="h-kpi-lbl">상승 종목</div>
+      </div>
+      <div class="h-kpi-item">
+        <div class="h-kpi-val">36.7조</div>
+        <div class="h-kpi-lbl">합산 거래대금</div>
+      </div>
+      <div class="h-kpi-item">
+        <div class="h-kpi-val" style="color:#93C5FD;">반도체</div>
+        <div class="h-kpi-lbl">주도 섹터</div>
+      </div>
+    </div>
+    <div class="h-badges-block">
+      <span class="h-badge badge-yellow">★★★ 원익IPS</span>
+      <span class="h-badge badge-blue">★★ SK하이닉스</span>
+      <span class="h-badge badge-green">★★ 두산에너빌리티</span>
+    </div>
+  </div>
+  <div class="header-bar">
+    <span><span class="hbar-key">기준일</span> 2026-06-26</span>
+    <span><span class="hbar-key">KOSPI</span> -5.81% (8,411.21)</span>
+    <span><span class="hbar-key">KOSDAQ</span> -4.10% (851.37)</span>
+    <span><span class="hbar-key">서킷브레이커</span> 올해 5회 발동</span>
+    <span><span class="hbar-key">유일 상승</span> 원익IPS +5.88%</span>
+    <span><span class="hbar-key">최대 하락</span> SK스퀘어 -9.43%</span>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- KPI 5종 -->
+  <div class="kpi-grid">
+    <div class="kpi-card kpi-gold">
+      <div class="kpi-val">19.5조</div>
+      <div class="kpi-lbl">1위 거래대금</div>
+      <div class="kpi-sub">SK하이닉스</div>
+    </div>
+    <div class="kpi-card kpi-up">
+      <div class="kpi-val">+5.88%</div>
+      <div class="kpi-lbl">최대 상승</div>
+      <div class="kpi-sub">원익IPS</div>
+    </div>
+    <div class="kpi-card kpi-down">
+      <div class="kpi-val">-9.43%</div>
+      <div class="kpi-lbl">최대 하락</div>
+      <div class="kpi-sub">SK스퀘어</div>
+    </div>
+    <div class="kpi-card kpi-sky">
+      <div class="kpi-val">36.7조</div>
+      <div class="kpi-lbl">합산 거래대금</div>
+      <div class="kpi-sub">10종목</div>
+    </div>
+    <div class="kpi-card kpi-purple">
+      <div class="kpi-val">5.98%</div>
+      <div class="kpi-lbl">최고 회전율</div>
+      <div class="kpi-sub">원익IPS</div>
+    </div>
+  </div>
+
+  <!-- 표1 수급·규모 -->
+  <div class="section">
+    <div class="section-head">[표1] 수급·규모</div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="text-align:center;">#</th>
+            <th class="td-left">종목</th>
+            <th>현재가</th>
+            <th>등락률</th>
+            <th>거래대금</th>
+            <th>회전율</th>
+            <th>시총</th>
+            <th>배수</th>
+            <th>모멘텀</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="tr-star2">
+            <td style="text-align:center;"><span class="rank-badge r1">1</span></td>
+            <td class="td-left">
+              <div class="stock-wrap">
+                <div class="stock-meta"><span class="stock-name">SK하이닉스</span><span class="mkt-badge mkt-kospi">KOSPI</span></div>
+                <div class="stock-meta"><span class="stock-code">000660</span><span class="sector">반도체</span></div>
+              </div>
+            </td>
+            <td style="font-weight:700;">2,673,000</td>
+            <td class="t-down">-8.36%</td>
+            <td style="font-weight:700;">19.5조</td>
+            <td>1.01%</td>
+            <td>2,079조</td>
+            <td>
+              <div class="mul-wrap">
+                <div class="mul-bar-bg"><div class="mul-bar mul-hot" style="width:100%;"></div></div>
+                <span class="mul-val">역대급</span>
+              </div>
+            </td>
+            <td><span class="m-badge m-warn">수급충격</span></td>
+          </tr>
+          <tr>
+            <td style="text-align:center;"><span class="rank-badge r2">2</span></td>
+            <td class="td-left">
+              <div class="stock-wrap">
+                <div class="stock-meta"><span class="stock-name">삼성전자</span><span class="mkt-badge mkt-kospi">KOSPI</span></div>
+                <div class="stock-meta"><span class="stock-code">005930</span><span class="sector">반도체/IT</span></div>
+              </div>
+            </td>
+            <td style="font-weight:700;">339,500</td>
+            <td class="t-down">-5.30%</td>
+            <td style="font-weight:700;">11.9조</td>
+            <td>0.60%</td>
+            <td>2,096조</td>
+            <td>
+              <div class="mul-wrap">
+                <div class="mul-bar-bg"><div class="mul-bar mul-hot" style="width:85%;"></div></div>
+                <span class="mul-val">대규모</span>
+              </div>
+            </td>
+            <td><span class="m-badge m-warn">패닉셀</span></td>
+          </tr>
+          <tr>
+            <td style="text-align:center;"><span class="rank-badge r3">3</span></td>
+            <td class="td-left">
+              <div class="stock-wrap">
+                <div class="stock-meta"><span class="stock-name">삼성전기</span><span class="mkt-badge mkt-kospi">KOSPI</span></div>
+                <div class="stock-meta"><span class="stock-code">009150</span><span class="sector">반도체/IT</span></div>
+              </div>
+            </td>
+            <td style="font-weight:700;">1,993,000</td>
+            <td class="t-down">-0.20%</td>
+            <td>2.6조</td>
+            <td>1.75%</td>
+            <td>149조</td>
+            <td>
+              <div class="mul-wrap">
+                <div class="mul-bar-bg"><div class="mul-bar mul-cold" style="width:40%;"></div></div>
+                <span class="mul-val">보통</span>
+              </div>
+            </td>
+            <td><span class="m-badge m-up">상대강세</span></td>
+          </tr>
+          <tr>
+            <td style="text-align:center;"><span class="rank-badge r-n">4</span></td>
+            <td class="td-left">
+              <div class="stock-wrap">
+                <div class="stock-meta"><span class="stock-name">SK스퀘어</span><span class="mkt-badge mkt-kospi">KOSPI</span></div>
+                <div class="stock-meta"><span class="stock-code">402340</span><span class="sector">IT지주</span></div>
+              </div>
+            </td>
+            <td style="font-weight:700;">1,720,000</td>
+            <td class="t-down">-9.43%</td>
+            <td>2.0조</td>
+            <td>0.87%</td>
+            <td>251조</td>
+            <td>
+              <div class="mul-wrap">
+                <div class="mul-bar-bg"><div class="mul-bar mul-hot" style="width:30%;"></div></div>
+                <span class="mul-val">높음</span>
+              </div>
+            </td>
+            <td><span class="m-badge m-hot">핵심이슈</span></td>
+          </tr>
+          <tr>
+            <td style="text-align:center;"><span class="rank-badge r-n">5</span></td>
+            <td class="td-left">
+              <div class="stock-wrap">
+                <div class="stock-meta"><span class="stock-name">현대차</span><span class="mkt-badge mkt-kospi">KOSPI</span></div>
+                <div class="stock-meta"><span class="stock-code">005380</span><span class="sector">자동차</span></div>
+              </div>
+            </td>
+            <td style="font-weight:700;">480,500</td>
+            <td class="t-down">-4.47%</td>
+            <td>7,500억</td>
+            <td>0.77%</td>
+            <td>104조</td>
+            <td>
+              <div class="mul-wrap">
+                <div class="mul-bar-bg"><div class="mul-bar mul-cold" style="width:30%;"></div></div>
+                <span class="mul-val">보통</span>
+              </div>
+            </td>
+            <td><span class="m-badge m-gray">시장동반</span></td>
+          </tr>
+          <tr>
+            <td style="text-align:center;"><span class="rank-badge r-n">6</span></td>
+            <td class="td-left">
+              <div class="stock-wrap">
+                <div class="stock-meta"><span class="stock-name">SK</span><span class="mkt-badge mkt-kospi">KOSPI</span></div>
+                <div class="stock-meta"><span class="stock-code">034730</span><span class="sector">에너지/기타</span></div>
+              </div>
+            </td>
+            <td style="font-weight:700;">815,000</td>
+            <td class="t-down">-5.01%</td>
+            <td>5,150억</td>
+            <td>0.85%</td>
+            <td>62조</td>
+            <td>
+              <div class="mul-wrap">
+                <div class="mul-bar-bg"><div class="mul-bar mul-cold" style="width:25%;"></div></div>
+                <span class="mul-val">보통</span>
+              </div>
+            </td>
+            <td><span class="m-badge m-gray">불확실</span></td>
+          </tr>
+          <tr class="tr-star3">
+            <td style="text-align:center;"><span class="rank-badge r-n">7</span></td>
+            <td class="td-left">
+              <div class="stock-wrap">
+                <div class="stock-meta"><span class="stock-name">원익IPS</span><span class="mkt-badge mkt-kosdaq">KOSDAQ</span></div>
+                <div class="stock-meta"><span class="stock-code">240810</span><span class="sector">반도체장비</span></div>
+              </div>
+            </td>
+            <td style="font-weight:700;">163,800</td>
+            <td class="t-up">+5.88%</td>
+            <td>4,909억</td>
+            <td style="color:#D97706;font-weight:800;">5.98%</td>
+            <td>8조</td>
+            <td>
+              <div class="mul-wrap">
+                <div class="mul-bar-bg"><div class="mul-bar mul-hot" style="width:70%;"></div></div>
+                <span class="mul-val">높음</span>
+              </div>
+            </td>
+            <td><span class="m-badge m-hot">역행상승</span></td>
+          </tr>
+          <tr>
+            <td style="text-align:center;"><span class="rank-badge r-n">8</span></td>
+            <td class="td-left">
+              <div class="stock-wrap">
+                <div class="stock-meta"><span class="stock-name">주성엔지니어링</span><span class="mkt-badge mkt-kosdaq">KOSDAQ</span></div>
+                <div class="stock-meta"><span class="stock-code">036930</span><span class="sector">반도체장비</span></div>
+              </div>
+            </td>
+            <td style="font-weight:700;">165,600</td>
+            <td class="t-down">-0.78%</td>
+            <td>4,646억</td>
+            <td style="color:#D97706;font-weight:800;">5.91%</td>
+            <td>8조</td>
+            <td>
+              <div class="mul-wrap">
+                <div class="mul-bar-bg"><div class="mul-bar mul-cold" style="width:40%;"></div></div>
+                <span class="mul-val">보통</span>
+              </div>
+            </td>
+            <td><span class="m-badge m-up">방어강세</span></td>
+          </tr>
+          <tr>
+            <td style="text-align:center;"><span class="rank-badge r-n">9</span></td>
+            <td class="td-left">
+              <div class="stock-wrap">
+                <div class="stock-meta"><span class="stock-name">LG이노텍</span><span class="mkt-badge mkt-kospi">KOSPI</span></div>
+                <div class="stock-meta"><span class="stock-code">011070</span><span class="sector">IT/전자부품</span></div>
+              </div>
+            </td>
+            <td style="font-weight:700;">931,000</td>
+            <td class="t-down">-2.31%</td>
+            <td>4,439억</td>
+            <td>1.98%</td>
+            <td>23조</td>
+            <td>
+              <div class="mul-wrap">
+                <div class="mul-bar-bg"><div class="mul-bar mul-cold" style="width:30%;"></div></div>
+                <span class="mul-val">보통</span>
+              </div>
+            </td>
+            <td><span class="m-badge m-gray">애플연동</span></td>
+          </tr>
+          <tr class="tr-star2">
+            <td style="text-align:center;"><span class="rank-badge r-n">10</span></td>
+            <td class="td-left">
+              <div class="stock-wrap">
+                <div class="stock-meta"><span class="stock-name">두산에너빌리티</span><span class="mkt-badge mkt-kospi">KOSPI</span></div>
+                <div class="stock-meta"><span class="stock-code">034020</span><span class="sector">에너지/원전</span></div>
+              </div>
+            </td>
+            <td style="font-weight:700;">81,100</td>
+            <td class="t-down">-7.63%</td>
+            <td>3,913억</td>
+            <td>0.74%</td>
+            <td>58조</td>
+            <td>
+              <div class="mul-wrap">
+                <div class="mul-bar-bg"><div class="mul-bar mul-hot" style="width:50%;"></div></div>
+                <span class="mul-val">높음</span>
+              </div>
+            </td>
+            <td><span class="m-badge m-hot">과매도</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 표2 OHLC -->
+  <div class="section">
+    <div class="section-head">[표2] 가격흐름 (OHLC)</div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="text-align:center;">#</th>
+            <th class="td-left">종목</th>
+            <th>캔들</th>
+            <th>시가</th>
+            <th>고가</th>
+            <th>저가</th>
+            <th>변동폭</th>
+            <th>시가대비</th>
+            <th class="td-left">패턴</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="tr-star2">
+            <td style="text-align:center;"><span class="rank-badge r1">1</span></td>
+            <td class="td-left"><span class="stock-name">SK하이닉스</span></td>
+            <td style="text-align:center;"><span class="candle-down">▼</span></td>
+            <td>2,850,000</td>
+            <td style="color:#EF4444;font-weight:700;">2,880,000</td>
+            <td style="color:#3B82F6;font-weight:700;">2,600,000</td>
+            <td style="font-weight:700;">10.8%</td>
+            <td class="t-down">-6.2%</td>
+            <td class="td-left"><span class="m-badge m-hot">장대음봉·갭다운</span></td>
+          </tr>
+          <tr>
+            <td style="text-align:center;"><span class="rank-badge r2">2</span></td>
+            <td class="td-left"><span class="stock-name">삼성전자</span></td>
+            <td style="text-align:center;"><span class="candle-down">▼</span></td>
+            <td>354,000</td>
+            <td style="color:#EF4444;font-weight:700;">356,500</td>
+            <td style="color:#3B82F6;font-weight:700;">321,500</td>
+            <td style="font-weight:700;">10.9%</td>
+            <td class="t-down">-4.1%</td>
+            <td class="td-left"><span class="m-badge m-warn">장대음봉</span></td>
+          </tr>
+          <tr>
+            <td style="text-align:center;"><span class="rank-badge r3">3</span></td>
+            <td class="td-left"><span class="stock-name">삼성전기</span></td>
+            <td style="text-align:center;"><span class="candle-down">▼</span></td>
+            <td>2,000,000</td>
+            <td style="color:#EF4444;font-weight:700;">2,149,000</td>
+            <td style="color:#3B82F6;font-weight:700;">1,910,000</td>
+            <td style="font-weight:700;">12.5%</td>
+            <td class="t-down">-0.4%</td>
+            <td class="td-left"><span class="m-badge m-up">위꼬리·상대방어</span></td>
+          </tr>
+          <tr>
+            <td style="text-align:center;"><span class="rank-badge r-n">4</span></td>
+            <td class="td-left"><span class="stock-name">SK스퀘어</span></td>
+            <td style="text-align:center;"><span class="candle-down">▼</span></td>
+            <td>1,870,000</td>
+            <td style="color:#EF4444;font-weight:700;">1,870,000</td>
+            <td style="color:#3B82F6;font-weight:700;">1,624,000</td>
+            <td style="font-weight:700;">15.1%</td>
+            <td class="t-down">-8.0%</td>
+            <td class="td-left"><span class="m-badge m-hot">시가=고가·일방매도</span></td>
+          </tr>
+          <tr>
+            <td style="text-align:center;"><span class="rank-badge r-n">5</span></td>
+            <td class="td-left"><span class="stock-name">현대차</span></td>
+            <td style="text-align:center;"><span class="candle-down">▼</span></td>
+            <td>496,500</td>
+            <td style="color:#EF4444;font-weight:700;">502,000</td>
+            <td style="color:#3B82F6;font-weight:700;">460,500</td>
+            <td style="font-weight:700;">9.0%</td>
+            <td class="t-down">-3.2%</td>
+            <td class="td-left"><span class="m-badge m-gray">음봉·소폭반발</span></td>
+          </tr>
+          <tr>
+            <td style="text-align:center;"><span class="rank-badge r-n">6</span></td>
+            <td class="td-left"><span class="stock-name">SK</span></td>
+            <td style="text-align:center;"><span class="candle-down">▼</span></td>
+            <td>868,000</td>
+            <td style="color:#EF4444;font-weight:700;">880,000</td>
+            <td style="color:#3B82F6;font-weight:700;">794,000</td>
+            <td style="font-weight:700;">10.8%</td>
+            <td class="t-down">-6.1%</td>
+            <td class="td-left"><span class="m-badge m-warn">장대음봉</span></td>
+          </tr>
+          <tr class="tr-star3">
+            <td style="text-align:center;"><span class="rank-badge r-n">7</span></td>
+            <td class="td-left"><span class="stock-name">원익IPS</span></td>
+            <td style="text-align:center;"><span class="candle-up">▲</span></td>
+            <td>157,800</td>
+            <td style="color:#EF4444;font-weight:700;">182,600</td>
+            <td style="color:#3B82F6;font-weight:700;">156,700</td>
+            <td style="font-weight:700;">16.5%</td>
+            <td class="t-up">+3.8%</td>
+            <td class="td-left"><span class="m-badge m-hot">양봉·장중고점 돌파</span></td>
+          </tr>
+          <tr>
+            <td style="text-align:center;"><span class="rank-badge r-n">8</span></td>
+            <td class="td-left"><span class="stock-name">주성엔지니어링</span></td>
+            <td style="text-align:center;"><span class="candle-down">▼</span></td>
+            <td>166,900</td>
+            <td style="color:#EF4444;font-weight:700;">179,300</td>
+            <td style="color:#3B82F6;font-weight:700;">161,600</td>
+            <td style="font-weight:700;">11.0%</td>
+            <td class="t-down">-0.8%</td>
+            <td class="td-left"><span class="m-badge m-up">위꼬리·낙폭 최소</span></td>
+          </tr>
+          <tr>
+            <td style="text-align:center;"><span class="rank-badge r-n">9</span></td>
+            <td class="td-left"><span class="stock-name">LG이노텍</span></td>
+            <td style="text-align:center;"><span class="candle-down">▼</span></td>
+            <td>923,000</td>
+            <td style="color:#EF4444;font-weight:700;">1,005,000</td>
+            <td style="color:#3B82F6;font-weight:700;">901,000</td>
+            <td style="font-weight:700;">11.5%</td>
+            <td class="t-up">+0.9%</td>
+            <td class="td-left"><span class="m-badge m-gray">장중반발·약음봉</span></td>
+          </tr>
+          <tr class="tr-star2">
+            <td style="text-align:center;"><span class="rank-badge r-n">10</span></td>
+            <td class="td-left"><span class="stock-name">두산에너빌리티</span></td>
+            <td style="text-align:center;"><span class="candle-down">▼</span></td>
+            <td>86,900</td>
+            <td style="color:#EF4444;font-weight:700;">87,800</td>
+            <td style="color:#3B82F6;font-weight:700;">79,300</td>
+            <td style="font-weight:700;">10.7%</td>
+            <td class="t-down">-6.7%</td>
+            <td class="td-left"><span class="m-badge m-warn">시가근접마감·약반발</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 표3 AI 이슈 -->
+  <div class="section">
+    <div class="section-head">[표3] 특징·이슈 (AI 분석)</div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="text-align:center;">#</th>
+            <th class="td-left">종목</th>
+            <th>강도</th>
+            <th class="td-left">트리거</th>
+            <th>점수</th>
+            <th class="td-left" style="min-width:300px;">요약 / 뉴스</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="text-align:center;"><span class="rank-badge r1">1</span></td>
+            <td class="td-left"><div class="stock-wrap"><span class="stock-name">SK하이닉스</span><span class="stock-code">000660 · 반도체</span></div></td>
+            <td><span class="intensity-badge int-core">🔴핵심</span></td>
+            <td class="td-left"><span class="trigger-chip">수급</span></td>
+            <td>
+              <div class="score-bar-wrap">
+                <div class="score-bar-bg"><div class="score-bar-fill" style="width:88%;background:#EF4444;"></div></div>
+                <span class="score-val">88</span>
+              </div>
+            </td>
+            <td class="td-left">
+              <div class="issue-summary">서킷브레이커 속 삼전닉스 레버리지 후폭풍, 수급 충격 극대화 — 거래대금 19.5조 역대급</div>
+              <div class="issue-news">뉴스: 이번 주만 서킷브레이커 두 번 / 삼전닉스 레버리지 후폭풍, 왜 한국만 흔들리나</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="text-align:center;"><span class="rank-badge r2">2</span></td>
+            <td class="td-left"><div class="stock-wrap"><span class="stock-name">삼성전자</span><span class="stock-code">005930 · 반도체/IT</span></div></td>
+            <td><span class="intensity-badge int-strong">🟠강함</span></td>
+            <td class="td-left"><span class="trigger-chip">수급</span></td>
+            <td>
+              <div class="score-bar-wrap">
+                <div class="score-bar-bg"><div class="score-bar-fill" style="width:82%;background:#F59E0B;"></div></div>
+                <span class="score-val">82</span>
+              </div>
+            </td>
+            <td class="td-left">
+              <div class="issue-summary">코스피 급락 동반 하락, 레버리지 ETF 강제 청산 물량 집중 — 외국인·기관 동반 매도</div>
+              <div class="issue-news">뉴스: 서킷브레이커 두 번 / 삼전닉스 레버리지 후폭풍</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="text-align:center;"><span class="rank-badge r3">3</span></td>
+            <td class="td-left"><div class="stock-wrap"><span class="stock-name">삼성전기</span><span class="stock-code">009150 · 반도체/IT</span></div></td>
+            <td><span class="intensity-badge int-weak">⚪약함</span></td>
+            <td class="td-left"><span class="trigger-chip">기술적</span></td>
+            <td>
+              <div class="score-bar-wrap">
+                <div class="score-bar-bg"><div class="score-bar-fill" style="width:32%;background:#94A3B8;"></div></div>
+                <span class="score-val">32</span>
+              </div>
+            </td>
+            <td class="td-left">
+              <div class="issue-summary">급락장 상대적 방어, -0.20% 유지 — 반도체 공급망 수혜 지속으로 바닥 지탱</div>
+              <div class="issue-news">뉴스: '홀로 강세' 삼성전기도 '검은 금요일' 못 피했다…199만원대 마감</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="text-align:center;"><span class="rank-badge r-n">4</span></td>
+            <td class="td-left"><div class="stock-wrap"><span class="stock-name">SK스퀘어</span><span class="stock-code">402340 · IT지주</span></div></td>
+            <td><span class="intensity-badge int-core">🔴핵심</span></td>
+            <td class="td-left"><span class="trigger-chip">수급</span></td>
+            <td>
+              <div class="score-bar-wrap">
+                <div class="score-bar-bg"><div class="score-bar-fill" style="width:88%;background:#EF4444;"></div></div>
+                <span class="score-val">88</span>
+              </div>
+            </td>
+            <td class="td-left">
+              <div class="issue-summary">시장 대비 초과 낙폭 -9.43%, 외국인·기관 패닉셀 집중 — SK하이닉스 최대주주 충격 흡수</div>
+              <div class="issue-news">뉴스: SK하이닉스 전용기 지분 확대 / 서킷브레이커 올해 5번째 발동</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="text-align:center;"><span class="rank-badge r-n">5</span></td>
+            <td class="td-left"><div class="stock-wrap"><span class="stock-name">현대차</span><span class="stock-code">005380 · 자동차</span></div></td>
+            <td><span class="intensity-badge int-normal">🟡보통</span></td>
+            <td class="td-left"><span class="trigger-chip">테마</span></td>
+            <td>
+              <div class="score-bar-wrap">
+                <div class="score-bar-bg"><div class="score-bar-fill" style="width:58%;background:#3B82F6;"></div></div>
+                <span class="score-val">58</span>
+              </div>
+            </td>
+            <td class="td-left">
+              <div class="issue-summary">로봇 기대감 과도 반영 후 차익 실현, 부산모빌리티쇼 신형 아반떼 공개</div>
+              <div class="issue-news">뉴스: 로봇 기대감 너무 반영됐나 / 부산모빌리티쇼 신형 아반떼 첫선</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="text-align:center;"><span class="rank-badge r-n">6</span></td>
+            <td class="td-left"><div class="stock-wrap"><span class="stock-name">SK</span><span class="stock-code">034730 · 에너지/기타</span></div></td>
+            <td><span class="intensity-badge int-normal">🟡보통</span></td>
+            <td class="td-left"><span class="trigger-chip">재료</span></td>
+            <td>
+              <div class="score-bar-wrap">
+                <div class="score-bar-bg"><div class="score-bar-fill" style="width:54%;background:#3B82F6;"></div></div>
+                <span class="score-val">54</span>
+              </div>
+            </td>
+            <td class="td-left">
+              <div class="issue-summary">코스피 동반 하락, 최태원·노소영 재산분할 7월 결론 앞 지배구조 불확실성</div>
+              <div class="issue-news">뉴스: 최태원·노소영 재산분할 내달 24일 결론 / 코스피 급락 사이드카</div>
+            </td>
+          </tr>
+          <tr class="tr-star3">
+            <td style="text-align:center;"><span class="rank-badge r-n">7</span></td>
+            <td class="td-left"><div class="stock-wrap"><span class="stock-name">원익IPS</span><span class="stock-code">240810 · 반도체장비</span></div></td>
+            <td><span class="intensity-badge int-normal">🟡보통</span></td>
+            <td class="td-left"><span class="trigger-chip">기술적</span></td>
+            <td>
+              <div class="score-bar-wrap">
+                <div class="score-bar-bg"><div class="score-bar-fill" style="width:61%;background:#F59E0B;"></div></div>
+                <span class="score-val">61</span>
+              </div>
+            </td>
+            <td class="td-left">
+              <div class="issue-summary">KOSPI -5.81% 급락장 TOP10 유일 상승(+5.88%), 반도체 장비 수혜주 차별화 — 회전율 5.98%</div>
+              <div class="issue-news">뉴스: 외인·기관 8.4조 투매 / 코스피 급락에 사이드카·서킷브레이커</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="text-align:center;"><span class="rank-badge r-n">8</span></td>
+            <td class="td-left"><div class="stock-wrap"><span class="stock-name">주성엔지니어링</span><span class="stock-code">036930 · 반도체장비</span></div></td>
+            <td><span class="intensity-badge int-weak">⚪약함</span></td>
+            <td class="td-left"><span class="trigger-chip">기술적</span></td>
+            <td>
+              <div class="score-bar-wrap">
+                <div class="score-bar-bg"><div class="score-bar-fill" style="width:28%;background:#94A3B8;"></div></div>
+                <span class="score-val">28</span>
+              </div>
+            </td>
+            <td class="td-left">
+              <div class="issue-summary">낙폭 0.78% 최소화, 저평가 방어주 특성 재확인 — 개별 재료 없음</div>
+              <div class="issue-news">뉴스: 외인·기관 8.4조 투매 / 코스피 8411선 마감</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="text-align:center;"><span class="rank-badge r-n">9</span></td>
+            <td class="td-left"><div class="stock-wrap"><span class="stock-name">LG이노텍</span><span class="stock-code">011070 · IT/전자부품</span></div></td>
+            <td><span class="intensity-badge int-weak">⚪약함</span></td>
+            <td class="td-left"><span class="trigger-chip">외인</span></td>
+            <td>
+              <div class="score-bar-wrap">
+                <div class="score-bar-bg"><div class="score-bar-fill" style="width:45%;background:#94A3B8;"></div></div>
+                <span class="score-val">45</span>
+              </div>
+            </td>
+            <td class="td-left">
+              <div class="issue-summary">애플 주가 6% 하락 연동 약세, 엔비디아 로봇 협력 뉴스 긍정이나 미반영</div>
+              <div class="issue-news">뉴스: LG전자 엔비디아와 로봇 개발 / 애플 주가 6% 하락에 국내 부품주 약세</div>
+            </td>
+          </tr>
+          <tr class="tr-star2">
+            <td style="text-align:center;"><span class="rank-badge r-n">10</span></td>
+            <td class="td-left"><div class="stock-wrap"><span class="stock-name">두산에너빌리티</span><span class="stock-code">034020 · 에너지/원전</span></div></td>
+            <td><span class="intensity-badge int-strong">🟠강함</span></td>
+            <td class="td-left"><span class="trigger-chip">기술적</span></td>
+            <td>
+              <div class="score-bar-wrap">
+                <div class="score-bar-bg"><div class="score-bar-fill" style="width:72%;background:#F59E0B;"></div></div>
+                <span class="score-val">72</span>
+              </div>
+            </td>
+            <td class="td-left">
+              <div class="issue-summary">시장 대비 초과 낙폭 -7.63%, 이틀 상승 후 차익 + 서킷브레이커 복합 — SMR/원전 테마 유효</div>
+              <div class="issue-news">뉴스: 이틀 오르더니 결국…코스피 5% 하락한 8400대 마감</div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 매매 추천 -->
+  <div class="section" style="padding:20px;">
+    <div class="section-head" style="margin:-20px -20px 0;padding:14px 20px;margin-bottom:0;">매매 추천</div>
+
+    <div class="rec-title">⭐⭐⭐ 적극 관심</div>
+    <div class="rec-grid3">
+      <div class="rec-card rec-s3">
+        <div class="rec-card-head">
+          <div>
+            <div class="rec-name">원익IPS</div>
+            <div class="rec-code">240810 · KOSDAQ · 반도체장비</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="rec-price t-up">163,800</div>
+            <div class="rec-chg t-up">+5.88%</div>
+          </div>
+        </div>
+        <div class="strategy-tags">
+          <span class="strategy-tag">역행 상승</span>
+          <span class="strategy-tag">상대강도 최고</span>
+          <span class="strategy-tag">반도체장비 수혜</span>
+          <span class="strategy-tag">회전율 5.98%</span>
+        </div>
+        <div class="rec-rows">
+          <div class="rec-row"><span class="rec-row-k">20일 이력</span><span class="rec-row-v">오늘 처음 TOP10 진입, 급락장 역행 상승</span></div>
+          <div class="rec-row"><span class="rec-row-k">오늘 시그널</span><span class="rec-row-v">양봉 + 장중 고점 182,600까지 상승 후 마감</span></div>
+          <div class="rec-row"><span class="rec-row-k">진입방식</span><span class="rec-row-v">163,000~165,000 분할 매수</span></div>
+          <div class="rec-row"><span class="rec-row-k">손절기준</span><span class="rec-row-v">156,700 (당일 저가) 하향 이탈 시</span></div>
+          <div class="rec-row"><span class="rec-row-k">목표가</span><span class="rec-row-v">182,000 (당일 고점 재도전)</span></div>
+        </div>
+        <div class="note-box">KOSPI -5.81% 급락장에서 TOP10 내 유일하게 상승(+5.88%). 상대강도 압도적. 급락 장세 역행 종목은 시장 회복 시 선도 가능성 높음.</div>
+      </div>
+    </div>
+
+    <div class="rec-title">⭐⭐ 조건부 매매</div>
+    <div class="rec-grid2">
+      <div class="rec-card rec-s2">
+        <div class="rec-card-head">
+          <div>
+            <div class="rec-name">SK하이닉스</div>
+            <div class="rec-code">000660 · KOSPI · 반도체</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="rec-price t-down">2,673,000</div>
+            <div class="rec-chg t-down">-8.36%</div>
+          </div>
+        </div>
+        <div class="strategy-tags">
+          <span class="strategy-tag">과매도 반등</span>
+          <span class="strategy-tag">거래대금 1위 19.5조</span>
+          <span class="strategy-tag">레버리지 소화 후 진입</span>
+        </div>
+        <div class="rec-rows">
+          <div class="rec-row"><span class="rec-row-k">오늘 시그널</span><span class="rec-row-v">장대음봉 + 갭다운, 레버리지 강제 청산</span></div>
+          <div class="rec-row"><span class="rec-row-k">진입방식</span><span class="rec-row-v">다음 거래일 외국인 수급 확인 후 2,650,000~2,700,000</span></div>
+          <div class="rec-row"><span class="rec-row-k">손절기준</span><span class="rec-row-v">2,550,000 이탈 시 즉시</span></div>
+          <div class="rec-row"><span class="rec-row-k">목표가</span><span class="rec-row-v">2,850,000 (당일 시가 회복)</span></div>
+        </div>
+        <div class="note-box">거래대금 19.5조 역대급. 레버리지 ETF 반대매매 물량 소화 확인이 핵심 진입 조건. 섣부른 당일 추격매수 금지.</div>
+      </div>
+      <div class="rec-card rec-s2">
+        <div class="rec-card-head">
+          <div>
+            <div class="rec-name">두산에너빌리티</div>
+            <div class="rec-code">034020 · KOSPI · 에너지/원전</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="rec-price t-down">81,100</div>
+            <div class="rec-chg t-down">-7.63%</div>
+          </div>
+        </div>
+        <div class="strategy-tags">
+          <span class="strategy-tag">SMR/원전 테마</span>
+          <span class="strategy-tag">과매도 반등</span>
+          <span class="strategy-tag">테마 재유입 기대</span>
+        </div>
+        <div class="rec-rows">
+          <div class="rec-row"><span class="rec-row-k">오늘 시그널</span><span class="rec-row-v">이틀 상승 후 차익 + 서킷브레이커 복합 낙폭</span></div>
+          <div class="rec-row"><span class="rec-row-k">진입방식</span><span class="rec-row-v">79,000~81,000 지지 확인 후 분할 매수</span></div>
+          <div class="rec-row"><span class="rec-row-k">손절기준</span><span class="rec-row-v">78,000 (당일 저가) 하향 이탈 시</span></div>
+          <div class="rec-row"><span class="rec-row-k">목표가</span><span class="rec-row-v">86,000~87,000 (전일 수준 회복)</span></div>
+        </div>
+        <div class="note-box">SMR·가스터빈 에너지 인프라 테마 유효성 유지 시 반등 가능. 시장 안정화 선행 여부 확인 필수.</div>
+      </div>
+    </div>
+
+    <div class="rec-title" style="color:#EF4444;">⛔ 단기 제외</div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="td-left">종목</th>
+            <th class="td-left">제외 이유</th>
+            <th>등락률</th>
+            <th>점수</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="tr-warn">
+            <td class="td-left"><strong>삼성전자</strong> <span class="stock-code">005930</span></td>
+            <td class="td-left">레버리지 후폭풍 지속 우려, 개별 반등 트리거 없음</td>
+            <td class="t-down">-5.30%</td>
+            <td>82</td>
+          </tr>
+          <tr class="tr-warn">
+            <td class="td-left"><strong>SK스퀘어</strong> <span class="stock-code">402340</span></td>
+            <td class="td-left">시가=고가(일방 매도) 패턴, 하이닉스 연동 개별 재료 부족</td>
+            <td class="t-down">-9.43%</td>
+            <td>88</td>
+          </tr>
+          <tr>
+            <td class="td-left"><strong>삼성전기</strong> <span class="stock-code">009150</span></td>
+            <td class="td-left">상대 강세이나 거래 모멘텀 없음, 신규 진입 매력 부족</td>
+            <td class="t-down">-0.20%</td>
+            <td>32</td>
+          </tr>
+          <tr>
+            <td class="td-left"><strong>현대차</strong> <span class="stock-code">005380</span></td>
+            <td class="td-left">로봇 기대감 차익 실현, 단기 모멘텀 약화</td>
+            <td class="t-down">-4.47%</td>
+            <td>58</td>
+          </tr>
+          <tr>
+            <td class="td-left"><strong>SK</strong> <span class="stock-code">034730</span></td>
+            <td class="td-left">최태원·노소영 재산분할 7월 결론 앞 지배구조 불확실성</td>
+            <td class="t-down">-5.01%</td>
+            <td>54</td>
+          </tr>
+          <tr>
+            <td class="td-left"><strong>주성엔지니어링</strong> <span class="stock-code">036930</span></td>
+            <td class="td-left">방어 강세이나 개별 재료·이슈 부재, 점수 최하위</td>
+            <td class="t-down">-0.78%</td>
+            <td>28</td>
+          </tr>
+          <tr>
+            <td class="td-left"><strong>LG이노텍</strong> <span class="stock-code">011070</span></td>
+            <td class="td-left">애플 -6% 연동 약세, 단기 수급 개선 신호 없음</td>
+            <td class="t-down">-2.31%</td>
+            <td>45</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 최종 우선순위 -->
+  <div class="section">
+    <div class="section-head">최종 우선순위</div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>순위</th>
+            <th class="td-left">종목</th>
+            <th class="td-left">전략</th>
+            <th class="td-left">핵심근거</th>
+            <th class="td-left">진입타이밍</th>
+            <th class="td-left">리스크</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="tr-star3">
+            <td style="text-align:center;"><span class="priority-badge pb-1">1</span></td>
+            <td class="td-left"><strong>원익IPS</strong> <span class="stock-code">240810</span></td>
+            <td class="td-left"><span class="m-badge m-hot">역행 상승</span></td>
+            <td class="td-left">TOP10 유일 상승, 상대강도 압도적, 회전율 5.98%</td>
+            <td class="td-left">163,000~165,000 분할 매수</td>
+            <td class="td-left">시장 추가 하락 시 동반 하락 가능성</td>
+          </tr>
+          <tr class="tr-star2">
+            <td style="text-align:center;"><span class="priority-badge pb-2">2</span></td>
+            <td class="td-left"><strong>SK하이닉스</strong> <span class="stock-code">000660</span></td>
+            <td class="td-left"><span class="m-badge m-warn">반등 대기</span></td>
+            <td class="td-left">거래대금 1위 19.5조, 과매도 구간, 핵심 대형주</td>
+            <td class="td-left">레버리지 소화 확인 후 다음 거래일 진입</td>
+            <td class="td-left">외국인 순매도 지속 시 추가 하락</td>
+          </tr>
+          <tr class="tr-star2">
+            <td style="text-align:center;"><span class="priority-badge pb-3">3</span></td>
+            <td class="td-left"><strong>두산에너빌리티</strong> <span class="stock-code">034020</span></td>
+            <td class="td-left"><span class="m-badge m-up">테마 반등</span></td>
+            <td class="td-left">SMR/원전 테마 유효, 과매도 반등 기대, 이슈분석 72점</td>
+            <td class="td-left">79,000~81,000 지지 확인 후 분할 진입</td>
+            <td class="td-left">시장 안정화 지연 시 테마 소멸 리스크</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 면책 -->
+  <div class="disclaimer">
+    ※ 본 리포트는 거래대금·수급 데이터 기반 분석이며 투자 권유가 아닙니다.<br>
+    투자 결정은 본인의 판단과 책임 하에 이루어져야 합니다.
+  </div>
+
+</div>
+</body>
+</html>
