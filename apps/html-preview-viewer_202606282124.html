@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>HTML 프리뷰어 — PC · 모바일 비교</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── 툴바 ── */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      background: #1a1d27;
+      border-bottom: 1px solid #2d3148;
+      flex-shrink: 0;
+    }
+    .toolbar-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #7c83ff;
+      white-space: nowrap;
+      letter-spacing: 0.02em;
+    }
+    .url-input {
+      flex: 1;
+      padding: 7px 12px;
+      border-radius: 7px;
+      border: 1px solid #3a3f5c;
+      background: #0f1117;
+      color: #e2e8f0;
+      font-size: 13px;
+      outline: none;
+      transition: border-color .2s;
+    }
+    .url-input:focus { border-color: #7c83ff; }
+    .url-input.converted { border-color: #48bb78; }
+
+    .btn {
+      padding: 7px 14px;
+      border-radius: 7px;
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      transition: opacity .15s;
+    }
+    .btn:hover { opacity: .85; }
+    .btn-primary { background: #7c83ff; color: #fff; }
+    .btn-ghost   { background: #2d3148; color: #a0aec0; }
+
+    .device-select {
+      padding: 7px 10px;
+      border-radius: 7px;
+      border: 1px solid #3a3f5c;
+      background: #1a1d27;
+      color: #e2e8f0;
+      font-size: 13px;
+      cursor: pointer;
+      outline: none;
+    }
+    .device-select:focus { border-color: #7c83ff; }
+    .divider { width: 1px; height: 22px; background: #2d3148; flex-shrink: 0; }
+
+    /* ── 뷰어 영역 ── */
+    .viewer { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── 패널 공통 ── */
+    .panel { display: flex; flex-direction: column; overflow: hidden; }
+    .panel-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      background: #13151f;
+      border-bottom: 1px solid #2d3148;
+      font-size: 13px;
+      font-weight: 700;
+      color: #94a3b8;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+    .panel-label .badge {
+      background: #2d3148; color: #cbd5e1;
+      padding: 3px 10px; border-radius: 20px;
+      font-size: 12px; font-weight: 700;
+    }
+    .panel-label .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+    /* ── PC 패널 ── */
+    .panel-pc { flex: 1; border-right: 2px solid #2d3148; }
+    .panel-pc .dot { background: #48bb78; }
+    #pcContent { flex: 1; overflow: auto; position: relative; }
+    .iframe-pc { height: 100%; border: none; background: #fff; display: block; }
+
+    /* ── 모바일 패널 ── */
+    .panel-mobile { width: 520px; flex-shrink: 0; background: #0f1117; align-items: center; }
+    .panel-mobile .dot { background: #7c83ff; }
+
+    /* ── 줌 컨트롤 ── */
+    .zoom-controls {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-left: auto;
+    }
+    .zoom-btn {
+      width: 26px; height: 26px;
+      border-radius: 6px;
+      border: 1px solid #3a3f5c;
+      background: #1a1d27;
+      color: #cbd5e1;
+      font-size: 16px;
+      line-height: 1;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .15s, color .15s;
+      user-select: none;
+    }
+    .zoom-btn:hover { background: #2d3148; color: #f1f5f9; }
+    .zoom-btn:active { background: #7c83ff33; }
+    .zoom-btn:disabled { opacity: .35; cursor: default; }
+    .zoom-level {
+      font-size: 13px;
+      font-weight: 700;
+      color: #94a3b8;
+      min-width: 40px;
+      text-align: center;
+      letter-spacing: 0.04em;
+    }
+
+    .mobile-stage {
+      flex: 1;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 24px 16px;
+      overflow-y: auto;
+    }
+
+    /* ── 폰 외형 ── */
+    .phone-shell {
+      position: relative;
+      border-radius: 44px;
+      background: #1a1a2e;
+      border: 3px solid #3a3f5c;
+      box-shadow: 0 0 0 1px #0f1117, inset 0 0 0 2px #0d0d1a, 0 24px 60px rgba(0,0,0,.6);
+      padding: 16px 8px;
+      display: flex;
+      flex-direction: column;
+    }
+    .phone-notch {
+      width: 110px; height: 28px;
+      background: #0d0d1a; border-radius: 20px;
+      margin: 0 auto 10px;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .phone-notch .cam    { width: 10px; height: 10px; background: #1a1a2e; border-radius: 50%; border: 1.5px solid #2d3148; }
+    .phone-notch .speaker { width: 38px; height: 4px; background: #1a1a2e; border-radius: 2px; border: 1px solid #2d3148; }
+    .phone-screen { overflow: hidden; border-radius: 6px; background: #fff; }
+    .phone-home-bar { width: 120px; height: 4px; background: #3a3f5c; border-radius: 2px; margin: 10px auto 0; }
+
+    /* ── 빈 화면 ── */
+    .empty-state {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      height: 100%; gap: 10px;
+      color: #64748b; font-size: 14px;
+      text-align: center; padding: 20px;
+    }
+    .empty-state svg { opacity: .4; }
+
+    /* ── 리사이저 ── */
+    .resizer {
+      width: 5px; cursor: col-resize;
+      background: transparent; flex-shrink: 0;
+      transition: background .15s; z-index: 10;
+    }
+    .resizer:hover, .resizer.dragging { background: #7c83ff55; }
+
+    /* ── 드래그 오버레이 ── */
+    #dropOverlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(124,131,255,.12);
+      border: 3px dashed #7c83ff;
+      z-index: 999;
+      align-items: center; justify-content: center;
+      pointer-events: none;
+    }
+    #dropOverlay.active { display: flex; }
+    .drop-box {
+      background: #1a1d27;
+      border: 2px solid #7c83ff;
+      border-radius: 20px;
+      padding: 36px 56px;
+      text-align: center;
+      box-shadow: 0 8px 40px rgba(0,0,0,.5);
+    }
+    .drop-box .drop-icon { font-size: 52px; margin-bottom: 14px; }
+    .drop-box .drop-title { font-size: 20px; font-weight: 700; color: #7c83ff; }
+    .drop-box .drop-sub   { font-size: 14px; color: #94a3b8; margin-top: 6px; }
+
+    /* ── 토스트 ── */
+    #toast {
+      position: fixed;
+      bottom: 28px; left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #1a1d27;
+      border: 1px solid #3a3f5c;
+      border-radius: 10px;
+      padding: 10px 20px;
+      font-size: 13px;
+      color: #e2e8f0;
+      box-shadow: 0 8px 32px rgba(0,0,0,.5);
+      opacity: 0;
+      transition: opacity .2s, transform .2s;
+      pointer-events: none;
+      z-index: 1000;
+      white-space: nowrap;
+      max-width: 480px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    #toast.ok   { border-color: #48bb78; }
+    #toast.err  { border-color: #fc8181; }
+    #toast .toast-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 8px; vertical-align: middle; }
+    #toast.ok  .toast-dot { background: #48bb78; }
+    #toast.err .toast-dot { background: #fc8181; }
+  </style>
+</head>
+<body>
+
+<!-- 드래그 오버레이 -->
+<div id="dropOverlay">
+  <div class="drop-box">
+    <div class="drop-icon">📄</div>
+    <div class="drop-title">HTML 파일을 놓으세요</div>
+    <div class="drop-sub">어느 폴더에 있어도 바로 로드됩니다</div>
+  </div>
+</div>
+
+<!-- 토스트 -->
+<div id="toast"><span class="toast-dot"></span><span id="toastMsg"></span></div>
+
+<!-- 툴바 -->
+<div class="toolbar">
+  <span class="toolbar-title">▣ HTML 프리뷰어</span>
+  <div class="divider"></div>
+  <input
+    class="url-input"
+    id="urlInput"
+    type="text"
+    placeholder="URL 또는 C:\경로\파일.html — 붙여넣기 자동 변환"
+    value=""
+  >
+  <button class="btn btn-primary" onclick="loadURL()">로드</button>
+  <button class="btn btn-ghost"   onclick="reloadFrames()">↺ 새로고침</button>
+  <div class="divider"></div>
+  <select class="device-select" id="deviceSelect" onchange="applyDevice()">
+    <optgroup label="── Galaxy S 시리즈 ──">
+      <option value="412,928" selected>Galaxy S24 Ultra  412×928</option>
+      <option value="412,932">Galaxy S25 Ultra  412×932</option>
+      <option value="384,832">Galaxy S24  384×832</option>
+      <option value="412,915">Galaxy S23 Ultra  412×915</option>
+      <option value="393,851">Galaxy S23  393×851</option>
+      <option value="384,824">Galaxy S22 Ultra  384×824</option>
+      <option value="360,780">Galaxy S22  360×780</option>
+      <option value="360,800">Galaxy S21  360×800</option>
+    </optgroup>
+    <optgroup label="── Galaxy Z 시리즈 ──">
+      <option value="378,748">Galaxy Z Fold6 (접힘)  378×748</option>
+      <option value="840,1016">Galaxy Z Fold6 (펼침)  840×1016</option>
+      <option value="360,784">Galaxy Z Flip6  360×784</option>
+    </optgroup>
+    <optgroup label="── iPhone ──">
+      <option value="393,852">iPhone 15 Pro  393×852</option>
+      <option value="390,844">iPhone 14  390×844</option>
+      <option value="428,926">iPhone 14 Plus  428×926</option>
+      <option value="375,667">iPhone SE  375×667</option>
+    </optgroup>
+    <optgroup label="── 태블릿 ──">
+      <option value="768,1024">iPad mini  768×1024</option>
+      <option value="820,1180">iPad Air  820×1180</option>
+    </optgroup>
+  </select>
+</div>
+
+<!-- 뷰어 -->
+<div class="viewer" id="viewer">
+
+  <!-- PC 패널 -->
+  <div class="panel panel-pc" id="panelPc">
+    <div class="panel-label">
+      <span class="dot"></span>
+      PC 뷰
+      <span class="badge" id="pcWidthBadge">1366 px</span>
+      <div style="margin-left:auto;">
+        <select class="device-select" id="pcWidthSelect" onchange="applyPcWidth()" style="font-size:10px;padding:3px 8px;">
+          <option value="0">전체 너비 (자동)</option>
+          <option value="1280">1280 — 소형 노트북</option>
+          <option value="1366" selected>1366 — 노트북 표준</option>
+          <option value="1440">1440 — 대형 노트북</option>
+          <option value="1920">1920 — FHD 데스크톱</option>
+          <option value="2560">2560 — QHD 데스크톱</option>
+        </select>
+      </div>
+    </div>
+    <div id="pcContent">
+      <div class="empty-state" id="pcEmpty">
+        <svg width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="currentColor"><rect x="2" y="3" width="20" height="14" rx="2" stroke-width="1.5"/><path d="M8 21h8M12 17v4" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <div>URL 입력 · 붙여넣기 · <strong>파일 드래그</strong>로 로드</div>
+      </div>
+      <iframe class="iframe-pc" id="iframePc" style="display:none;"></iframe>
+    </div>
+  </div>
+
+  <!-- 리사이저 -->
+  <div class="resizer" id="resizer"></div>
+
+  <!-- 모바일 패널 -->
+  <div class="panel panel-mobile" id="panelMobile">
+    <div class="panel-label">
+      <span class="dot"></span>
+      모바일 뷰
+      <span class="badge" id="mobileWidthBadge">390 px</span>
+      <div class="zoom-controls">
+        <button class="zoom-btn" id="zoomOut" onclick="adjustZoom(-0.1)" title="축소">−</button>
+        <span class="zoom-level" id="zoomLevel">100%</span>
+        <button class="zoom-btn" id="zoomIn"  onclick="adjustZoom(+0.1)" title="확대">+</button>
+        <button class="zoom-btn" onclick="resetZoom()" title="원래 크기" style="font-size:11px;width:auto;padding:0 6px;">↺</button>
+      </div>
+    </div>
+    <div class="mobile-stage" id="mobileStage">
+      <div class="empty-state" id="mobileEmpty">
+        <svg width="36" height="36" fill="none" viewBox="0 0 24 24" stroke="currentColor"><rect x="5" y="2" width="14" height="20" rx="3" stroke-width="1.5"/><circle cx="12" cy="18" r="1" fill="currentColor"/></svg>
+        <div>URL 입력 · 붙여넣기 · <strong>파일 드래그</strong>로 로드</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // ── 상수 ──
+  const PORT = 9127;
+  const BASE = `http://localhost:${PORT}`;
+
+  // 워크스페이스 루트 후보 (소문자로 비교)
+  const WS_ROOTS = [
+    'c:/users/shinf/workspace',
+    'c:\\users\\shinf\\workspace',
+  ];
+
+  const DEVICES = {
+    // Galaxy S
+    '412,928':  { w: 412,  h: 928,  label: '412 px' },
+    '412,932':  { w: 412,  h: 932,  label: '412 px' },
+    '384,832':  { w: 384,  h: 832,  label: '384 px' },
+    '412,915':  { w: 412,  h: 915,  label: '412 px' },
+    '393,851':  { w: 393,  h: 851,  label: '393 px' },
+    '384,824':  { w: 384,  h: 824,  label: '384 px' },
+    '360,780':  { w: 360,  h: 780,  label: '360 px' },
+    '360,800':  { w: 360,  h: 800,  label: '360 px' },
+    // Galaxy Z
+    '378,748':  { w: 378,  h: 748,  label: '378 px' },
+    '840,1016': { w: 840,  h: 1016, label: '840 px' },
+    '360,784':  { w: 360,  h: 784,  label: '360 px' },
+    // iPhone
+    '393,852':  { w: 393,  h: 852,  label: '393 px' },
+    '390,844':  { w: 390,  h: 844,  label: '390 px' },
+    '428,926':  { w: 428,  h: 926,  label: '428 px' },
+    '375,667':  { w: 375,  h: 667,  label: '375 px' },
+    // 태블릿
+    '768,1024': { w: 768,  h: 1024, label: '768 px' },
+    '820,1180': { w: 820,  h: 1180, label: '820 px' },
+  };
+
+  let currentDevice  = DEVICES['412,928']; // Galaxy S24 Ultra 기본값
+  let currentURL     = '';
+  let phoneShell     = null;
+  let userZoom       = 1.0;
+  const ZOOM_MIN     = 0.3;
+  const ZOOM_MAX     = 2.0;
+  let currentPcWidth = 1366; // 노트북 표준 기본값
+
+  // ── URL 정규화 ──
+  function normalizeURL(raw) {
+    raw = raw.trim();
+    if (!raw) return '';
+
+    // blob: URL (FileReader 결과)
+    if (raw.startsWith('blob:')) return raw;
+
+    // 이미 http(s) URL
+    if (/^https?:\/\//.test(raw)) return raw;
+
+    // Windows 절대경로 (C:\ 또는 C:/)
+    if (/^[A-Za-z]:[\\\/]/.test(raw)) {
+      let path = raw.replace(/\\/g, '/');
+      const lower = path.toLowerCase();
+      for (const root of WS_ROOTS) {
+        if (lower.startsWith(root)) {
+          path = path.slice(root.length);
+          break;
+        }
+      }
+      if (!path.startsWith('/')) path = '/' + path;
+      return `${BASE}${path}`;
+    }
+
+    // 상대경로
+    const rel = raw.replace(/\\/g, '/').replace(/^\/+/, '');
+    return `${BASE}/${rel}`;
+  }
+
+  // ── 토스트 ──
+  let toastTimer;
+  function showToast(msg, type = 'ok') {
+    const el  = document.getElementById('toast');
+    const txt = document.getElementById('toastMsg');
+    el.className = `show ${type}`;
+    txt.textContent = msg;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.className = ''; }, 3000);
+  }
+
+  // ── 로드 ──
+  function loadURL(urlOverride) {
+    const raw = urlOverride ?? document.getElementById('urlInput').value;
+    const url = normalizeURL(raw);
+    if (!url) return;
+
+    document.getElementById('urlInput').value = url;
+    currentURL = url;
+
+    const pcEmpty  = document.getElementById('pcEmpty');
+    const iframePc = document.getElementById('iframePc');
+    pcEmpty.style.display  = 'none';
+    iframePc.style.display = 'block';
+    iframePc.src = url;
+
+    updatePcViewport();
+    buildPhone(url);
+  }
+
+  function reloadFrames() {
+    if (!currentURL) return;
+    const iframePc = document.getElementById('iframePc');
+    if (iframePc.src) iframePc.src = iframePc.src;
+    const mob = document.getElementById('iframeMobile');
+    if (mob && mob.src) mob.src = mob.src;
+  }
+
+  // ── 폰 빌드 ──
+  function buildPhone(url) {
+    const stage = document.getElementById('mobileStage');
+    const empty = document.getElementById('mobileEmpty');
+    if (empty) empty.style.display = 'none';
+    if (phoneShell) phoneShell.remove();
+
+    const dw = currentDevice.w;
+    const dh = currentDevice.h;
+    const stageH = stage.clientHeight - 48;
+    const scale  = Math.min(1, stageH / (dh + 80)) * userZoom;
+
+    const shell = document.createElement('div');
+    shell.className = 'phone-shell';
+    shell.style.transformOrigin = 'top center';
+    shell.style.transform       = `scale(${scale.toFixed(3)})`;
+    shell.style.marginBottom    = `${-((dh + 80) * (1 - scale))}px`;
+    shell.innerHTML = `
+      <div class="phone-notch">
+        <div class="cam"></div>
+        <div class="speaker"></div>
+        <div class="cam"></div>
+      </div>
+      <div class="phone-screen" style="width:${dw}px;height:${dh}px;">
+        <iframe id="iframeMobile" src="${url}"
+          style="width:${dw}px;height:${dh}px;border:none;display:block;"></iframe>
+      </div>
+      <div class="phone-home-bar"></div>
+    `;
+    phoneShell = shell;
+    stage.appendChild(shell);
+  }
+
+  // ── PC 너비 제어 (스케일 축소 방식) ──
+  function applyPcWidth() {
+    currentPcWidth = parseInt(document.getElementById('pcWidthSelect').value) || 0;
+    updatePcViewport();
+  }
+
+  function updatePcViewport() {
+    const iframePc  = document.getElementById('iframePc');
+    const pcContent = document.getElementById('pcContent');
+    if (!iframePc || iframePc.style.display === 'none') { updatePcBadge(); return; }
+
+    if (currentPcWidth === 0) {
+      // 자동: 패널 전체 너비로 채우기
+      iframePc.style.width           = '100%';
+      iframePc.style.height          = '100%';
+      iframePc.style.transform       = '';
+      iframePc.style.transformOrigin = '';
+      pcContent.style.overflow       = 'hidden';
+    } else {
+      // 특정 너비: 원본 크기 유지, 넘치면 가로 스크롤
+      iframePc.style.width           = currentPcWidth + 'px';
+      iframePc.style.height          = '100%';
+      iframePc.style.transform       = '';
+      iframePc.style.transformOrigin = '';
+      pcContent.style.overflow       = 'auto';
+    }
+    updatePcBadge();
+  }
+
+  // ── 줌 컨트롤 ──
+  function adjustZoom(delta) {
+    userZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round((userZoom + delta) * 10) / 10));
+    updateZoomUI();
+    if (currentURL) buildPhone(currentURL);
+  }
+
+  function resetZoom() {
+    userZoom = 1.0;
+    updateZoomUI();
+    if (currentURL) buildPhone(currentURL);
+  }
+
+  function updateZoomUI() {
+    document.getElementById('zoomLevel').textContent = `${Math.round(userZoom * 100)}%`;
+    document.getElementById('zoomOut').disabled = userZoom <= ZOOM_MIN;
+    document.getElementById('zoomIn').disabled  = userZoom >= ZOOM_MAX;
+  }
+
+  function applyDevice() {
+    const sel = document.getElementById('deviceSelect').value;
+    currentDevice = DEVICES[sel];
+    document.getElementById('mobileWidthBadge').textContent = currentDevice.label;
+    if (currentURL) buildPhone(currentURL);
+  }
+
+  function updatePcBadge() {
+    const badge = document.getElementById('pcWidthBadge');
+    if (!badge) return;
+    if (currentPcWidth === 0) {
+      badge.textContent = `${document.getElementById('panelPc').clientWidth} px`;
+    } else {
+      badge.textContent = `${currentPcWidth} px`;
+    }
+  }
+
+  // ── URL 입력 ──
+  const urlInput = document.getElementById('urlInput');
+
+  urlInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') loadURL();
+  });
+
+  // 붙여넣기: 경로 자동 변환
+  urlInput.addEventListener('paste', e => {
+    const pasted = (e.clipboardData || window.clipboardData).getData('text');
+    if (!pasted) return;
+
+    // Windows 경로인 경우만 가로채서 변환
+    if (/^[A-Za-z]:[\\\/]/.test(pasted.trim())) {
+      e.preventDefault();
+      const converted = normalizeURL(pasted);
+      urlInput.value = converted;
+      urlInput.classList.add('converted');
+      setTimeout(() => urlInput.classList.remove('converted'), 1500);
+      showToast(`경로 변환됨 → ${converted}`);
+    }
+  });
+
+  // ── 드래그 & 드롭 ──
+  const overlay = document.getElementById('dropOverlay');
+  let dragCounter = 0;
+
+  document.addEventListener('dragenter', e => {
+    e.preventDefault();
+    dragCounter++;
+    if (dragCounter === 1) overlay.classList.add('active');
+  });
+
+  document.addEventListener('dragleave', e => {
+    dragCounter--;
+    if (dragCounter === 0) overlay.classList.remove('active');
+  });
+
+  document.addEventListener('dragover', e => e.preventDefault());
+
+  document.addEventListener('drop', e => {
+    e.preventDefault();
+    dragCounter = 0;
+    overlay.classList.remove('active');
+
+    const files = e.dataTransfer?.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    if (!/\.(html?|htm)$/i.test(file.name)) {
+      showToast('HTML 파일만 로드할 수 있습니다.', 'err');
+      return;
+    }
+
+    // 파일 내용을 직접 읽어 Blob URL로 로드 (경로·파일명 인코딩 무관)
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const blob    = new Blob([ev.target.result], { type: 'text/html; charset=utf-8' });
+      const blobURL = URL.createObjectURL(blob);
+      currentURL = blobURL;
+      urlInput.value = blobURL;
+
+      document.getElementById('pcEmpty').style.display = 'none';
+      const iframePc = document.getElementById('iframePc');
+      iframePc.style.display = 'block';
+      iframePc.src = blobURL;
+      updatePcViewport();
+      buildPhone(blobURL);
+      showToast(`로드: ${file.name}`);
+    };
+    reader.onerror = () => showToast('파일을 읽을 수 없습니다.', 'err');
+    reader.readAsText(file, 'UTF-8');
+  });
+
+  // ── 리사이저 ──
+  const resizer   = document.getElementById('resizer');
+  const panelPc   = document.getElementById('panelPc');
+  const panelMobile = document.getElementById('panelMobile');
+  let isResizing  = false;
+
+  resizer.addEventListener('mousedown', () => {
+    isResizing = true;
+    resizer.classList.add('dragging');
+    document.body.style.cursor     = 'col-resize';
+    document.body.style.userSelect = 'none';
+    document.getElementById('iframePc').style.pointerEvents = 'none';
+    const mob = document.getElementById('iframeMobile');
+    if (mob) mob.style.pointerEvents = 'none';
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!isResizing) return;
+    const rect  = document.getElementById('viewer').getBoundingClientRect();
+    const newPcW  = e.clientX - rect.left;
+    const newMobW = rect.width - 5 - newPcW;
+    if (newPcW < 300 || newMobW < 420) return;
+    panelPc.style.flex  = 'none';
+    panelPc.style.width = newPcW + 'px';
+    panelMobile.style.width = newMobW + 'px';
+    updatePcViewport();
+  });
+
+  function stopResizing() {
+    if (!isResizing) return;
+    isResizing = false;
+    resizer.classList.remove('dragging');
+    document.body.style.cursor     = '';
+    document.body.style.userSelect = '';
+    document.getElementById('iframePc').style.pointerEvents = '';
+    const mob = document.getElementById('iframeMobile');
+    if (mob) mob.style.pointerEvents = '';
+    updatePcBadge();
+  }
+  document.addEventListener('mouseup', stopResizing);
+  window.addEventListener('blur', stopResizing);
+
+  // ── 리사이즈 시 폰 재빌드 ──
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      updatePcViewport();
+      if (currentURL) buildPhone(currentURL);
+    }, 200);
+  });
+
+  // ── ?load= 파라미터 자동 로드 ──
+  const params   = new URLSearchParams(window.location.search);
+  const loadParam = params.get('load');
+  if (loadParam) {
+    urlInput.value = loadParam;
+    loadURL(loadParam);
+  }
+
+  // 초기 PC 너비·모바일 기기 적용
+  applyPcWidth();
+  document.getElementById('mobileWidthBadge').textContent = currentDevice.label;
+</script>
+</body>
+</html>
