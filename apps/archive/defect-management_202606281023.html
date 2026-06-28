@@ -302,6 +302,15 @@ td.col-remark{white-space:normal;overflow:hidden;display:-webkit-box;-webkit-lin
 .photo-thumb{width:72px;height:72px;object-fit:cover;border-radius:var(--r6);border:1px solid var(--border);display:none;margin-top:10px;cursor:zoom-in}
 .photo-thumb.show{display:block}
 
+/* ── DETAIL ACTION BUTTONS ── */
+.detail-act-btn{display:inline-flex;align-items:center;gap:4px;border-radius:var(--r6);padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;border:1.5px solid transparent;white-space:nowrap;transition:opacity .12s}
+.detail-edit-btn{background:var(--sky50);border-color:var(--sky100);color:var(--sky800)}
+.detail-edit-btn:hover{background:var(--sky100)}
+.detail-del-btn{background:var(--coral50);border-color:var(--coral100);color:var(--coral800)}
+.detail-del-btn:hover{background:var(--coral100)}
+.detail-del-btn:disabled,.detail-edit-btn:disabled{opacity:.5;cursor:not-allowed}
+.del-confirm-bar{background:var(--coral50);border:1.5px solid var(--coral100);border-radius:var(--r8);padding:12px 14px;margin-top:14px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+
 /* ── TUNNEL DROPDOWN ── */
 .dd-wrap{position:relative;display:inline-block}
 .dd-btn{background:var(--sky50);border:1.5px solid var(--sky100);color:var(--sky800);border-radius:20px;padding:5px 28px 5px 10px;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;min-height:30px;white-space:nowrap;display:flex;align-items:center;gap:5px;-webkit-tap-highlight-color:transparent;user-select:none;position:relative;transition:border-color .15s}
@@ -330,7 +339,7 @@ td.col-remark{white-space:normal;overflow:hidden;display:-webkit-box;-webkit-lin
       <div class="detail-modal-hd">
         <h3 style="display:flex;align-items:center;gap:7px">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--sky)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-          신규 하자 등록
+          <span id="addModalTitleText">신규 하자 등록</span>
         </h3>
         <button class="detail-modal-close" onclick="closeAddModal()" aria-label="닫기">✕</button>
       </div>
@@ -498,9 +507,13 @@ td.col-remark{white-space:normal;overflow:hidden;display:-webkit-box;-webkit-lin
     <div class="modal-box detail-modal-box" onclick="event.stopPropagation()">
       <div class="detail-modal-hd">
         <h3 id="detailTitle">하자 상세</h3>
-        <button class="detail-modal-close" onclick="closeDetail()" aria-label="닫기">✕</button>
+        <div style="display:flex;gap:6px;align-items:center">
+          <div id="detailActions"></div>
+          <button class="detail-modal-close" onclick="closeDetail()" aria-label="닫기">✕</button>
+        </div>
       </div>
       <div id="detailBody"></div>
+      <div id="detailFooter"></div>
     </div>
   </div>
 </div>
@@ -742,6 +755,7 @@ function getVisibleCols(){
 }
 
 var MAX_PAGES = 20; // 노션 페이지네이션 최대 페이지 수 (100건/페이지 × 20 = 2,000건)
+var EDIT_PAGE_ID = null; // 수정 모드: 노션 페이지 ID (null이면 등록 모드)
 
 // ── 설정 (localStorage) ──
 var CFG = (function(){
@@ -1893,6 +1907,23 @@ function openDetail(idx){
   var s = r['조치여부'];
   var badge = s==='완료'?'badge-done':s==='진행중'?'badge-prog':'badge-poor';
   document.getElementById('detailTitle').innerHTML = esc(r['터널명'])+' · '+esc(r['공종']);
+
+  // 수정/삭제 버튼 (Notion 연동 모드에서 _pageId 있을 때만)
+  var actionsEl = document.getElementById('detailActions');
+  if(actionsEl){
+    if(CFG.workerUrl && r._pageId){
+      actionsEl.innerHTML =
+        '<button class="detail-act-btn detail-edit-btn" onclick="openEditModal('+r._idx+')">'
+        +'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>수정</button>'
+        +'<button class="detail-act-btn detail-del-btn" onclick="showDeleteConfirm('+r._idx+')">'
+        +'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>삭제</button>';
+    } else {
+      actionsEl.innerHTML = '';
+    }
+  }
+  // 푸터(삭제 확인 바) 초기화
+  var footer = document.getElementById('detailFooter');
+  if(footer) footer.innerHTML = '';
   var rows = [
     ['날짜',   esc(r['날짜']||'-')],
     ['터널명', esc(r['터널명']||'-')],
@@ -2015,8 +2046,105 @@ function uploadPhoto(input, key){
     });
 }
 
+/* ── 하자 수정 모달 ── */
+function openEditModal(idx){
+  var r = ALL_DATA.find(function(d){ return d._idx===idx; });
+  if(!r || !r._pageId){ alert('노션 연동 모드에서만 수정 가능합니다.'); return; }
+  EDIT_PAGE_ID = r._pageId;
+
+  // 터널 목록
+  var tunnelSel = document.getElementById('addTunnel');
+  var tunnels = ALL_DATA.length ? getUniqueValues('터널명') : ['남정5터널','남정6터널','남정7터널','청하터널','흥해터널'];
+  tunnelSel.innerHTML = '<option value="">선택</option>'
+    + tunnels.map(function(t){ return '<option value="'+esc(t)+'">'+esc(t)+'</option>'; }).join('');
+
+  // 기존 데이터 채우기
+  document.getElementById('addDate').value        = r['날짜']||'';
+  document.getElementById('addType').value        = r['공종']||'';
+  tunnelSel.value                                 = r['터널명']||'';
+  document.getElementById('addLoc').value         = r['위치']||'';
+  document.getElementById('addContent').value     = r['하자내용']||'';
+  document.getElementById('addStatus').value      = r['조치여부']||'진행중';
+  document.getElementById('addActionDate').value  = r['조치일']||'';
+  document.getElementById('addCompany').value     = r['업체명']||'';
+  document.getElementById('addContact').value     = r['업체담당자']||'';
+  document.getElementById('addPhone').value       = r['전화번호']||'';
+  document.getElementById('addRemark').value      = r['비고']||'';
+  document.getElementById('addManager').value     = r['업무담당']||'';
+
+  // 사진 처리
+  var p1 = r['하자사진_URL']||'', p2 = r['조치사진_URL']||'';
+  document.getElementById('addPhoto1').value = p1;
+  document.getElementById('addPhoto2').value = p2;
+  document.getElementById('addPhoto1File').value = '';
+  document.getElementById('addPhoto2File').value = '';
+  var s1=document.getElementById('photo1Status'), t1=document.getElementById('photo1Thumb');
+  var s2=document.getElementById('photo2Status'), t2=document.getElementById('photo2Thumb');
+  if(p1){ s1.textContent='기존 사진 있음'; s1.className='photo-upload-status ok'; t1.src=p1; t1.classList.add('show'); }
+  else  { s1.textContent='파일을 선택하세요'; s1.className='photo-upload-status'; t1.classList.remove('show'); }
+  if(p2){ s2.textContent='기존 사진 있음'; s2.className='photo-upload-status ok'; t2.src=p2; t2.classList.add('show'); }
+  else  { s2.textContent='파일을 선택하세요'; s2.className='photo-upload-status'; t2.classList.remove('show'); }
+
+  // 모달 타이틀·버튼 라벨 변경
+  var titleText = document.getElementById('addModalTitleText');
+  if(titleText) titleText.textContent = '하자 수정';
+  document.getElementById('addSubmitLabel').textContent = '수정';
+
+  closeDetail();
+  document.getElementById('addModal').classList.add('modal-open');
+  document.body.style.overflow = 'hidden';
+  setTimeout(function(){ document.getElementById('addContent').focus(); }, 100);
+}
+
+/* ── 삭제 확인 ── */
+function showDeleteConfirm(idx){
+  var footer = document.getElementById('detailFooter');
+  if(!footer) return;
+  footer.innerHTML = '<div class="del-confirm-bar">'
+    +'<span style="font-size:13px;font-weight:700;color:var(--coral)">이 항목을 휴지통으로 이동할까요?</span>'
+    +'<div style="display:flex;gap:6px">'
+    +'<button class="modal-cancel" onclick="hideDeleteConfirm()" style="font-size:12px;padding:6px 12px;min-height:32px">취소</button>'
+    +'<button class="detail-act-btn detail-del-btn" id="deleteExecBtn" onclick="deleteItem('+idx+')">삭제 확인</button>'
+    +'</div></div>';
+  footer.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+function hideDeleteConfirm(){
+  var footer = document.getElementById('detailFooter');
+  if(footer) footer.innerHTML = '';
+}
+
+function deleteItem(idx){
+  var r = ALL_DATA.find(function(d){ return d._idx===idx; });
+  if(!r || !r._pageId) return;
+  var btn = document.getElementById('deleteExecBtn');
+  if(btn){ btn.disabled=true; btn.textContent='삭제 중...'; }
+  fetch(CFG.workerUrl+'/v1/pages/'+r._pageId, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ in_trash: true })
+  })
+  .then(function(res){
+    if(!res.ok) return res.text().then(function(t){ throw new Error('HTTP '+res.status+': '+t); });
+    return res.json();
+  })
+  .then(function(){
+    closeDetail();
+    loadData();
+  })
+  .catch(function(e){
+    if(btn){ btn.disabled=false; btn.textContent='삭제 확인'; }
+    alert('삭제 실패: '+e.message);
+    console.error(e);
+  });
+}
+
 /* ── 신규 하자 등록 모달 ── */
 function openAddModal(){
+  EDIT_PAGE_ID = null;
+  var titleText = document.getElementById('addModalTitleText');
+  if(titleText) titleText.textContent = '신규 하자 등록';
+  document.getElementById('addSubmitLabel').textContent = '등록';
   // 오늘 날짜 기본값
   var today = new Date();
   var ymd = today.getFullYear()+'-'+fmt(today.getMonth()+1)+'-'+fmt(today.getDate());
@@ -2087,7 +2215,7 @@ function submitAddForm(){
   var btn = document.getElementById('addSubmitBtn');
   var lbl = document.getElementById('addSubmitLabel');
   btn.disabled = true;
-  lbl.textContent = '등록 중...';
+  lbl.textContent = EDIT_PAGE_ID ? '수정 중...' : '등록 중...';
 
   // NOTION_PROP_MAP 기반으로 실제 속성명 결정 (폴백: 한국어 키)
   function nk(internalKey){ return NOTION_PROP_MAP[internalKey] || internalKey; }
@@ -2137,15 +2265,18 @@ function submitAddForm(){
   // 조치사진 URL
   if(photo2) properties[nk('조치사진_URL')] = { url: photo2 };
 
-  var body = {
-    parent: { database_id: CFG.dbId },
-    properties: properties
-  };
+  var isEdit = !!EDIT_PAGE_ID;
+  var reqUrl = isEdit
+    ? (CFG.workerUrl + '/v1/pages/' + EDIT_PAGE_ID)
+    : (CFG.workerUrl + '/v1/pages');
+  var reqBody = isEdit
+    ? JSON.stringify({ properties: properties })
+    : JSON.stringify({ parent: { database_id: CFG.dbId }, properties: properties });
 
-  fetch(CFG.workerUrl + '/v1/pages', {
-    method: 'POST',
+  fetch(reqUrl, {
+    method: isEdit ? 'PATCH' : 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
+    body: reqBody
   })
   .then(function(r){
     if(!r.ok) return r.text().then(function(t){ throw new Error('HTTP '+r.status+': '+t); });
@@ -2153,14 +2284,14 @@ function submitAddForm(){
   })
   .then(function(){
     btn.disabled = false;
-    lbl.textContent = '등록';
+    lbl.textContent = isEdit ? '수정' : '등록';
     closeAddModal();
-    loadData(); // 등록 후 새로고침
+    loadData();
   })
   .catch(function(e){
     btn.disabled = false;
-    lbl.textContent = '등록';
-    alert('등록 실패: ' + e.message + '\n\nWorker가 POST /v1/pages 라우트를 지원하는지 확인하세요.');
+    lbl.textContent = isEdit ? '수정' : '등록';
+    alert((isEdit?'수정':'등록') + ' 실패: ' + e.message + '\n\nWorker가 해당 라우트를 지원하는지 확인하세요.');
     console.error(e);
   });
 }
