@@ -600,7 +600,7 @@ function generateAndSaveHTML({ results, latestDate }) {
     const brkCell = r.breakStatus
       ? `<span class="${r.breakStatus.includes('종가')?'t-pos':'t-flat'}" style="font-size:12px">${r.breakStatus}</span>`
       : '─';
-    return `<tr${r.trailStop?' class="ts-active"':''}><td class="l t-name">${esc(r.종목명)}</td><td class="c t-mkt mob-hide">${r.시장}</td><td class="t-price">${fN(r.현재가)}</td><td class="${rpc(r.ma20Ratio)} mob-hide">${r.ma20Ratio!=null?r.ma20Ratio.toFixed(1)+'%':'─'}</td><td class="mob-hide">${fN(r.target1)}</td><td>${p1d}</td><td class="mob-hide">${fN(r.target2)}</td><td>${p2d}</td><td class="mob-hide c">${brkCell}</td><td class="ts-stop mob-hide">${r.trailStop?fN(r.trailStop)+'원':'─'}</td><td class="c"><span class="badge ${r.trailBadge}">${r.trailStage}</span></td></tr>`;
+    return `<tr${r.trailStop?' class="ts-active"':''}><td class="l t-name">${esc(r.종목명)}</td><td class="t-price">${fN(r.현재가)}</td><td class="${rpc(r.ma20Ratio)} mob-hide">${r.ma20Ratio!=null?r.ma20Ratio.toFixed(1)+'%':'─'}</td><td class="mob-hide">${fN(r.target1)}</td><td>${p1d}</td><td class="mob-hide">${fN(r.target2)}</td><td>${p2d}</td><td class="mob-hide c">${brkCell}</td><td class="ts-stop mob-hide">${r.trailStop?fN(r.trailStop)+'원':'─'}</td><td class="c"><span class="badge ${r.trailBadge}">${r.trailStage}</span></td></tr>`;
   }).join('');
   const p3StatusCards = trSorted.map(r => {
     const p1d = r.pct1!=null?`<span class="${pc(r.pct1)}">${r.pct1>=0?'+':''}${r.pct1.toFixed(1)}%</span>`:'─';
@@ -867,7 +867,7 @@ tbody tr:hover{background:var(--sky50)}
   </div>
   <div class="sc">
     <div class="sc-title">트레일링스탑 현황<span class="sub">· 발동중 우선 · 1차 근접 순</span></div>
-    <div class="tbl-wrap stock-cards-target"><table><thead><tr><th class="l">종목명</th><th class="c mob-hide">시장</th><th>현재가</th><th class="mob-hide">MA20괴리율</th><th class="mob-hide">1차(MA20)</th><th>1차</th><th class="mob-hide">2차목표</th><th>2차</th><th class="mob-hide c">돌파</th><th class="mob-hide">이론스탑가</th><th class="c">상태</th></tr></thead><tbody>${p3StatusRows}</tbody></table></div>
+    <div class="tbl-wrap stock-cards-target"><table><thead><tr><th class="l">종목명</th><th>현재가</th><th class="mob-hide">MA20괴리율</th><th class="mob-hide">1차(MA20)</th><th>1차</th><th class="mob-hide">2차목표</th><th>2차</th><th class="mob-hide c">돌파</th><th class="mob-hide">이론스탑가</th><th class="c">상태</th></tr></thead><tbody>${p3StatusRows}</tbody></table></div>
     <div class="stock-cards">${p3StatusCards}</div>
   </div>
   <div class="sc">
