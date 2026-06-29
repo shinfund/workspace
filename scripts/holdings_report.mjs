@@ -541,34 +541,37 @@ function generateAndSaveHTML({ results, latestDate }) {
 
   // ── 자동매도 전략 데이터 (손절 -15%/-20% + 익절 +20% + 트레일링 -12%)
   const trData = [...validR].map(r => {
-    const qty1  = Math.floor(r.보유수량 * 0.3);
-    const qty2  = Math.floor(r.보유수량 * 0.5);
-    const qtyR  = r.보유수량 - qty1 - qty2;
+    // 수동매도 수량: 1차(MA20) 50% → 2차(MA20+20%) 잔량 전량
+    const qty1  = Math.floor(r.보유수량 * 0.5);
+    const qty2  = r.보유수량 - qty1;
+    const qtyR  = 0;
     const pct1  = r.target1 && r.현재가 ? (r.target1/r.현재가 - 1)*100 : null;
     const pct2  = r.target2 && r.현재가 ? (r.target2/r.현재가 - 1)*100 : null;
     const prof1 = r.target1 ? qty1 * (r.target1 - r.평균단가) : null;
     const prof2 = r.target2 ? qty2 * (r.target2 - r.평균단가) : null;
-    const profR = r.target2 ? qtyR * (r.target2 - r.평균단가) : null;
-    const profT = (prof1||0) + (prof2||0) + (profR||0);
-    let trailStop = null, trailStage = '1차대기', trailBadge = 'bdg-sky';
-    if      (r.stage === '2차달성') { trailStop = Math.round(r.현재가 * 0.95); trailStage = '2차발동(-5%)';  trailBadge = 'bdg-purple'; }
-    else if (r.stage === '1차달성') { trailStop = Math.round(r.현재가 * 0.90); trailStage = '1차발동(-10%)'; trailBadge = 'bdg-red';    }
-    else if (r.stage === '매수구간') { trailStage = '매수구간'; trailBadge = 'bdg-blue'; }
-    // 퍼센트 기반 자동매도 주문 (매수 즉시 HTS 설정 — 전 종목 동일 적용)
-    const sl1    = Math.round(r.평균단가 * 0.85); // 손절1 -15% → 50%
-    const sl2    = Math.round(r.평균단가 * 0.80); // 손절2 -20% → 잔량
-    const pt20   = Math.round(r.평균단가 * 1.20); // 익절 +20% → 50%
+    const profR = null;
+    const profT = (prof1||0) + (prof2||0);
+    // 자동매도 주문가 계산
+    const sl1    = Math.round(r.평균단가 * 0.85);
+    const sl2    = Math.round(r.평균단가 * 0.80);
+    const pt20   = Math.round(r.평균단가 * 1.20);
     const sl1Gap = r.현재가 ? (r.현재가/sl1 - 1)*100 : null;
     const ptGap  = r.현재가 ? (pt20/r.현재가 - 1)*100 : null;
     const ptQty  = Math.floor(r.보유수량 * 0.5);
     const trQty  = r.보유수량 - ptQty;
     const slQty1 = Math.floor(r.보유수량 * 0.5);
     const slQty2 = r.보유수량 - slQty1;
+    // 트레일링스탑 상태: 자동전략(pt20) 기준
+    let trailStop = null, trailStage = '대기', trailBadge = 'bdg-sky';
+    if      (ptGap != null && ptGap <= 0)                    { trailStop = Math.round(r.현재가 * 0.88); trailStage = '트레일링발동'; trailBadge = 'bdg-teal';   }
+    else if (sl1Gap != null && sl1Gap < 5)                    { trailStage = '손절주의';   trailBadge = 'bdg-red';    }
+    else if (ptGap != null && ptGap > 0 && ptGap < 10)       { trailStage = '익절근접';   trailBadge = 'bdg-amber';  }
+    else if (r.stage === '매수구간')                           { trailStage = '매수구간';   trailBadge = 'bdg-blue';   }
     return { ...r, qty1, qty2, qtyR, pct1, pct2, prof1, prof2, profR, profT, trailStop, trailStage, trailBadge,
              sl1, sl2, pt20, sl1Gap, ptGap, ptQty, trQty, slQty1, slQty2 };
   });
   const trSorted = [...trData].sort((a,b) => {
-    const rank = s => s==='2차발동(-5%)'?0 : s==='1차발동(-10%)'?1 : s==='1차대기'?2 : 3;
+    const rank = s => s==='트레일링발동'?0 : s==='손절주의'?1 : s==='익절근접'?2 : s==='매수구간'?3 : 4;
     if (rank(a.trailStage) !== rank(b.trailStage)) return rank(a.trailStage) - rank(b.trailStage);
     return (a.pct1??999) - (b.pct1??999);
   });
@@ -591,10 +594,10 @@ function generateAndSaveHTML({ results, latestDate }) {
     return `<div class="stock-card${r.trailStop?' ts-active-card':''}"><div class="sc-head"><span class="sc-name">${esc(r.종목명)}</span><span class="badge ${r.trailBadge}">${r.trailStage}</span></div><div class="sc-grid"><div class="sc-item"><span class="sc-item-l">현재가</span><span class="sc-item-v">${fN(r.현재가)}원</span></div><div class="sc-item"><span class="sc-item-l">MA20괴리율</span><span class="sc-item-v ${rpc(r.ma20Ratio)}">${r.ma20Ratio!=null?r.ma20Ratio.toFixed(1)+'%':'─'}</span></div><div class="sc-item"><span class="sc-item-l">1차(MA20)까지</span><span class="sc-item-v">${p1d}</span></div><div class="sc-item"><span class="sc-item-l">2차까지</span><span class="sc-item-v">${p2d}</span></div>${r.trailStop?`<div class="sc-item sc-full"><span class="sc-item-l">이론스탑가(현재가 기준)</span><span class="sc-item-v ts-stop">${fN(r.trailStop)}원</span></div>`:''}</div></div>`;
   }).join('');
   const p3ScenRows = trSorted.map(r =>
-    `<tr><td class="l t-name">${esc(r.종목명)}</td><td class="mob-hide">${fN(r.target1)}</td><td class="c mob-hide">${r.qty1}주</td><td class="${pc(r.prof1)}">${r.prof1!=null?fKrw(r.prof1):'─'}</td><td class="mob-hide">${fN(r.target2)}</td><td class="c mob-hide">${r.qty2}주</td><td class="${pc(r.prof2)}">${r.prof2!=null?fKrw(r.prof2):'─'}</td><td class="c mob-hide">${r.qtyR}주</td><td class="${pc(r.profT)}" style="font-weight:800">${fKrw(r.profT)}</td></tr>`
+    `<tr><td class="l t-name">${esc(r.종목명)}</td><td class="mob-hide">${fN(r.target1)}</td><td class="c mob-hide">${r.qty1}주</td><td class="${pc(r.prof1)}">${r.prof1!=null?fKrw(r.prof1):'─'}</td><td class="mob-hide">${fN(r.target2)}</td><td class="c mob-hide">${r.qty2}주</td><td class="${pc(r.prof2)}">${r.prof2!=null?fKrw(r.prof2):'─'}</td><td class="${pc(r.profT)}" style="font-weight:800">${fKrw(r.profT)}</td></tr>`
   ).join('');
   const p3ScenCards = trSorted.map(r =>
-    `<div class="stock-card"><div class="sc-head"><span class="sc-name">${esc(r.종목명)}</span><span class="sc-ratio ${pc(r.profT)}">${fKrw(r.profT)}</span></div><div class="sc-grid"><div class="sc-item"><span class="sc-item-l">1차매도(30%) ${r.qty1}주</span><span class="sc-item-v ${pc(r.prof1)}">${r.prof1!=null?fKrw(r.prof1):'─'}</span></div><div class="sc-item"><span class="sc-item-l">2차매도(50%) ${r.qty2}주</span><span class="sc-item-v ${pc(r.prof2)}">${r.prof2!=null?fKrw(r.prof2):'─'}</span></div><div class="sc-item"><span class="sc-item-l">잔량(20%) ${r.qtyR}주</span><span class="sc-item-v ${pc(r.profR)}">${r.profR!=null?fKrw(r.profR):'─'}</span></div><div class="sc-item"><span class="sc-item-l">전략완료 총수익</span><span class="sc-item-v ${pc(r.profT)}" style="font-weight:800">${fKrw(r.profT)}</span></div></div></div>`
+    `<div class="stock-card"><div class="sc-head"><span class="sc-name">${esc(r.종목명)}</span><span class="sc-ratio ${pc(r.profT)}">${fKrw(r.profT)}</span></div><div class="sc-grid"><div class="sc-item"><span class="sc-item-l">1차매도(50%) ${r.qty1}주 @MA20</span><span class="sc-item-v ${pc(r.prof1)}">${r.prof1!=null?fKrw(r.prof1):'─'}</span></div><div class="sc-item"><span class="sc-item-l">2차매도(잔량) ${r.qty2}주 @MA20+20%</span><span class="sc-item-v ${pc(r.prof2)}">${r.prof2!=null?fKrw(r.prof2):'─'}</span></div><div class="sc-item"><span class="sc-item-l">전략완료 총수익</span><span class="sc-item-v ${pc(r.profT)}" style="font-weight:800">${fKrw(r.profT)}</span></div></div></div>`
   ).join('');
 
   // ── 주문 설정 가이드 (손절위험 → 익절임박 → 일반 → 장기적립 순)
@@ -854,9 +857,9 @@ tbody tr:hover{background:var(--sky50)}
     <div class="stock-cards">${p3StatusCards}</div>
   </div>
   <div class="sc">
-    <div class="sc-title">1·2차 달성 시 매도 시나리오<span class="sub">· 1차 30% → 2차 50% → 잔량 20%</span></div>
-    <div class="sc-note">▪ 전략완료 총수익 = 1차(30%) + 2차(50%) + 잔량(20%)×2차가 합산 &nbsp;▪ 수량은 소수점 버림(절사)</div>
-    <div class="tbl-wrap stock-cards-target"><table><thead><tr><th class="l">종목명</th><th class="mob-hide">1차(MA20)</th><th class="c mob-hide">1차수량</th><th>1차수익금</th><th class="mob-hide">2차(MA20+20%)</th><th class="c mob-hide">2차수량</th><th>2차수익금</th><th class="c mob-hide">잔량</th><th>전략완료 총수익</th></tr></thead><tbody>${p3ScenRows}</tbody></table></div>
+    <div class="sc-title">수동매도 시나리오<span class="sub">· 1차(MA20) 50% → 2차(MA20+20%) 잔량 전량</span></div>
+    <div class="sc-note">▪ 전략완료 총수익 = 1차(50%) + 2차(잔량 전량) 합산 &nbsp;▪ 수량은 소수점 버림(절사)</div>
+    <div class="tbl-wrap stock-cards-target"><table><thead><tr><th class="l">종목명</th><th class="mob-hide">1차(MA20)</th><th class="c mob-hide">1차수량</th><th>1차수익금</th><th class="mob-hide">2차(MA20+20%)</th><th class="c mob-hide">2차수량</th><th>2차수익금</th><th>전략완료 총수익</th></tr></thead><tbody>${p3ScenRows}</tbody></table></div>
     <div class="stock-cards">${p3ScenCards}</div>
   </div>
   <div class="sc">
@@ -866,13 +869,21 @@ tbody tr:hover{background:var(--sky50)}
     <div class="stock-cards">${orderCards}</div>
   </div>
   <div class="sc">
-    <div class="sc-title">자동매도 전략 — MA20 엔벨로프 기반<span class="badge bdg-sky">적용중</span></div>
+    <div class="sc-title">자동매도 전략 — HTS 주문 설정<span class="badge bdg-sky">방치형</span></div>
     <div class="sc-note">
       ▪ <b>① 익절</b>: 매입가 +20% 도달 → 50% 즉시 자동매도 &nbsp;
       ▪ <b>② 트레일링</b>: 익절 발동 후 잔량 50%에 고점 대비 -12% 트레일링 설정 (퇴근 후 1회) → 전량매도<br>
       ▪ <b>③ 손절1</b>: 매입가 -15% 도달 → 50% 자동매도 &nbsp;
       ▪ <b>④ 손절2</b>: 매입가 -20% 도달 → 잔량 전량 자동매도<br>
       ▪ +20% ≈ MA20 도달 (MA20 −20% 매수구간 기준) · 전 종목 동일 적용
+    </div>
+  </div>
+  <div class="sc">
+    <div class="sc-title">수동 매도 전략 — MA20 엔벨로프 기반<span class="badge bdg-amber">매일 리포트 확인</span></div>
+    <div class="sc-note">
+      ▪ <b>① 1차 매도</b>: MA20 도달 시 보유수량 50% 분할매도 &nbsp;
+      ▪ <b>② 2차 매도</b>: MA20+20% 도달 시 잔량 전량 매도<br>
+      ▪ 매일 리포트 확인 후 도달 종목 수동 매도 · 자동매도 전략(HTS)과 상호보완 운영
     </div>
   </div>
   ${aiCardTrail}
