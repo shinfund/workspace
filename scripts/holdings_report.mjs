@@ -352,11 +352,12 @@ async function main() {
   for (const h of holdings) {
     const { 종목코드: code, 종목명, 시장, 보유수량, 평균단가 } = h;
 
-    let 현재가 = null, 현재일 = null;
+    let 현재가 = null, 고가 = null, 현재일 = null;
     for (let i = tradingDates.length - 1; i >= 0; i--) {
       const dm = priceHistory.get(tradingDates[i]);
       if (dm && dm.has(code) && dm.get(code).종가 > 0) {
         현재가 = dm.get(code).종가;
+        고가   = dm.get(code).고가 || dm.get(code).종가;
         현재일 = tradingDates[i];
         break;
       }
@@ -364,7 +365,7 @@ async function main() {
 
     if (현재가 == null) {
       console.error(`[경고] ${종목명}(${code}) 가격 데이터 없음`);
-      results.push({ 종목코드: code, 종목명, 시장, 보유수량, 평균단가, 현재가: null, 현재일: null, ma20: null, ma20Ratio: null, stage: '─', 투자금액: 평균단가*보유수량, 평가금액: null, 수익금액: null, 수익률: null, target1: null, target2: null, pnl1: null, pnl2: null, ret1: null, ret2: null, dataCount: 0 });
+      results.push({ 종목코드: code, 종목명, 시장, 보유수량, 평균단가, 현재가: null, 고가: null, 현재일: null, ma20: null, ma20Ratio: null, stage: '─', 투자금액: 평균단가*보유수량, 평가금액: null, 수익금액: null, 수익률: null, target1: null, target2: null, pnl1: null, pnl2: null, ret1: null, ret2: null, dataCount: 0 });
       continue;
     }
 
@@ -400,7 +401,7 @@ async function main() {
     const pnl1     = target1 ? (target1 - 평균단가) * 보유수량 : null;
     const pnl2     = target2 ? (target2 - 평균단가) * 보유수량 : null;
 
-    results.push({ 종목코드: code, 종목명, 시장, 보유수량, 평균단가, 현재가, 현재일, ma20, ma20Ratio, stage, 투자금액, 평가금액, 수익금액, 수익률, target1, target2, pnl1, pnl2, ret1, ret2, dataCount: prices.length });
+    results.push({ 종목코드: code, 종목명, 시장, 보유수량, 평균단가, 현재가, 고가, 현재일, ma20, ma20Ratio, stage, 투자금액, 평가금액, 수익금액, 수익률, target1, target2, pnl1, pnl2, ret1, ret2, dataCount: prices.length });
     console.error(`  ${종목명}(${code}): ${fmtNum(현재가)}원 / MA20 ${ma20?fmtNum(ma20):'─'}원 / 괴리 ${ma20Ratio!=null?ma20Ratio.toFixed(1):'─'}% / ${stage}`);
   }
 
@@ -419,7 +420,7 @@ function generateAndSaveHTML({ results, latestDate }) {
   const fP1 = n => n != null ? (n >= 0 ? '+' : '') + n.toFixed(1) + '%' : '─';
   const fKrw = n => n != null ? (n >= 0 ? '+' : '') + fN(n) + '원' : '─';
   const pc  = n => n == null ? 't-flat' : n > 0 ? 't-pos' : n < -10 ? 't-neg-hi' : n < 0 ? 't-neg' : 't-flat';
-  const rpc = n => n == null ? 't-flat' : n < 0 ? 't-pos' : n > 10 ? 't-neg-hi' : n > 0 ? 't-neg' : 't-flat';
+  const rpc = n => n == null ? 't-flat' : n > 0 ? 't-pos' : n < -10 ? 't-neg-hi' : n < 0 ? 't-neg' : 't-flat';
 
   const stageMap = { '매수구간': 'bdg-blue', '회복중': 'bdg-amber', '1차달성': 'bdg-teal', '2차달성': 'bdg-purple', '─': 'bdg-gray' };
   const envBadge = stage => `<span class="badge ${stageMap[stage]||'bdg-gray'}">${stage}</span>`;
@@ -547,6 +548,12 @@ function generateAndSaveHTML({ results, latestDate }) {
     const qtyR  = 0;
     const pct1  = r.target1 && r.현재가 ? (r.target1/r.현재가 - 1)*100 : null;
     const pct2  = r.target2 && r.현재가 ? (r.target2/r.현재가 - 1)*100 : null;
+    // 고가 기준 돌파 체크 (당일 고가가 목표가에 닿았지만 종가는 미달성)
+    const pct1H = r.고가 && r.target1 ? (r.target1/r.고가 - 1)*100 : null;
+    const pct2H = r.고가 && r.target2 ? (r.target2/r.고가 - 1)*100 : null;
+    const break1 = pct1 != null && pct1 <= 0 ? '1차 종가돌파' : (pct1H != null && pct1H <= 0 ? '1차 고가돌파' : null);
+    const break2 = pct2 != null && pct2 <= 0 ? '2차 종가돌파' : (pct2H != null && pct2H <= 0 ? '2차 고가돌파' : null);
+    const breakStatus = break2 || break1 || null;
     const prof1 = r.target1 ? qty1 * (r.target1 - r.평균단가) : null;
     const prof2 = r.target2 ? qty2 * (r.target2 - r.평균단가) : null;
     const profR = null;
@@ -561,17 +568,21 @@ function generateAndSaveHTML({ results, latestDate }) {
     const trQty  = r.보유수량 - ptQty;
     const slQty1 = Math.floor(r.보유수량 * 0.5);
     const slQty2 = r.보유수량 - slQty1;
-    // 트레일링스탑 상태: 자동전략(pt20) 기준
+    // 트레일링스탑 상태: 돌파 우선 → 자동전략(pt20) 순
     let trailStop = null, trailStage = '대기', trailBadge = 'bdg-sky';
-    if      (ptGap != null && ptGap <= 0)                    { trailStop = Math.round(r.현재가 * 0.88); trailStage = '트레일링발동'; trailBadge = 'bdg-teal';   }
-    else if (sl1Gap != null && sl1Gap < 5)                    { trailStage = '손절주의';   trailBadge = 'bdg-red';    }
-    else if (ptGap != null && ptGap > 0 && ptGap < 10)       { trailStage = '익절근접';   trailBadge = 'bdg-amber';  }
-    else if (r.stage === '매수구간')                           { trailStage = '매수구간';   trailBadge = 'bdg-blue';   }
-    return { ...r, qty1, qty2, qtyR, pct1, pct2, prof1, prof2, profR, profT, trailStop, trailStage, trailBadge,
-             sl1, sl2, pt20, sl1Gap, ptGap, ptQty, trQty, slQty1, slQty2 };
+    if      (pct2 != null && pct2 <= 0)                    { trailStage = '2차돌파';   trailBadge = 'bdg-purple'; }
+    else if (pct2H != null && pct2H <= 0)                  { trailStage = '2차(고가)'; trailBadge = 'bdg-purple'; }
+    else if (pct1 != null && pct1 <= 0)                    { trailStage = '1차돌파';   trailBadge = 'bdg-teal';   }
+    else if (pct1H != null && pct1H <= 0)                  { trailStage = '1차(고가)'; trailBadge = 'bdg-teal';   }
+    else if (ptGap != null && ptGap <= 0)                   { trailStop = Math.round(r.현재가 * 0.88); trailStage = '트레일링발동'; trailBadge = 'bdg-teal'; }
+    else if (sl1Gap != null && sl1Gap < 5)                  { trailStage = '손절주의';  trailBadge = 'bdg-red';    }
+    else if (ptGap != null && ptGap > 0 && ptGap < 10)     { trailStage = '익절근접';  trailBadge = 'bdg-amber';  }
+    else if (r.stage === '매수구간')                         { trailStage = '매수구간';  trailBadge = 'bdg-blue';   }
+    return { ...r, qty1, qty2, qtyR, pct1, pct2, pct1H, pct2H, breakStatus, prof1, prof2, profR, profT,
+             trailStop, trailStage, trailBadge, sl1, sl2, pt20, sl1Gap, ptGap, ptQty, trQty, slQty1, slQty2 };
   });
   const trSorted = [...trData].sort((a,b) => {
-    const rank = s => s==='트레일링발동'?0 : s==='손절주의'?1 : s==='익절근접'?2 : s==='매수구간'?3 : 4;
+    const rank = s => s==='2차돌파'?0 : s==='2차(고가)'?1 : s==='1차돌파'?2 : s==='1차(고가)'?3 : s==='트레일링발동'?4 : s==='손절주의'?5 : s==='익절근접'?6 : s==='매수구간'?7 : 8;
     if (rank(a.trailStage) !== rank(b.trailStage)) return rank(a.trailStage) - rank(b.trailStage);
     return (a.pct1??999) - (b.pct1??999);
   });
@@ -584,14 +595,17 @@ function generateAndSaveHTML({ results, latestDate }) {
   const ptTriggered = trData.filter(r => r.ptGap != null && r.ptGap <= 0).length;
 
   const p3StatusRows = trSorted.map(r => {
-    const p1d = r.pct1!=null?(r.pct1<0?`<span class="t-pos">돌파✓</span>`:`<span class="t-neg">+${r.pct1.toFixed(1)}%</span>`):'─';
-    const p2d = r.pct2!=null?(r.pct2<0?`<span class="t-pos">돌파✓</span>`:`<span class="t-neg">+${r.pct2.toFixed(1)}%</span>`):'─';
-    return `<tr${r.trailStop?' class="ts-active"':''}><td class="l t-name">${esc(r.종목명)}</td><td class="c t-mkt mob-hide">${r.시장}</td><td class="t-price">${fN(r.현재가)}</td><td class="${rpc(r.ma20Ratio)} mob-hide">${r.ma20Ratio!=null?r.ma20Ratio.toFixed(1)+'%':'─'}</td><td class="mob-hide">${fN(r.target1)}</td><td>${p1d}</td><td class="mob-hide">${fN(r.target2)}</td><td>${p2d}</td><td class="ts-stop mob-hide">${r.trailStop?fN(r.trailStop)+'원':'─'}</td><td class="c"><span class="badge ${r.trailBadge}">${r.trailStage}</span></td></tr>`;
+    const p1d = r.pct1!=null?`<span class="${pc(r.pct1)}">${r.pct1>=0?'+':''}${r.pct1.toFixed(1)}%</span>`:'─';
+    const p2d = r.pct2!=null?`<span class="${pc(r.pct2)}">${r.pct2>=0?'+':''}${r.pct2.toFixed(1)}%</span>`:'─';
+    const brkCell = r.breakStatus
+      ? `<span class="${r.breakStatus.includes('종가')?'t-pos':'t-flat'}" style="font-size:12px">${r.breakStatus}</span>`
+      : '─';
+    return `<tr${r.trailStop?' class="ts-active"':''}><td class="l t-name">${esc(r.종목명)}</td><td class="c t-mkt mob-hide">${r.시장}</td><td class="t-price">${fN(r.현재가)}</td><td class="${rpc(r.ma20Ratio)} mob-hide">${r.ma20Ratio!=null?r.ma20Ratio.toFixed(1)+'%':'─'}</td><td class="mob-hide">${fN(r.target1)}</td><td>${p1d}</td><td class="mob-hide">${fN(r.target2)}</td><td>${p2d}</td><td class="mob-hide c">${brkCell}</td><td class="ts-stop mob-hide">${r.trailStop?fN(r.trailStop)+'원':'─'}</td><td class="c"><span class="badge ${r.trailBadge}">${r.trailStage}</span></td></tr>`;
   }).join('');
   const p3StatusCards = trSorted.map(r => {
-    const p1d = r.pct1!=null?(r.pct1<0?`<span class="t-pos">돌파✓</span>`:`<span class="t-neg">+${r.pct1.toFixed(1)}%</span>`):'─';
-    const p2d = r.pct2!=null?(r.pct2<0?`<span class="t-pos">돌파✓</span>`:`<span class="t-neg">+${r.pct2.toFixed(1)}%</span>`):'─';
-    return `<div class="stock-card${r.trailStop?' ts-active-card':''}"><div class="sc-head"><span class="sc-name">${esc(r.종목명)}</span><span class="badge ${r.trailBadge}">${r.trailStage}</span></div><div class="sc-grid"><div class="sc-item"><span class="sc-item-l">현재가</span><span class="sc-item-v">${fN(r.현재가)}원</span></div><div class="sc-item"><span class="sc-item-l">MA20괴리율</span><span class="sc-item-v ${rpc(r.ma20Ratio)}">${r.ma20Ratio!=null?r.ma20Ratio.toFixed(1)+'%':'─'}</span></div><div class="sc-item"><span class="sc-item-l">1차(MA20)까지</span><span class="sc-item-v">${p1d}</span></div><div class="sc-item"><span class="sc-item-l">2차까지</span><span class="sc-item-v">${p2d}</span></div>${r.trailStop?`<div class="sc-item sc-full"><span class="sc-item-l">이론스탑가(현재가 기준)</span><span class="sc-item-v ts-stop">${fN(r.trailStop)}원</span></div>`:''}</div></div>`;
+    const p1d = r.pct1!=null?`<span class="${pc(r.pct1)}">${r.pct1>=0?'+':''}${r.pct1.toFixed(1)}%</span>`:'─';
+    const p2d = r.pct2!=null?`<span class="${pc(r.pct2)}">${r.pct2>=0?'+':''}${r.pct2.toFixed(1)}%</span>`:'─';
+    return `<div class="stock-card${r.trailStop?' ts-active-card':''}"><div class="sc-head"><span class="sc-name">${esc(r.종목명)}</span><span class="badge ${r.trailBadge}">${r.trailStage}</span></div><div class="sc-grid"><div class="sc-item"><span class="sc-item-l">현재가</span><span class="sc-item-v">${fN(r.현재가)}원</span></div><div class="sc-item"><span class="sc-item-l">MA20괴리율</span><span class="sc-item-v ${rpc(r.ma20Ratio)}">${r.ma20Ratio!=null?r.ma20Ratio.toFixed(1)+'%':'─'}</span></div><div class="sc-item"><span class="sc-item-l">1차</span><span class="sc-item-v">${p1d}</span></div><div class="sc-item"><span class="sc-item-l">2차</span><span class="sc-item-v">${p2d}</span></div>${r.breakStatus?`<div class="sc-item sc-full"><span class="sc-item-l">돌파</span><span class="sc-item-v ${r.breakStatus.includes('종가')?'t-pos':'t-flat'}">${r.breakStatus}</span></div>`:''}</div></div>`;
   }).join('');
   const p3ScenRows = trSorted.map(r =>
     `<tr><td class="l t-name">${esc(r.종목명)}</td><td class="mob-hide">${fN(r.target1)}</td><td class="c mob-hide">${r.qty1}주</td><td class="${pc(r.prof1)}">${r.prof1!=null?fKrw(r.prof1):'─'}</td><td class="mob-hide">${fN(r.target2)}</td><td class="c mob-hide">${r.qty2}주</td><td class="${pc(r.prof2)}">${r.prof2!=null?fKrw(r.prof2):'─'}</td><td class="${pc(r.profT)}" style="font-weight:800">${fKrw(r.profT)}</td></tr>`
@@ -853,7 +867,7 @@ tbody tr:hover{background:var(--sky50)}
   </div>
   <div class="sc">
     <div class="sc-title">트레일링스탑 현황<span class="sub">· 발동중 우선 · 1차 근접 순</span></div>
-    <div class="tbl-wrap stock-cards-target"><table><thead><tr><th class="l">종목명</th><th class="c mob-hide">시장</th><th>현재가</th><th class="mob-hide">MA20괴리율</th><th class="mob-hide">1차(MA20)</th><th>1차까지</th><th class="mob-hide">2차목표</th><th>2차까지</th><th class="mob-hide">이론스탑가</th><th class="c">상태</th></tr></thead><tbody>${p3StatusRows}</tbody></table></div>
+    <div class="tbl-wrap stock-cards-target"><table><thead><tr><th class="l">종목명</th><th class="c mob-hide">시장</th><th>현재가</th><th class="mob-hide">MA20괴리율</th><th class="mob-hide">1차(MA20)</th><th>1차</th><th class="mob-hide">2차목표</th><th>2차</th><th class="mob-hide c">돌파</th><th class="mob-hide">이론스탑가</th><th class="c">상태</th></tr></thead><tbody>${p3StatusRows}</tbody></table></div>
     <div class="stock-cards">${p3StatusCards}</div>
   </div>
   <div class="sc">
