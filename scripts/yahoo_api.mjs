@@ -32,6 +32,12 @@ const KRX_KEY  = '1f471918ea495531eb3d5a2b59c1c7323f9af53aa6c957ea3b47127d766f47
 const KRX_HOST = 'apis.data.go.kr';
 const KRX_PATH = '/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo';
 
+const KIS_APP_KEY    = 'PSO0pNJJEdcjc5qizFifXHn0yXG42TRA0hUz';
+const KIS_APP_SECRET = 'ag3QEJW9rPfVvvhuiJCZftESl2a0GSSXsbuLzZxVq008hTbqKrBScdZxz/NbVW9UBbdwF+Yd16eFrGB2Q6HLEKADkUCpTvUjXmdorsxF5KmNvVI/Q/fR/2uv9UjTYmzCusALcmkSOaeLQ1pByw8oVPE++lnBZg6aKxh33Tbfd/aNbGNKl2Y=';
+const KIS_TOKEN_CACHE = path.join(__dirname, 'kis_token.json');
+const KIS_HOST = 'openapi.koreainvestment.com';
+const KIS_PORT = 9443;
+
 const ETF_RE = /^(KODEX|TIGER|KBSTAR|HANARO|KOSEF|ARIRANG|SOL |ACE |TIMEFOLIO|PLUS |WON |FOCUS|SMART|TREX|파워|KTOP|KCGI|마이다스|RISE|ETF|QV)/;
 function isEtfCode(n) {
   return (n>=69500&&n<=69999)||(n>=102000&&n<=102999)||(n>=114000&&n<=114999)||
@@ -74,6 +80,11 @@ function parseArgs() {
 function kstYesterday() {
   const d = new Date(Date.now() + 9*3600*1000);
   d.setUTCDate(d.getUTCDate()-1);
+  return `${d.getUTCFullYear()}${String(d.getUTCMonth()+1).padStart(2,'0')}${String(d.getUTCDate()).padStart(2,'0')}`;
+}
+
+function kstToday() {
+  const d = new Date(Date.now() + 9*3600*1000);
   return `${d.getUTCFullYear()}${String(d.getUTCMonth()+1).padStart(2,'0')}${String(d.getUTCDate()).padStart(2,'0')}`;
 }
 
@@ -177,6 +188,95 @@ async function loadKrxUniverse(maxStocks) {
     process.stderr.write(`[캐시 저장 실패] ${e.message}\n`);
   }
   return stocks.slice(0, maxStocks);
+}
+
+// ─── KIS API (당일 실시간) ───────────────────────────────
+async function getKisToken() {
+  try {
+    const c = JSON.parse(fs.readFileSync(KIS_TOKEN_CACHE, 'utf8'));
+    if (new Date(c.access_token_token_expired) > new Date(Date.now() + 60000)) return c.access_token;
+  } catch { /* cache miss */ }
+  const body = JSON.stringify({ grant_type: 'client_credentials', appkey: KIS_APP_KEY, appsecret: KIS_APP_SECRET });
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: KIS_HOST, port: KIS_PORT, path: '/oauth2/tokenP', method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+    }, resp => {
+      let d = ''; resp.on('data', c => d += c);
+      resp.on('end', () => {
+        try {
+          const res = JSON.parse(d);
+          if (!res.access_token) return reject(new Error('KIS 토큰 실패'));
+          fs.writeFileSync(KIS_TOKEN_CACHE, JSON.stringify(res));
+          resolve(res.access_token);
+        } catch(e) { reject(e); }
+      });
+    });
+    req.on('error', reject); req.write(body); req.end();
+  });
+}
+
+async function fetchKisPrice(token, code) {
+  const qs = new URLSearchParams({ FID_COND_MRKT_DIV_CODE: 'J', FID_INPUT_ISCD: code });
+  return new Promise(resolve => {
+    const req = https.request({
+      hostname: KIS_HOST, port: KIS_PORT,
+      path: `/uapi/domestic-stock/v1/quotations/inquire-price?${qs}`,
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json', authorization: `Bearer ${token}`,
+        appkey: KIS_APP_KEY, appsecret: KIS_APP_SECRET, tr_id: 'FHKST01010100', custtype: 'P',
+      },
+    }, resp => {
+      let d = ''; resp.on('data', c => d += c);
+      resp.on('end', () => {
+        try {
+          const j = JSON.parse(d);
+          if (j.rt_cd !== '0') return resolve(null);
+          const o = j.output;
+          resolve({
+            현재가:   Number(o.stck_prpr || 0),
+            시가:     Number(o.stck_oprc || 0),
+            고가:     Number(o.stck_hgpr || 0),
+            저가:     Number(o.stck_lwpr || 0),
+            등락률:   Number(o.prdy_ctrt || 0),
+            거래량:   Number(o.acml_vol  || 0),
+            거래대금: Number(o.acml_tr_pbmn || 0),
+          });
+        } catch { resolve(null); }
+      });
+    });
+    req.on('error', () => resolve(null));
+    req.setTimeout(8000, () => { req.destroy(); resolve(null); });
+    req.end();
+  });
+}
+
+// stocks: [{code, name, market}, ...] → Map<code, rowData>
+async function fetchKisToday(stocks) {
+  let token;
+  try { token = await getKisToken(); } catch(e) {
+    process.stderr.write(`[KIS] 토큰 실패: ${e.message}\n`); return new Map();
+  }
+  const resultMap = new Map();
+  const BATCH = 5, DELAY_KIS = 200;
+  for (let i = 0; i < stocks.length; i += BATCH) {
+    const batch = stocks.slice(i, i + BATCH);
+    const res = await Promise.all(batch.map(s => fetchKisPrice(token, s.code)));
+    batch.forEach((s, j) => {
+      const d = res[j];
+      if (d && d.현재가 > 0) {
+        resultMap.set(s.code, {
+          code: s.code, name: s.name, market: s.market,
+          종가:     d.현재가, 시가: d.시가, 고가: d.고가, 저가: d.저가,
+          거래량:   d.거래량, 거래대금: d.거래대금, 등락률: d.등락률,
+          전일종가: null,
+        });
+      }
+    });
+    if (i + BATCH < stocks.length) await new Promise(r => setTimeout(r, DELAY_KIS));
+  }
+  return resultMap;
 }
 
 // ─── Yahoo Finance v8 chart API ──────────────────────────
@@ -319,18 +419,34 @@ async function main() {
     }
   }
 
-  // Yahoo Finance 조회
-  process.stderr.write(`[Yahoo] ${universe.length}종목 조회 중 (10개 동시)...\n`);
+  // ─── 당일: KIS 우선 조회 / 과거: Yahoo만 사용 ──────────
+  const today = kstToday();
+  let kisMap = new Map();
+  if (targetDate === today) {
+    process.stderr.write(`[KIS] 당일 실시간 ${universe.length}종목 조회 중...\n`);
+    kisMap = await fetchKisToday(universe);
+    process.stderr.write(`[KIS] ${kisMap.size}종목 성공 → 나머지 ${universe.length - kisMap.size}종목 Yahoo 폴백\n`);
+  }
+
+  // Yahoo Finance 조회 (KIS 미제공 종목 + 과거 날짜)
+  process.stderr.write(`[Yahoo] ${universe.length - kisMap.size}종목 조회 중 (10개 동시)...\n`);
   let done = 0;
 
   const results = await batchAll(universe, async (stock) => {
+    // 당일 KIS 성공 종목은 Yahoo 스킵
+    if (kisMap.has(stock.code)) { done++; return kisMap.get(stock.code); }
+
     let yf = null;
 
     if (stock.market === null) {
-      // --code 모드 매핑 실패: .KS → .KQ 순서로 시도
-      yf = await fetchYahoo(`${stock.code}.KS`, p1, p2);
-      if (!yf || yf.ts.length === 0) yf = await fetchYahoo(`${stock.code}.KQ`, p1, p2);
-      if (yf && yf.ts.length > 0) stock.market = 'KOSPI?';
+      // --code 모드 매핑 실패: KRX 미등록 → .KQ 우선(KOSDAQ 가능성 높음), .KS 폴백
+      yf = await fetchYahoo(`${stock.code}.KQ`, p1, p2);
+      if (yf && yf.ts.length > 0) {
+        stock.market = 'KOSDAQ?';
+      } else {
+        yf = await fetchYahoo(`${stock.code}.KS`, p1, p2);
+        if (yf && yf.ts.length > 0) stock.market = 'KOSPI?';
+      }
     } else {
       const suffix = stock.market === 'KOSDAQ' ? '.KQ' : '.KS';
       yf = await fetchYahoo(`${stock.code}${suffix}`, p1, p2);
