@@ -33,7 +33,7 @@ export const DEFAULT_BODY_FONT = { name: '맑은 고딕', size: 13 };
 export const DEFAULT_HEADER_FILL_ARGB = 'FFDAE9F8';
 // data: 사진이 없는 행의 기본 높이. dataWithPhoto: 그 행에 실제로 사진이 하나라도 있으면
 // 이 값을 씀(방향 무관 — landscape/portrait 공통, 2026-07-03 확정).
-export const DEFAULT_ROW_HEIGHTS = { title: 60, header: 40, data: 30, dataWithPhoto: 85 };
+export const DEFAULT_ROW_HEIGHTS = { title: 60, header: 30, data: 30, dataWithPhoto: 85 };
 export const CELL_BORDER = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
 
 // Excel 열 너비는 반각 문자 기준 단위 — 한글/전각 문자는 2칸으로 계산해 실제 표시폭에 근사시킨다.
