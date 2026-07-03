@@ -493,7 +493,7 @@ async function main() {
       const stockData = dayMap.get(code);
       if (!stockData || stockData.종가 <= 0) continue;
 
-      const { 종가, 저가 } = stockData;
+      const { 종가 } = stockData;
       const prices = [];
       for (const d of lookbackDates) {
         const m = priceHistory.get(d);
@@ -501,15 +501,14 @@ async function main() {
       }
       if (prices.length < 5) continue;
 
-      const ma20       = prices.reduce((a, b) => a + b, 0) / prices.length;
-      const ratioPrice = (저가 && 저가 > 0) ? 저가 : 종가;
-      const ratio      = (ratioPrice / ma20 - 1) * 100;
+      const ma20  = prices.reduce((a, b) => a + b, 0) / prices.length;
+      const ratio = (종가 / ma20 - 1) * 100;
       const inTop10 = top10Codes.has(code);
       const rankAll = allStocks.findIndex(s => s.종목코드 === code) + 1 || null;
       const rank    = inTop10 ? top10.findIndex(s => s.종목코드 === code) + 1 : rankAll;
 
       if (ratio <= -20) {
-        const entry = { date, rank, 종목코드: code, 종목명: meta.종목명, 시장: meta.시장, 종가, 저가: ratioPrice, ma20: Math.round(ma20), ratio, 데이터수: prices.length, inTop10 };
+        const entry = { date, rank, 종목코드: code, 종목명: meta.종목명, 시장: meta.시장, 종가, ma20: Math.round(ma20), ratio, 데이터수: prices.length, inTop10 };
         findingsB.push(entry);
         if (inTop10) findingsA.push({ ...entry });
       }
@@ -527,11 +526,11 @@ async function main() {
     for (const date of Object.keys(byDate).sort()) {
       const items = byDate[date].sort((a, b) => a.ratio - b.ratio);
       console.log(`\n  ▶ ${fmtDate(date)}`);
-      console.log(`    ${'순위'.padStart(4)}  ${'종목명'.padEnd(12)}  ${'시장'.padEnd(6)}  ${'저가'.padStart(10)}  ${'MA20'.padStart(10)}  ${'괴리율'.padStart(8)}`);
+      console.log(`    ${'순위'.padStart(4)}  ${'종목명'.padEnd(12)}  ${'시장'.padEnd(6)}  ${'종가'.padStart(10)}  ${'MA20'.padStart(10)}  ${'괴리율'.padStart(8)}`);
       console.log('    ' + '─'.repeat(60));
       for (const f of items) {
         const rankStr = f.rank ? `${f.rank}위` : '─';
-        console.log(`    ${rankStr.padStart(4)}  ${f.종목명.padEnd(12)}  ${f.시장.padEnd(6)}  ${fmtNum(f.저가).padStart(10)}  ${fmtNum(f.ma20).padStart(10)}  ${f.ratio.toFixed(1).padStart(7)}%`);
+        console.log(`    ${rankStr.padStart(4)}  ${f.종목명.padEnd(12)}  ${f.시장.padEnd(6)}  ${fmtNum(f.종가).padStart(10)}  ${fmtNum(f.ma20).padStart(10)}  ${f.ratio.toFixed(1).padStart(7)}%`);
       }
     }
     console.log('\n' + '─'.repeat(72));
@@ -548,16 +547,16 @@ async function main() {
     if (showCurrentRatio) {
       for (const [name, s] of Object.entries(stockSummary)) {
         const code = s.종목코드;
-        let latestP = null, latestLow2 = null, latestDi2 = -1;
+        let latestP = null, latestDi2 = -1;
         for (let i = tradingDates.length - 1; i >= 0; i--) {
           const m = priceHistory.get(tradingDates[i]);
-          if (m && m.has(code)) { const sd2 = m.get(code); latestP = sd2.종가; latestLow2 = sd2.저가 || sd2.종가; latestDi2 = i; break; }
+          if (m && m.has(code)) { latestP = m.get(code).종가; latestDi2 = i; break; }
         }
         if (latestP == null) continue;
         const lb = tradingDates.slice(Math.max(0, latestDi2 - 19), latestDi2 + 1);
         const ps = [];
         for (const ld of lb) { const m = priceHistory.get(ld); if (m && m.has(code)) ps.push(m.get(code).종가); }
-        if (ps.length >= 5) currentRatioMap.set(name, ((latestLow2 || latestP) / (ps.reduce((a, b) => a + b, 0) / ps.length) - 1) * 100);
+        if (ps.length >= 5) currentRatioMap.set(name, (latestP / (ps.reduce((a, b) => a + b, 0) / ps.length) - 1) * 100);
       }
     }
 
@@ -846,16 +845,16 @@ async function main() {
   }
   for (const [, s] of Object.entries(stockSummaryB)) {
     const code = s.종목코드;
-    let latestP = null, latestLowG = null, latestDi = -1;
+    let latestP = null, latestDi = -1;
     for (let i = tradingDates.length - 1; i >= 0; i--) {
       const m = priceHistory.get(tradingDates[i]);
-      if (m && m.has(code)) { const sdG = m.get(code); latestP = sdG.종가; latestLowG = sdG.저가 || sdG.종가; latestDi = i; break; }
+      if (m && m.has(code)) { latestP = m.get(code).종가; latestDi = i; break; }
     }
     if (latestP == null) continue;
     const lb = tradingDates.slice(Math.max(0, latestDi - 19), latestDi + 1);
     const ps = [];
     for (const ld of lb) { const m = priceHistory.get(ld); if (m && m.has(code)) ps.push(m.get(code).종가); }
-    if (ps.length >= 5) s.현재괴리 = ((latestLowG || latestP) / (ps.reduce((a, b) => a + b, 0) / ps.length) - 1) * 100;
+    if (ps.length >= 5) s.현재괴리 = (latestP / (ps.reduce((a, b) => a + b, 0) / ps.length) - 1) * 100;
   }
   generateAndSaveHTML({
     period: { start: targetDates[0], end: targetDates[targetDates.length - 1], pd },
@@ -925,20 +924,20 @@ function generateAndSaveHTML({ period, universeSize, findingsA, findingsB, stock
       ? `<span class="date-tag today">최근거래일</span>`
       : `<span class="date-tag">${dow(date)}</span>`;
     const trows = sorted.map(f=>
-      `<tr><td class="c t-rank">${f.rank?f.rank+'위':'─'}</td><td class="l t-name">${esc(f.종목명)}</td><td class="c t-mkt">${f.시장}</td><td class="t-price">${fN(f.저가)}</td><td>${fN(f.ma20)}</td><td class="${rc(f.ratio)}">${f.ratio.toFixed(1)}%</td></tr>`
+      `<tr><td class="c t-rank">${f.rank?f.rank+'위':'─'}</td><td class="l t-name">${esc(f.종목명)}</td><td class="c t-mkt">${f.시장}</td><td class="t-price">${fN(f.종가)}</td><td>${fN(f.ma20)}</td><td class="${rc(f.ratio)}">${f.ratio.toFixed(1)}%</td></tr>`
     ).join('');
     const cards = sorted.map(f=>
-      `<div class="stock-card"><div class="sc-head"><span class="sc-name">${esc(f.종목명)}</span><span class="sc-ratio ${rc(f.ratio)}">${f.ratio.toFixed(1)}%</span></div><div class="sc-grid"><div class="sc-item"><span class="sc-item-l">시장</span><span class="sc-item-v">${f.시장}</span></div><div class="sc-item"><span class="sc-item-l">순위</span><span class="sc-item-v">${f.rank?f.rank+'위':'─'}</span></div><div class="sc-item"><span class="sc-item-l">저가</span><span class="sc-item-v">${fN(f.저가)}원</span></div><div class="sc-item"><span class="sc-item-l">MA20</span><span class="sc-item-v">${fN(f.ma20)}원</span></div></div></div>`
+      `<div class="stock-card"><div class="sc-head"><span class="sc-name">${esc(f.종목명)}</span><span class="sc-ratio ${rc(f.ratio)}">${f.ratio.toFixed(1)}%</span></div><div class="sc-grid"><div class="sc-item"><span class="sc-item-l">시장</span><span class="sc-item-v">${f.시장}</span></div><div class="sc-item"><span class="sc-item-l">순위</span><span class="sc-item-v">${f.rank?f.rank+'위':'─'}</span></div><div class="sc-item"><span class="sc-item-l">종가</span><span class="sc-item-v">${fN(f.종가)}원</span></div><div class="sc-item"><span class="sc-item-l">MA20</span><span class="sc-item-v">${fN(f.ma20)}원</span></div></div></div>`
     ).join('');
-    return `<div class="date-hdr"><span class="date-lbl">${fmtDate(date)}</span>${tag}</div><div class="tbl-wrap stock-cards-target"><table><thead><tr><th class="c">순위</th><th class="l">종목명</th><th class="c">시장</th><th>저가</th><th>MA20</th><th>괴리율</th></tr></thead><tbody>${trows}</tbody></table></div><div class="stock-cards">${cards}</div>`;
+    return `<div class="date-hdr"><span class="date-lbl">${fmtDate(date)}</span>${tag}</div><div class="tbl-wrap stock-cards-target"><table><thead><tr><th class="c">순위</th><th class="l">종목명</th><th class="c">시장</th><th>종가</th><th>MA20</th><th>괴리율</th></tr></thead><tbody>${trows}</tbody></table></div><div class="stock-cards">${cards}</div>`;
   }
 
   // ── 패널별 데이터 행
   const p0Rows  = latestFindingsB.map(f=>
-    `<tr><td class="c t-rank" style="color:${f.inTop10?'var(--coral)':'var(--amber)'}">${f.inTop10?'당일':'기간'}</td><td class="l t-name">${esc(f.종목명)}</td><td class="c t-mkt mob-hide">${f.시장}</td><td class="t-price">${fN(f.저가)}</td><td class="mob-hide">${fN(f.ma20)}</td><td class="${rc(f.ratio)}">${f.ratio.toFixed(1)}%</td><td class="c mob-hide"><span class="badge ${f.rank&&f.rank<=10?'bdg-coral':'bdg-gray'}">${f.rank?f.rank+'위':'─'}</span></td></tr>`
+    `<tr><td class="c t-rank" style="color:${f.inTop10?'var(--coral)':'var(--amber)'}">${f.inTop10?'당일':'기간'}</td><td class="l t-name">${esc(f.종목명)}</td><td class="c t-mkt mob-hide">${f.시장}</td><td class="t-price">${fN(f.종가)}</td><td class="mob-hide">${fN(f.ma20)}</td><td class="${rc(f.ratio)}">${f.ratio.toFixed(1)}%</td><td class="c mob-hide"><span class="badge ${f.rank&&f.rank<=10?'bdg-coral':'bdg-gray'}">${f.rank?f.rank+'위':'─'}</span></td></tr>`
   ).join('');
   const p0Cards = latestFindingsB.map(f=>
-    `<div class="stock-card"><div class="sc-head"><span class="sc-name">${esc(f.종목명)}</span><span class="sc-ratio ${rc(f.ratio)}">${f.ratio.toFixed(1)}%</span></div><div class="sc-grid"><div class="sc-item"><span class="sc-item-l">구분</span><span class="sc-item-v" style="color:${f.inTop10?'var(--coral)':'var(--amber)'}">${f.inTop10?'당일':'기간'}</span></div><div class="sc-item"><span class="sc-item-l">시장</span><span class="sc-item-v">${f.시장}</span></div><div class="sc-item"><span class="sc-item-l">저가</span><span class="sc-item-v">${fN(f.저가)}원</span></div><div class="sc-item"><span class="sc-item-l">MA20</span><span class="sc-item-v">${fN(f.ma20)}원</span></div></div></div>`
+    `<div class="stock-card"><div class="sc-head"><span class="sc-name">${esc(f.종목명)}</span><span class="sc-ratio ${rc(f.ratio)}">${f.ratio.toFixed(1)}%</span></div><div class="sc-grid"><div class="sc-item"><span class="sc-item-l">구분</span><span class="sc-item-v" style="color:${f.inTop10?'var(--coral)':'var(--amber)'}">${f.inTop10?'당일':'기간'}</span></div><div class="sc-item"><span class="sc-item-l">시장</span><span class="sc-item-v">${f.시장}</span></div><div class="sc-item"><span class="sc-item-l">종가</span><span class="sc-item-v">${fN(f.종가)}원</span></div><div class="sc-item"><span class="sc-item-l">MA20</span><span class="sc-item-v">${fN(f.ma20)}원</span></div></div></div>`
   ).join('');
 
   const p1Sections = Object.keys(findingsAByDate).sort((a,b)=>b.localeCompare(a)).map(d=>dateSection(d, findingsAByDate[d])).join('');

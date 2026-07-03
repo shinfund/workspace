@@ -472,7 +472,7 @@ async function main() {
     }
     const ma20raw   = prices.length >= 5 ? prices.reduce((a, b) => a + b, 0) / prices.length : null;
     const ma20      = ma20raw ? Math.round(ma20raw) : null;
-    const ma20Ratio = ma20 ? ((저가 || 현재가) / ma20 - 1) * 100 : null;
+    const ma20Ratio = ma20 ? (현재가 / ma20 - 1) * 100 : null;
 
     // 엔벨로프 단계
     let stage = '─';
@@ -927,7 +927,7 @@ tbody tr:hover{background:var(--sky50)}
 <div class="header">
   <div class="header-left">
     <div class="logo-mark"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/><polyline points="7 10 10 7 13 10 17 6"/></svg></div>
-    <div class="logo-info"><div class="logo-title">보유종목 분석</div><div class="logo-sub">${latestFmt} 기준 · 노션 보유종목DB · 괴리율 저가 기준</div></div>
+    <div class="logo-info"><div class="logo-title">보유종목 분석</div><div class="logo-sub">${latestFmt} 기준 · 노션 보유종목DB · 괴리율 종가 기준</div></div>
   </div>
   <div class="header-right"><div class="hdr-date">${latestFmt} 기준</div><div class="hdr-meta">보유 ${allR.length}종목 · MA20 엔벨로프</div></div>
 </div>
@@ -954,7 +954,7 @@ tbody tr:hover{background:var(--sky50)}
   ${diffSection}
   <div class="sc">
     <div class="sc-title">${latestFmt} 보유종목 현황<span class="badge bdg-sky">${validR.length}종목</span></div>
-    <div class="sc-note">수익률 = 평균단가 대비 현재가 기준 · MA20괴리율 = 저가 vs 20거래일 이동평균(종가 기준)</div>
+    <div class="sc-note">수익률 = 평균단가 대비 현재가 기준 · MA20괴리율 = 종가 vs 20거래일 이동평균(종가 기준)</div>
     ${validR.length ? `<div class="tbl-wrap stock-cards-target"><table><thead><tr><th class="l">종목명</th><th>현재가</th><th>수익률</th><th>MA20괴리율</th><th class="c">단계</th></tr></thead><tbody>${p0Rows}</tbody></table></div><div class="stock-cards">${p0Cards}</div>` : '<div class="empty"><div class="msg">데이터 없음</div></div>'}
   </div>
   ${aiCard0}
@@ -1050,7 +1050,7 @@ tbody tr:hover{background:var(--sky50)}
 </div>
 
 </div></div>
-<div class="footer">holdings_report.mjs · 노션 보유종목DB · KIS + KRX + Yahoo Finance · ${latestFmt} 기준 · MA20괴리율 저가 기준</div>
+<div class="footer">holdings_report.mjs · 노션 보유종목DB · KIS + KRX + Yahoo Finance · ${latestFmt} 기준 · MA20괴리율 종가 기준</div>
 <script>
 function showTab(i){
   document.querySelectorAll('.panel').forEach((p,j)=>p.classList.toggle('on',j===i));
