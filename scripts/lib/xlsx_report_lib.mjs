@@ -16,6 +16,16 @@ import JSZip from 'jszip';
 export const EMU_PER_PX = 9525;
 export const cm2in = cm => cm / 2.54;
 
+// 'YYYY-MM-DD' 문자열 → Date 객체 (컬럼에 dateCol:true 지정 시 엑셀 날짜 타입으로 저장해
+// 정렬/필터 가능하게 함). Date.UTC로 만들어야 함 — exceljs가 Date→엑셀 날짜 일련번호 변환 시
+// UTC 기준으로 계산해서, 로컬시간으로 자정을 만들면 타임존만큼(KST=UTC+9) 하루 전 날짜로
+// 저장되는 버그가 있었음(2026-07-03 브라우저 실사용 테스트로 발견, 동일 로직이라 Node도 적용).
+export function parseDateCell(s) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || ''));
+  if (!m) return null;
+  return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+}
+
 // 용지 방향별 표준 프리셋. margins는 cm 단위(원본 스펙 그대로), 실제 적용 시 in으로 환산.
 export const PAGE_PRESETS = {
   landscape: {
@@ -53,6 +63,28 @@ export function autoWidth(strings, { min = 8, max = 40, padding = 5 } = {}) {
   let w = min;
   for (const s of strings) w = Math.max(w, strWidth(s) + padding);
   return Math.min(w, max);
+}
+
+// wrapText 컬럼의 실제 줄바꿈 줄 수를 열너비 기준으로 근사 추정 — exceljs는 렌더링을
+//하지 않으므로 정확한 줄 수를 알 수 없다(열너비 자동계산과 같은 근본적 한계). 셀 좌우
+// 여백을 감안해 열너비보다 살짝 작은 값으로 나눠 보수적으로(줄 수를 더 넉넉히) 추정한다.
+function estimateWrappedLines(text, colWidthChars) {
+  const w = strWidth(text);
+  if (w === 0) return 1;
+  return Math.max(1, Math.ceil(w / Math.max(1, colWidthChars - 2)));
+}
+// wrap 컬럼 중 가장 많은 줄이 필요한 컬럼 기준으로 행 높이를 계산해, 기본 높이(baseHeight)
+// 보다 필요한 높이가 크면 그만큼 늘린다(줄바꿈된 내용이 잘려 보이지 않도록, 2026-07-03 확정).
+export function wrapAwareRowHeight(row, columns, colWidths, fontSize, baseHeight) {
+  let maxLines = 1;
+  columns.forEach((col, i) => {
+    if (!col.wrap) return;
+    const lines = estimateWrappedLines(row[col.key], colWidths[i]);
+    if (lines > maxLines) maxLines = lines;
+  });
+  const lineHeightPt = fontSize * 1.4;
+  const neededHeight = maxLines * lineHeightPt + 6; // 상하 여백 근사치
+  return Math.max(baseHeight, neededHeight);
 }
 
 /**
@@ -218,7 +250,7 @@ export async function buildReportWorkbook(opts) {
   const titleCell = titleRow.getCell(1);
   titleCell.value = title;
   titleCell.font = titleFont;
-  titleCell.alignment = { vertical: 'middle', horizontal: 'left' };
+  titleCell.alignment = { vertical: 'middle' }; // 가로 정렬은 "일반"(horizontal 미지정) — 텍스트라 자동으로 좌측 표시됨
 
   const headerRow = ws.getRow(HEADER_ROW);
   headerRow.height = rowHeights.header;
@@ -235,12 +267,15 @@ export async function buildReportWorkbook(opts) {
     .map((col, i) => ({ col, i }))
     .filter(({ col }) => col.photo);
 
+  // 사진 컬럼이 스키마에 하나라도 있으면 전체 데이터행을 큰 높이(dataWithPhoto)로 통일 —
+  // 행마다 그 특정 행에 실제 사진이 있는지로 들쭉날쭉하게 바꾸지 않는다(인쇄 시 줄맞춤
+  // 일관성을 위해 2026-07-03 확정). 사진 컬럼이 아예 없는 리포트는 기본 높이(data) 유지.
+  const rowHeightForData = photoColumns.length ? rowHeights.dataWithPhoto : rowHeights.data;
+
   rows.forEach((r, i) => {
     const rn = FIRST_DATA_ROW + i;
     const row = ws.getRow(rn);
-    // 사진이 실제로 있는 행만 큰 높이(dataWithPhoto) — 방향(가로/세로) 무관.
-    const hasPhoto = photoColumns.some(({ col }) => r[`${col.key}_URL`]);
-    row.height = hasPhoto ? rowHeights.dataWithPhoto : rowHeights.data;
+    row.height = wrapAwareRowHeight(r, columns, colWidths, bodyFont.size, rowHeightForData);
     columns.forEach((col, ci) => {
       const cell = row.getCell(ci + 1);
       cell.font = bodyFont;
@@ -248,7 +283,14 @@ export async function buildReportWorkbook(opts) {
       cell.alignment = col.align === 'left'
         ? { vertical: 'middle', horizontal: 'left', wrapText: !!col.wrap }
         : { vertical: 'middle', horizontal: 'center', wrapText: !!col.wrap };
-      if (!col.photo) cell.value = r[col.key];
+      if (col.photo) {
+        // no-op — 이미지는 별도 addImage() 단계에서 채움
+      } else if (col.dateCol && r[col.key]) {
+        const d = parseDateCell(r[col.key]);
+        if (d) { cell.value = d; cell.numFmt = 'yyyy-mm-dd'; } else { cell.value = r[col.key]; }
+      } else {
+        cell.value = r[col.key];
+      }
     });
     statusColorRules.forEach(rule => {
       if (r[rule.key] !== rule.value) return;

@@ -26,14 +26,14 @@ const COMPANY_NAME = '수자원기술(주)';
 // key: r[key] 값을 셀에 씀. photo:true인 컬럼은 r[key+'_URL']을 이미지로 임베드.
 // width가 지정된 컬럼(하자내용/비고)은 고정폭+자동줄바꿈, 나머지는 실행 시 데이터 글자 길이로 자동 계산.
 const COLUMNS = [
-  { key: '날짜', header: '날짜' },
+  { key: '날짜', header: '날짜', dateCol: true },
   { key: '터널명', header: '터널명' },
   { key: '업무담당', header: '관리' },
   { key: '공종', header: '공종' },
   { key: '위치', header: '위치' },
   { key: '하자내용', header: '하자내용', width: 53, wrap: true, align: 'left' },
   { key: '하자사진', header: '하자사진', photo: true, width: 18 },
-  { key: '조치일', header: '조치일' },
+  { key: '조치일', header: '조치일', dateCol: true },
   { key: '조치사진', header: '조치사진', photo: true, width: 18 },
   { key: '조치여부', header: '조치여부' },
   { key: '업체명', header: '업체명' },
