@@ -100,7 +100,20 @@ function parsePage(page) {
   };
 }
 
-async function fetchAllRows() {
+async function login() {
+  const password = process.env.HAJA_AUTH_PASSWORD;
+  if (!password) throw new Error('환경변수 HAJA_AUTH_PASSWORD가 설정되지 않았습니다. (예: Worker 공용 비밀번호)');
+  const res = await fetch(`${WORKER_URL}/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(`로그인 실패: ${data.error || res.status}`);
+  return data.token;
+}
+
+async function fetchAllRows(token) {
   const rows = [];
   let cursor = undefined;
   do {
@@ -108,7 +121,7 @@ async function fetchAllRows() {
     if (cursor) body.start_cursor = cursor;
     const res = await fetch(`${WORKER_URL}/v1/databases/${DB_ID}/query`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`Notion 조회 실패: HTTP ${res.status}`);
@@ -121,8 +134,10 @@ async function fetchAllRows() {
 
 async function main() {
   const args = parseArgs();
+  console.log('로그인 중...');
+  const token = await login();
   console.log('Notion에서 하자보수DB 조회 중...');
-  let rows = await fetchAllRows();
+  let rows = await fetchAllRows(token);
   console.log(`전체 ${rows.length}건 조회`);
 
   if (args.tunnel) rows = rows.filter(r => r.터널명 === args.tunnel);
