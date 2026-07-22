@@ -30,11 +30,11 @@ export function parseDateCell(s) {
 export const PAGE_PRESETS = {
   landscape: {
     orientation: 'landscape',
-    margins: { top: 1, header: 1, left: 2, right: 1, bottom: 0.5, footer: 1 },
+    margins: { top: 1, header: 1, left: 2, right: 1, bottom: 1, footer: 1 },
   },
   portrait: {
     orientation: 'portrait',
-    margins: { top: 2, header: 1, left: 1, right: 1, bottom: 0.5, footer: 1 },
+    margins: { top: 1.5, header: 1, left: 1.5, right: 1, bottom: 1, footer: 1 },
   },
 };
 
@@ -45,6 +45,17 @@ export const DEFAULT_HEADER_FILL_ARGB = 'FFDAE9F8';
 // 이 값을 씀(방향 무관 — landscape/portrait 공통, 2026-07-03 확정).
 export const DEFAULT_ROW_HEIGHTS = { title: 60, header: 30, data: 30, dataWithPhoto: 85 };
 export const CELL_BORDER = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+// 표 바깥 테두리는 thin, 안쪽 격자선은 hair(가장 가는 선) — 2026-07-22 요청. 병합 없는 단순
+// 헤더행+데이터행 그리드에서는 각 셀이 표 전체 영역의 어느 변에 걸리는지만 판정하면 되므로
+// 위치(헤더/마지막행 여부, 첫/마지막 열 여부)만 넘기면 4변을 계산해준다.
+export function gridBorder({ isHeader, isLastRow, colIndex, isLastCol }) {
+  return {
+    top: { style: isHeader ? 'thin' : 'hair' },
+    bottom: { style: (!isHeader && isLastRow) ? 'thin' : 'hair' },
+    left: { style: colIndex === 0 ? 'thin' : 'hair' },
+    right: { style: isLastCol ? 'thin' : 'hair' },
+  };
+}
 
 // Excel 열 너비는 반각 문자 기준 단위 — 한글/전각 문자는 2칸으로 계산해 실제 표시폭에 근사시킨다.
 function charWeight(ch) {
@@ -65,20 +76,24 @@ export function autoWidth(strings, { min = 8, max = 40, padding = 5 } = {}) {
   return Math.min(w, max);
 }
 
-// wrapText 컬럼의 실제 줄바꿈 줄 수를 열너비 기준으로 근사 추정 — exceljs는 렌더링을
-//하지 않으므로 정확한 줄 수를 알 수 없다(열너비 자동계산과 같은 근본적 한계). 셀 좌우
+// 셀 텍스트의 실제 줄바꿈 줄 수를 열너비 기준으로 근사 추정 — exceljs는 렌더링을
+// 하지 않으므로 정확한 줄 수를 알 수 없다(열너비 자동계산과 같은 근본적 한계). 셀 좌우
 // 여백을 감안해 열너비보다 살짝 작은 값으로 나눠 보수적으로(줄 수를 더 넉넉히) 추정한다.
-function estimateWrappedLines(text, colWidthChars) {
+export function estimateWrappedLines(text, colWidthChars) {
   const w = strWidth(text);
   if (w === 0) return 1;
   return Math.max(1, Math.ceil(w / Math.max(1, colWidthChars - 2)));
 }
-// wrap 컬럼 중 가장 많은 줄이 필요한 컬럼 기준으로 행 높이를 계산해, 기본 높이(baseHeight)
+// 컬럼 중 가장 많은 줄이 필요한 컬럼 기준으로 행 높이를 계산해, 기본 높이(baseHeight)
 // 보다 필요한 높이가 크면 그만큼 늘린다(줄바꿈된 내용이 잘려 보이지 않도록, 2026-07-03 확정).
+// wrap:true 컬럼(하자내용/비고 등 항상 줄바꿈 의도)뿐 아니라, 자동폭 컬럼도 실제 내용이
+// 열너비(autoWidth의 max로 잘렸을 수 있음)를 넘으면 여기 포함된다 — 자동폭 컬럼은 원래
+// "줄바꿈 없이 한 줄로" 보여주는 게 목적이지만, 사용자가 유난히 긴 값을 입력한 경우까지
+// 잘리거나 다음 셀을 침범하게 두지 않기 위한 안전장치(2026-07-03 명확화).
 export function wrapAwareRowHeight(row, columns, colWidths, fontSize, baseHeight) {
   let maxLines = 1;
   columns.forEach((col, i) => {
-    if (!col.wrap) return;
+    if (col.photo) return;
     const lines = estimateWrappedLines(row[col.key], colWidths[i]);
     if (lines > maxLines) maxLines = lines;
   });
@@ -259,7 +274,7 @@ export async function buildReportWorkbook(opts) {
     cell.value = col.header;
     cell.font = bodyFont;
     cell.alignment = { vertical: 'middle', horizontal: 'center' };
-    cell.border = CELL_BORDER;
+    cell.border = gridBorder({ isHeader: true, colIndex: i, isLastCol: i === columns.length - 1 });
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: headerFillArgb } };
   });
 
@@ -279,7 +294,7 @@ export async function buildReportWorkbook(opts) {
     columns.forEach((col, ci) => {
       const cell = row.getCell(ci + 1);
       cell.font = bodyFont;
-      cell.border = CELL_BORDER;
+      cell.border = gridBorder({ isHeader: false, isLastRow: i === rows.length - 1, colIndex: ci, isLastCol: ci === columns.length - 1 });
       cell.alignment = col.align === 'left'
         ? { vertical: 'middle', horizontal: 'left', wrapText: !!col.wrap }
         : { vertical: 'middle', horizontal: 'center', wrapText: !!col.wrap };
