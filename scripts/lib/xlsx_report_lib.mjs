@@ -103,15 +103,16 @@ export function wrapAwareRowHeight(row, columns, colWidths, fontSize, baseHeight
 }
 
 /**
- * 머리글/바닥글 문자열 조립 헬퍼. 회사명 + 동적 출력일시(&D &T)를 우측에,
- * 페이지 번호(&P/&N)를 바닥글 가운데에 배치하는 표준 패턴.
+ * 머리글/바닥글 문자열 조립 헬퍼. 머리글은 비워두고, 회사명 + 동적 출력일시(&D &T)를
+ * 바닥글 우측에, 페이지 번호(&P/&N)를 바닥글 가운데에 배치하는 표준 패턴(2026-07-23부터
+ * 머리글 내용을 바닥글로 이동 — work-portal 6개 앱과 통일).
  * companyName 생략 시 날짜만 표시.
  */
 export function buildHeaderFooter({ companyName, fontName = '맑은 고딕', fontSize = 11 } = {}) {
   const company = companyName ? `${companyName}  ` : '';
   return {
-    oddHeader: `&R&"${fontName},Regular"&${fontSize}${company}출력일: &D &T`,
-    oddFooter: `&C&"${fontName}"&9&P / &N`,
+    oddHeader: '',
+    oddFooter: `&C&"${fontName}"&9&P / &N` + `&R&"${fontName},Regular"&${fontSize}${company}출력일: &D &T`,
   };
 }
 
