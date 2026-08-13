@@ -1,5 +1,5 @@
 // 괴리율(역추세) 전략 — "예상종목"(TOP50 Z-score 근접 top6) · "보유종목"(Notion 보유종목DB 연동) 탭용 라이브 데이터 생성
-// project_stock_deviation_strategy.mjs(구 5탭 통합 생성기)의 analyzeCommon/verdict/buildChartSvg/카드 HTML 로직을 그대로 재사용하되,
+// project_stock_deviation.mjs(구 5탭 통합 생성기)의 analyzeCommon/verdict/buildChartSvg/카드 HTML 로직을 그대로 재사용하되,
 // 2026-08-12 pullback 앱에서 발견된 것과 동일한 사각지대 버그를 수정: "전량매도검토(5EMA이탈)"가 당일 신규 이탈만 감지해
 // 며칠 전 이미 이탈해 지속 중인 종목이 최하위 배지("관찰")로 방치되는 문제 — breakdown5를 "현재 상태" 기준으로 재정의.
 // 사용법: node scripts/project_deviation_holdings_candidates.mjs
