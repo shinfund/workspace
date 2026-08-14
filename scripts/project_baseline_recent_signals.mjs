@@ -349,12 +349,13 @@ function signalDatesLabel(signalDates) {
 }
 
 // 2026-08-14: "진행상황" 단일 컬럼에 상태·경과일·수익률·매수현황·신호일자가 다 뭉쳐 있어 컬럼 분리(사용자 요청)
-function tableRowHtml(row) {
+function tableRowHtml(row, seq) {
   const s = statusInfo(row);
   const statusCell = `<span class="badge ${s.primary.cls}">${s.primary.label}</span>${s.subBadges ? ' ' + s.subBadges.trim() : ''}`;
   const noteCell = s.note ? s.note.replace(/^<span/, '<span').trim() : '<span class="t-flat">&mdash;</span>';
   const signalCell = row.signalDates && row.signalDates.length ? signalDatesLabel(row.signalDates).replace(/^<div[^>]*>|<\/div>$/g, '') : '<span class="t-flat">&mdash;</span>';
-  return `          <tr><td class="l">${row.date}</td><td class="l">${esc(row.name)}</td><td>${fmtV(row.entryClose)}</td><td class="l">${statusCell}</td><td class="c">D+${s.day}</td><td class="${retClass(row.ret)}">${fmt(row.ret)}</td><td class="l">${noteCell}</td><td class="l">${signalCell}</td></tr>`;
+  const curClose = seq[seq.length - 1].close;
+  return `          <tr><td class="l">${row.date}</td><td class="l">${esc(row.name)}</td><td>${fmtV(curClose)}</td><td>${fmtV(row.entryClose)}</td><td class="l">${statusCell}</td><td class="c">D+${s.day}</td><td class="${retClass(row.ret)}">${fmt(row.ret)}</td><td class="l">${noteCell}</td><td class="l">${signalCell}</td></tr>`;
 }
 
 function buildChartSvg(rows, markers) {
@@ -501,7 +502,7 @@ async function main() {
   const open = sortedRows.filter(x => x.status === 'OPEN');
   const wins = closed.filter(x => x.ret > 0).length;
 
-  const tableHtml = sortedRows.map(tableRowHtml).join('\n');
+  const tableHtml = sortedRows.map((row, i) => tableRowHtml(row, sortedMeta[i].seq)).join('\n');
   const chartRowsForCards = sortedRows.slice(0, opts.chartCap);
   const chartMetaForCards = sortedMeta.slice(0, opts.chartCap);
   const chartCardsHtml = chartRowsForCards.map((row, i) => signalChartCardHtml(row, chartMetaForCards[i].seq, chartMetaForCards[i].entryIdx)).join('\n');
