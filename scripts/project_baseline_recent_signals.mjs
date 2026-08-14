@@ -117,17 +117,18 @@ function buildEma(closes, period) {
 function mean(arr) { return arr.reduce((a, b) => a + b, 0) / arr.length; }
 function stdev(arr, m) { return Math.sqrt(arr.reduce((a, b) => a + (b - m) ** 2, 0) / (arr.length - 1)); }
 
-// 반등신호(2026-08-14 vlow로 전환, 2026-08-14 2차수정: 스트릭 minStreak 도달 시점에 최저점 추적 리셋
-// — 스트릭 미달 구간에서 소진된 반등을 무효 취급하지 않도록) — backtest 스크립트와 동일 로직
-function buildVLowSignal(seq, streak, minStreak) {
+// 반등신호(2026-08-14 vlow로 전환, 2026-08-14 3차수정: HD현대중공업 사례로 발견된 버그 수정 —
+// 스트릭 minStreak 도달 시점 리셋은 리셋 시점에 이미 반등 중이면 그날 종가를 가짜 저점으로 오인해
+// 더 얕은 반등에도 신호를 냄. belowBase 진입 시점부터 종가 기준 최저점을 리셋 없이 계속 추적하도록
+// 되돌림 — 상세 근거는 project_baseline_strategy_backtest.mjs buildVLowSignal() 주석 참조) —
+// backtest 스크립트와 동일 로직
+function buildVLowSignal(seq) {
   const sig = new Array(seq.length).fill(false);
   let runningLow = null;
   let awaitingBounce = false;
   for (let i = 0; i < seq.length; i++) {
     const belowBase = seq[i].close < seq[i].ema200;
     if (!belowBase) { runningLow = null; awaitingBounce = false; continue; }
-    const justEligible = streak[i] === minStreak && (i === 0 || streak[i - 1] === minStreak - 1);
-    if (justEligible) { runningLow = null; awaitingBounce = false; }
     if (runningLow === null || seq[i].close < runningLow) {
       runningLow = seq[i].close;
       awaitingBounce = true;
@@ -282,7 +283,7 @@ async function loadStock(stock) {
     streak[i] = seq[i].close < seq[i].ema200 ? (i > 0 ? streak[i - 1] + 1 : 1) : 0;
   }
 
-  const bounceSig = buildVLowSignal(seq, streak, MIN_STREAK);
+  const bounceSig = buildVLowSignal(seq);
   for (let i = 0; i < seq.length; i++) seq[i].bounce = bounceSig[i];
 
   const flags = new Array(seq.length).fill(false);

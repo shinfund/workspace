@@ -14,6 +14,13 @@
 //   최저점을 다시 갱신하기 전까지는 같은 구간 내 잦은 휩쏘(등락)로 재신호가 나지 않음 — 기존 방식
 //   (`--rebound-mode cross`, EMA5 상향돌파가 재발생할 때마다 매번 신호)은 잦은 매수신호를 유발해
 //   폐기하고 vlow로 전환(사용자 확인, 2026-08-14). buildVLowSignal() 참조.
+//   ※ 2026-08-14 3차 수정(HD현대중공업 사례로 발견): 최저점 추적을 스트릭이 minStreak에 도달하는
+//   시점에 리셋하던 중간 버전은, 리셋 시점에 이미 반등이 진행 중이면 그날 종가를 "가짜 저점"으로
+//   오인해 실제로는 이전 저점보다 얕은(더 높은) 반등에도 신호를 냈다(08-04 리셋 시점 종가가 07-29
+//   실제 저점보다 훨씬 높았는데 그 이후 조정 반등에 신호 발생). belowBase 구간 진입 시점부터 종가
+//   기준 최저점을 리셋 없이 계속 추적하도록 되돌려 해결 — 삼성중공업 실측 재검증(2021-12-02,
+//   2026-07-31 2건, 사용자 기억과 일치)과 저가(intraday low) 기준 대안 비교(휩쏘로 신호 오히려
+//   증가해 기각)를 거쳐 확정. 이 수정으로 Z=-1.25 유지/분할매수 2회 유지 결론은 재검증 결과 동일.
 //   ①②③ 동시 충족일 최초 매수(1/`--max-buy-legs`, 기본2분의1=50%). "회복"(EMA200 재상향돌파) 전까지는
 //   ①이 유지되는 동안 ②③이 다시 충족되면(최대 `--max-buy-legs`회, 기본2회까지) 나머지 50% 추가매수.
 //   Claude 추천: 매 분할매수마다 Z조건을 동일하게 재확인 — 반등이 진행될수록 EMA200과의 괴리가 좁혀져
@@ -247,18 +254,22 @@ function buildCrossSignal(seq) {
   }
   return sig;
 }
-// streak/minStreak: 2026-08-14 2차 수정 — 스트릭이 아직 --min-streak(①조건) 미달인 구간에서 소진된
-// 반등은 무효 취급하지 않도록, 스트릭이 minStreak에 처음 도달하는 날 최저점 추적을 리셋한다(그 이전
-// 구간의 반등 이력은 버림). 리셋 이후에는 평소대로 새 최저점 갱신 때마다 대기상태를 이어간다.
-function buildVLowSignal(seq, streak, minStreak) {
+// 2026-08-14 3차 수정(HD현대중공업 사례로 발견된 버그 수정): 스트릭이 minStreak에 도달하는 날 최저점
+// 추적을 리셋하던 기존 로직은, 리셋 시점에 이미 더 깊은 저점에서 반등이 끝나고 주가가 오르는 중이면
+// 그날 종가를 "가짜 저점"으로 새로 세워버려 실제로는 이전 저점보다 얕은(더 높은) 반등에도 신호를
+// 발생시키는 문제가 있었다(HD현대중공업 2026-08-14: 08-04 스트릭20 도달 시점의 종가가 07-29 실제
+// 최저점(434,000)보다 훨씬 높았는데도 그 이후 조정 반등에 신호 발생). 이제는 belowBase 구간에 진입한
+// 시점부터 종가 기준 최저점을 스트릭 상태와 무관하게 계속 추적하고(리셋 없음), 그 최저점을 갱신한 뒤의
+// 첫 EMA5 상향돌파만 신호로 인정한다 — minStreak 미달 구간의 신호는 기존과 동일하게 외부(streakOk)에서
+// 걸러지므로 별도 처리 불필요. 저점 기준은 저가(intraday low) 대신 종가를 유지(재검증 결과 저가 기준은
+// 잦은 휩쏘로 신호가 오히려 늘어나 vlow 전환 취지에 역행 — 삼성중공업 실측 대조로 확인, 2026-08-14).
+function buildVLowSignal(seq) {
   const sig = new Array(seq.length).fill(false);
   let runningLow = null;
   let awaitingBounce = false;
   for (let i = 0; i < seq.length; i++) {
     const belowBase = seq[i].close < seq[i].ema200;
     if (!belowBase) { runningLow = null; awaitingBounce = false; continue; }
-    const justEligible = streak[i] === minStreak && (i === 0 || streak[i - 1] === minStreak - 1);
-    if (justEligible) { runningLow = null; awaitingBounce = false; }
     if (runningLow === null || seq[i].close < runningLow) {
       runningLow = seq[i].close;
       awaitingBounce = true;
@@ -440,7 +451,7 @@ async function backtestStock(stock, opts) {
     streak[i] = seq[i].close < seq[i].ema200 ? (i > 0 ? streak[i - 1] + 1 : 1) : 0;
   }
 
-  const bounceSig = opts.reboundMode === 'vlow' ? buildVLowSignal(seq, streak, opts.minStreak) : buildCrossSignal(seq);
+  const bounceSig = opts.reboundMode === 'vlow' ? buildVLowSignal(seq) : buildCrossSignal(seq);
   for (let i = 0; i < seq.length; i++) seq[i].bounce = bounceSig[i];
 
   const flags = new Array(seq.length).fill(false);
