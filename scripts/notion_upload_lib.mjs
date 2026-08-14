@@ -49,9 +49,10 @@ export async function notionRequest(method, endpoint, body, retry = 0) {
         ...(data ? { 'Content-Length': Buffer.byteLength(data) } : {}),
       },
     }, res => {
-      let d = '';
-      res.on('data', c => d += c);
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
       res.on('end', async () => {
+        const d = Buffer.concat(chunks).toString('utf8');
         try {
           const json = JSON.parse(d);
           if (res.statusCode === 429) {

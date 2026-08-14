@@ -1,5 +1,5 @@
 /**
- * 20ma_analysis.mjs — 거래대금 TOP10 유니버스 × MA20 괴리율 일간 분석
+ * 20ma_analysis.mjs — 거래대금 TOP10 유니버스 × 25일선(지수이동평균) 괴리율 일간 분석
  *
  * 데이터 소스 (자동 선택):
  *   KIS API       → 당일 실시간 (실패 시 Yahoo 폴백)
@@ -11,11 +11,14 @@
  *   ※ 날짜 범위 자동 계산, 엑셀 파일 불필요
  *   ※ Yahoo 미포함 종목은 MANUAL_PRICES에 직접 추가
  *
- * 출력: 방식A(당일TOP10×MA20) / 방식B(유니버스×MA20) / 저점대비상승률
+ * 출력: 25일선 방식A(당일TOP10×EMA25) / 방식B(유니버스×EMA25) / 저점대비상승률 / 터치돌파 / 엔벨로프
+ *       (2026-07-22: 기존 MA20·MA50 이원 지표를 25일선(EMA25) 단일 지표로 통합)
  */
 
 import https from 'https';
 import fs    from 'fs';
+
+const MA_LABEL = '25일선';
 
 const API_KEY  = '1f471918ea495531eb3d5a2b59c1c7323f9af53aa6c957ea3b47127d766f47f8';
 const HOST     = 'apis.data.go.kr';
@@ -72,6 +75,64 @@ function weekdayRange(startStr, endStr) {
 function fmtDate(s) { return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`; }
 function fmtMD(s)   { return `${s.slice(4,6)}-${s.slice(6,8)}`; }
 function fmtNum(n)  { return n.toLocaleString('ko-KR'); }
+
+// ─── EMA 계산 (종목별 전체 거래일 연속 누적, SMA로 시드) ──────────────────
+// tradingDates 순서대로 종가를 누적하며 EMA를 계산해 날짜별 맵으로 반환.
+// 최소 5개 종가가 쌓이면 SMA로 시드한 뒤, 이후 표준 EMA 재귀식으로 갱신.
+// period: 지수이동평균 기간 (25일선 고정 사용)
+// 시드 구간은 period만큼의 SMA로 맞춤(표준 EMA 관행) — 5일 고정 시드는 MA50처럼
+// k(=2/(period+1))가 작은 지표일수록 초기 시드 편향이 워밍업 구간 내 다 소멸하지
+// 못해 오차를 유발함 (2026-07-21 수정)
+function buildEmaSeries(code, tradingDates, priceHistory, period, minSeed = period) {
+  const k = 2 / (period + 1);
+  const series = new Map(); // date -> ema
+  const closes = [];
+  let ema = null;
+  for (const d of tradingDates) {
+    const m = priceHistory.get(d);
+    if (!m || !m.has(code)) continue;
+    const price = m.get(code).종가;
+    closes.push(price);
+    if (ema === null) {
+      if (closes.length < minSeed) continue;
+      ema = closes.reduce((a, b) => a + b, 0) / closes.length;
+    } else {
+      ema = price * k + ema * (1 - k);
+    }
+    series.set(d, ema);
+  }
+  return series;
+}
+
+// RSI(period) — Wilder's smoothing 방식
+function buildRsiSeries(code, tradingDates, priceHistory, period = 9) {
+  const series = new Map(); // date -> rsi
+  const closes = [];
+  const gains = [], losses = [];
+  let avgGain = null, avgLoss = null;
+  for (const d of tradingDates) {
+    const m = priceHistory.get(d);
+    if (!m || !m.has(code) || !(m.get(code).종가 > 0)) continue;
+    const price = m.get(code).종가;
+    closes.push(price);
+    if (closes.length < 2) continue;
+    const change = price - closes[closes.length - 2];
+    const gain = change > 0 ? change : 0;
+    const loss = change < 0 ? -change : 0;
+    if (avgGain === null) {
+      gains.push(gain); losses.push(loss);
+      if (gains.length < period) continue;
+      avgGain = gains.reduce((a, b) => a + b, 0) / period;
+      avgLoss = losses.reduce((a, b) => a + b, 0) / period;
+    } else {
+      avgGain = (avgGain * (period - 1) + gain) / period;
+      avgLoss = (avgLoss * (period - 1) + loss) / period;
+    }
+    const rsi = avgLoss === 0 ? (avgGain === 0 ? 50 : 100) : 100 - 100 / (1 + avgGain / avgLoss);
+    series.set(d, rsi);
+  }
+  return series;
+}
 
 // ─── KRX API ────────────────────────────────────────────────────────────────
 function get(url) {
@@ -323,11 +384,63 @@ async function fetchYahooDate(targetDate, stockList) {
       저가:     저가yf ? Math.round(저가yf) : Math.round(종가),
       거래대금: vol ? Math.round(종가 * vol) : 0, // 근사값 (종가×거래량)
       거래량:   vol || 0,
-      등락률:   0, // MA20 분석에 미사용
+      등락률:   0, // MA 분석에 미사용
     });
   }, 10, 80);
 
   return resultMap;
+}
+
+// ─── 콘솔 출력 헬퍼 (방식A/방식B 공용, period로 라벨링) ─────────────────────
+function printSection(label, findings, showCurrentRatio, period, tradingDates, priceHistory, getEmaSeries) {
+  console.log('\n' + '═'.repeat(72));
+  console.log(` ${label}`);
+  console.log('═'.repeat(72));
+  if (findings.length === 0) { console.log('\n  해당 조건 종목 없음'); return; }
+  const byDate = {};
+  for (const f of findings) { if (!byDate[f.date]) byDate[f.date] = []; byDate[f.date].push(f); }
+  for (const date of Object.keys(byDate).sort()) {
+    const items = byDate[date].sort((a, b) => a.ratio - b.ratio);
+    console.log(`\n  ▶ ${fmtDate(date)}`);
+    console.log(`    ${'순위'.padStart(4)}  ${'종목명'.padEnd(12)}  ${'시장'.padEnd(6)}  ${'종가'.padStart(10)}  ${MA_LABEL.padStart(10)}  ${'괴리율'.padStart(8)}`);
+    console.log('    ' + '─'.repeat(60));
+    for (const f of items) {
+      const rankStr = f.rank ? `${f.rank}위` : '─';
+      console.log(`    ${rankStr.padStart(4)}  ${f.종목명.padEnd(12)}  ${f.시장.padEnd(6)}  ${fmtNum(f.종가).padStart(10)}  ${fmtNum(f.ma).padStart(10)}  ${f.ratio.toFixed(1).padStart(7)}%`);
+    }
+  }
+  console.log('\n' + '─'.repeat(72));
+  const stockSummary = {};
+  for (const f of findings) {
+    if (!stockSummary[f.종목명]) stockSummary[f.종목명] = { 시장: f.시장, 종목코드: f.종목코드, 건수: 0, 최대괴리: 0, 날짜들: [] };
+    stockSummary[f.종목명].건수++;
+    if (f.ratio < stockSummary[f.종목명].최대괴리) stockSummary[f.종목명].최대괴리 = f.ratio;
+    stockSummary[f.종목명].날짜들.push(f.date.slice(4));
+  }
+
+  const currentRatioMap = new Map();
+  if (showCurrentRatio && getEmaSeries) {
+    for (const [name, s] of Object.entries(stockSummary)) {
+      const code = s.종목코드;
+      let latestP = null, latestDate2 = null;
+      for (let i = tradingDates.length - 1; i >= 0; i--) {
+        const m = priceHistory.get(tradingDates[i]);
+        if (m && m.has(code)) { latestP = m.get(code).종가; latestDate2 = tradingDates[i]; break; }
+      }
+      if (latestP == null) continue;
+      const ema = getEmaSeries(code).get(latestDate2);
+      if (ema != null) currentRatioMap.set(name, (latestP / ema - 1) * 100);
+    }
+  }
+
+  const sorted = Object.entries(stockSummary).sort((a, b) => b[1].건수 - a[1].건수 || a[1].최대괴리 - b[1].최대괴리);
+  for (const [name, s] of sorted) {
+    const ratioStr = showCurrentRatio && currentRatioMap.has(name) ? `  현재괴리 ${currentRatioMap.get(name).toFixed(1).padStart(6)}%` : '';
+    console.log(`  ${name.padEnd(14)}  ${s.시장.padEnd(6)}  ${s.건수}일 해당  최대괴리 ${s.최대괴리.toFixed(1).padStart(6)}%${ratioStr}  (${s.날짜들.join(', ')})`);
+  }
+  console.log('\n' + '═'.repeat(72));
+  console.log(`  총 ${findings.length}건 / ${[...new Set(findings.map(f=>f.종목명))].length}개 종목`);
+  console.log('═'.repeat(72));
 }
 
 // ─── 메인 ───────────────────────────────────────────────────────────────────
@@ -338,9 +451,9 @@ async function main() {
     // '20260627': { '000000': 10000 },
   };
 
-  // ── 1. 날짜 범위: KST 오늘 기준 ~65일 (MA20 + 분석 20일 여유)
+  // ── 1. 날짜 범위: KST 오늘 기준 ~150일 (25일선을 period(25)일 SMA로 시드 후 25일 유니버스 분석 여유 확보)
   const today      = kstToday();
-  const startDate  = addDays(today, -65);
+  const startDate  = addDays(today, -150);
   const allWeekdays = weekdayRange(startDate, today);
   console.error(`\n[조회] ${fmtDate(startDate)} ~ ${fmtDate(today)} (주말 제외 ${allWeekdays.length}개 날짜)`);
 
@@ -472,443 +585,377 @@ async function main() {
   console.error(`[유니버스] 25일 TOP10 출현 고유 종목: ${universeMap.size}개`);
 
   const latestDate = tradingDates[tradingDates.length - 1];
-
-  // ── 7. 방식A / 방식B 동시 분석
-  const findingsA = [];
-  const findingsB = [];
-
-  for (const date of targetDates) {
-    const dayMap = priceHistory.get(date);
-    if (!dayMap) continue;
-
-    const allStocks = Array.from(dayMap.values()).filter(s => s.거래대금 > 0 && s.종가 > 0);
-    allStocks.sort((a, b) => b.거래대금 - a.거래대금);
-    const top10      = allStocks.slice(0, 10);
-    const top10Codes = new Set(top10.map(s => s.종목코드));
-
-    const di = tradingDates.indexOf(date);
-    const lookbackDates = tradingDates.slice(Math.max(0, di - 19), di + 1);
-
-    for (const [code, meta] of universeMap) {
-      const stockData = dayMap.get(code);
-      if (!stockData || stockData.종가 <= 0) continue;
-
-      const { 종가 } = stockData;
-      const prices = [];
-      for (const d of lookbackDates) {
-        const m = priceHistory.get(d);
-        if (m && m.has(code)) prices.push(m.get(code).종가);
-      }
-      if (prices.length < 5) continue;
-
-      const ma20  = prices.reduce((a, b) => a + b, 0) / prices.length;
-      const ratio = (종가 / ma20 - 1) * 100;
-      const inTop10 = top10Codes.has(code);
-      const rankAll = allStocks.findIndex(s => s.종목코드 === code) + 1 || null;
-      const rank    = inTop10 ? top10.findIndex(s => s.종목코드 === code) + 1 : rankAll;
-
-      if (ratio <= -20) {
-        const entry = { date, rank, 종목코드: code, 종목명: meta.종목명, 시장: meta.시장, 종가, ma20: Math.round(ma20), ratio, 데이터수: prices.length, inTop10 };
-        findingsB.push(entry);
-        if (inTop10) findingsA.push({ ...entry });
-      }
-    }
-  }
-
-  // ── 8. 출력 헬퍼
-  function printSection(label, findings, showCurrentRatio = false) {
-    console.log('\n' + '═'.repeat(72));
-    console.log(` ${label}`);
-    console.log('═'.repeat(72));
-    if (findings.length === 0) { console.log('\n  해당 조건 종목 없음'); return; }
-    const byDate = {};
-    for (const f of findings) { if (!byDate[f.date]) byDate[f.date] = []; byDate[f.date].push(f); }
-    for (const date of Object.keys(byDate).sort()) {
-      const items = byDate[date].sort((a, b) => a.ratio - b.ratio);
-      console.log(`\n  ▶ ${fmtDate(date)}`);
-      console.log(`    ${'순위'.padStart(4)}  ${'종목명'.padEnd(12)}  ${'시장'.padEnd(6)}  ${'종가'.padStart(10)}  ${'MA20'.padStart(10)}  ${'괴리율'.padStart(8)}`);
-      console.log('    ' + '─'.repeat(60));
-      for (const f of items) {
-        const rankStr = f.rank ? `${f.rank}위` : '─';
-        console.log(`    ${rankStr.padStart(4)}  ${f.종목명.padEnd(12)}  ${f.시장.padEnd(6)}  ${fmtNum(f.종가).padStart(10)}  ${fmtNum(f.ma20).padStart(10)}  ${f.ratio.toFixed(1).padStart(7)}%`);
-      }
-    }
-    console.log('\n' + '─'.repeat(72));
-    const stockSummary = {};
-    for (const f of findings) {
-      if (!stockSummary[f.종목명]) stockSummary[f.종목명] = { 시장: f.시장, 종목코드: f.종목코드, 건수: 0, 최대괴리: 0, 날짜들: [] };
-      stockSummary[f.종목명].건수++;
-      if (f.ratio < stockSummary[f.종목명].최대괴리) stockSummary[f.종목명].최대괴리 = f.ratio;
-      stockSummary[f.종목명].날짜들.push(f.date.slice(4));
-    }
-
-    // 현재 괴리율 계산 (방식B 요청 시)
-    const currentRatioMap = new Map();
-    if (showCurrentRatio) {
-      for (const [name, s] of Object.entries(stockSummary)) {
-        const code = s.종목코드;
-        let latestP = null, latestDi2 = -1;
-        for (let i = tradingDates.length - 1; i >= 0; i--) {
-          const m = priceHistory.get(tradingDates[i]);
-          if (m && m.has(code)) { latestP = m.get(code).종가; latestDi2 = i; break; }
-        }
-        if (latestP == null) continue;
-        const lb = tradingDates.slice(Math.max(0, latestDi2 - 19), latestDi2 + 1);
-        const ps = [];
-        for (const ld of lb) { const m = priceHistory.get(ld); if (m && m.has(code)) ps.push(m.get(code).종가); }
-        if (ps.length >= 5) currentRatioMap.set(name, (latestP / (ps.reduce((a, b) => a + b, 0) / ps.length) - 1) * 100);
-      }
-    }
-
-    const sorted = Object.entries(stockSummary).sort((a, b) => b[1].건수 - a[1].건수 || a[1].최대괴리 - b[1].최대괴리);
-    for (const [name, s] of sorted) {
-      const ratioStr = showCurrentRatio && currentRatioMap.has(name) ? `  현재괴리 ${currentRatioMap.get(name).toFixed(1).padStart(6)}%` : '';
-      console.log(`  ${name.padEnd(14)}  ${s.시장.padEnd(6)}  ${s.건수}일 해당  최대괴리 ${s.최대괴리.toFixed(1).padStart(6)}%${ratioStr}  (${s.날짜들.join(', ')})`);
-    }
-    console.log('\n' + '═'.repeat(72));
-    console.log(`  총 ${findings.length}건 / ${[...new Set(findings.map(f=>f.종목명))].length}개 종목`);
-    console.log('═'.repeat(72));
-  }
-
   const pd = `${fmtMD(targetDates[0])}~${fmtMD(targetDates[targetDates.length-1])}`;
-  printSection(`【당일】 당일 TOP10(${[...new Set(findingsA.map(f=>f.종목명))].length}종목) × MA20 -20% 이하 (${pd} · ${findingsA.length}건)`, findingsA);
-  printSection(`【기간】 20일 유니버스(${universeMap.size}종목) × MA20 -20% 이하 (${pd} · ${findingsB.length}건)`, findingsB, true);
 
-  // ── 9. 종가 기준 저점 대비 상승률 분석
-  console.log('\n' + '═'.repeat(84));
-  console.log(` 【저점 대비 현재 상승률】 방식B 종목 × 종가저점 기준 (${pd} · ${[...new Set(findingsB.map(f=>f.종목코드))].length}종목)`);
-  console.log(' ▪ 저점 = 기간 내 실제 최저 종가일   ▪   최근가 = 가장 최근 가용 종가');
-  console.log('═'.repeat(84));
+  // ── 7. 25일선(EMA25) 기준 방식A·방식B → 저점대비상승률 → 터치/돌파 → 엔벨로프 순으로 분석
+  const PERIODS = [25];
+  const periodResults = [];
 
-  const stockDateRange = new Map();
-  for (const f of findingsB) {
-    if (!stockDateRange.has(f.종목코드))
-      stockDateRange.set(f.종목코드, { 종목명: f.종목명, 시장: f.시장, dates: [] });
-    stockDateRange.get(f.종목코드).dates.push(f.date);
-  }
+  for (const period of PERIODS) {
+    const emaCache = new Map();
+    const getEmaSeries = (code) => {
+      if (!emaCache.has(code)) emaCache.set(code, buildEmaSeries(code, tradingDates, priceHistory, period));
+      return emaCache.get(code);
+    };
+    const rsiCache = new Map();
+    const getRsiSeries = (code) => {
+      if (!rsiCache.has(code)) rsiCache.set(code, buildRsiSeries(code, tradingDates, priceHistory, 9));
+      return rsiCache.get(code);
+    };
 
-  function latestPrice(code) {
-    for (let i = tradingDates.length - 1; i >= 0; i--) {
-      const m = priceHistory.get(tradingDates[i]);
-      if (m && m.has(code)) return { date: tradingDates[i], 종가: m.get(code).종가 };
+    // 방식A / 방식B
+    const findingsA = [], findingsB = [];
+    for (const date of targetDates) {
+      const dayMap = priceHistory.get(date);
+      if (!dayMap) continue;
+
+      const allStocks = Array.from(dayMap.values()).filter(s => s.거래대금 > 0 && s.종가 > 0);
+      allStocks.sort((a, b) => b.거래대금 - a.거래대금);
+      const top10      = allStocks.slice(0, 10);
+      const top10Codes = new Set(top10.map(s => s.종목코드));
+
+      for (const [code, meta] of universeMap) {
+        const stockData = dayMap.get(code);
+        if (!stockData || stockData.종가 <= 0) continue;
+
+        const { 종가 } = stockData;
+        const ema = getEmaSeries(code).get(date);
+        if (ema == null) continue;
+
+        const ratio = (종가 / ema - 1) * 100;
+        const inTop10 = top10Codes.has(code);
+        const rankAll = allStocks.findIndex(s => s.종목코드 === code) + 1 || null;
+        const rank    = inTop10 ? top10.findIndex(s => s.종목코드 === code) + 1 : rankAll;
+
+        if (ratio <= -20) {
+          const entry = { date, rank, 종목코드: code, 종목명: meta.종목명, 시장: meta.시장, 종가, ma: Math.round(ema), ratio, inTop10 };
+          findingsB.push(entry);
+          if (inTop10) findingsA.push({ ...entry });
+        }
+      }
     }
-    return null;
-  }
 
-  const recoveries = [];
-  for (const [code, meta] of stockDateRange) {
-    const sortedDates = [...meta.dates].sort();
-    const firstDate   = sortedDates[0];
+    printSection(`【${MA_LABEL} · 당일】 당일 TOP10(${[...new Set(findingsA.map(f=>f.종목명))].length}종목) × ${MA_LABEL} -20% 이하 (${pd} · ${findingsA.length}건)`, findingsA, false, period);
+    printSection(`【${MA_LABEL} · 기간】 20일 유니버스(${universeMap.size}종목) × ${MA_LABEL} -20% 이하 (${pd} · ${findingsB.length}건)`, findingsB, true, period, tradingDates, priceHistory, getEmaSeries);
 
-    let bottomDate = null, bottomPrice = Infinity;
-    for (const d of tradingDates) {
-      if (d < firstDate) continue;
-      const m = priceHistory.get(d);
-      if (!m || !m.has(code)) continue;
-      const p = m.get(code).종가;
-      if (p < bottomPrice) { bottomPrice = p; bottomDate = d; }
+    // ── 저점 대비 상승률
+    console.log('\n' + '═'.repeat(84));
+    console.log(` 【${MA_LABEL} · 저점 대비 현재 상승률】 방식B 종목 × 종가저점 기준 (${pd} · ${[...new Set(findingsB.map(f=>f.종목코드))].length}종목)`);
+    console.log(' ▪ 저점 = 기간 내 실제 최저 종가일   ▪   최근가 = 가장 최근 가용 종가');
+    console.log('═'.repeat(84));
+
+    const stockDateRange = new Map();
+    for (const f of findingsB) {
+      if (!stockDateRange.has(f.종목코드))
+        stockDateRange.set(f.종목코드, { 종목명: f.종목명, 시장: f.시장, dates: [] });
+      stockDateRange.get(f.종목코드).dates.push(f.date);
     }
-    if (!bottomDate) continue;
 
-    const latest = latestPrice(code);
-    if (!latest) continue;
+    function latestPrice(code) {
+      for (let i = tradingDates.length - 1; i >= 0; i--) {
+        const m = priceHistory.get(tradingDates[i]);
+        if (m && m.has(code)) return { date: tradingDates[i], 종가: m.get(code).종가 };
+      }
+      return null;
+    }
 
-    const 상승률 = (latest.종가 / bottomPrice - 1) * 100;
-    const deviations = findingsB
-      .filter(f => f.종목코드 === code)
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .map(f => ({ date: f.date, ratio: f.ratio }));
+    const recoveries = [];
+    for (const [code, meta] of stockDateRange) {
+      const sortedDates = [...meta.dates].sort();
+      const firstDate   = sortedDates[0];
 
-    recoveries.push({
-      종목코드: code, 종목명: meta.종목명, 시장: meta.시장,
-      bottomDate, bottomPrice,
-      latestDate: latest.date, latestPrice: latest.종가,
-      상승률, deviations,
-    });
-  }
+      let bottomDate = null, bottomPrice = Infinity;
+      for (const d of tradingDates) {
+        if (d < firstDate) continue;
+        const m = priceHistory.get(d);
+        if (!m || !m.has(code)) continue;
+        const p = m.get(code).종가;
+        if (p < bottomPrice) { bottomPrice = p; bottomDate = d; }
+      }
+      if (!bottomDate) continue;
 
-  recoveries.sort((a, b) => b.상승률 - a.상승률);
+      const latest = latestPrice(code);
+      if (!latest) continue;
 
-  const HDR = `  ${'종목명'.padEnd(12)}  ${'시장'.padEnd(6)}  ${'종가저점일'.padEnd(10)}  ${'저점가'.padStart(10)}  ${'최근가'.padStart(10)}  ${'저점대비'.padStart(8)}  ${'괴리일'.padEnd(10)}  ${'괴리율'.padStart(7)}`;
-  console.log('\n' + HDR);
-  console.log('  ' + '─'.repeat(88));
+      const 상승률 = (latest.종가 / bottomPrice - 1) * 100;
+      const deviations = findingsB
+        .filter(f => f.종목코드 === code)
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .map(f => ({ date: f.date, ratio: f.ratio }));
 
-  for (const r of recoveries) {
-    const s = r.상승률 >= 0 ? '+' : '';
-    const summary = `  ${r.종목명.padEnd(12)}  ${r.시장.padEnd(6)}  ${fmtDate(r.bottomDate).padEnd(10)}  ${fmtNum(r.bottomPrice).padStart(10)}  ${fmtNum(r.latestPrice).padStart(10)}  ${(s+r.상승률.toFixed(1)+'%').padStart(8)}`;
-    for (const dev of r.deviations)
-      console.log(`${summary}  ${fmtDate(dev.date).padEnd(10)}  ${dev.ratio.toFixed(1).padStart(6)}%`);
+      recoveries.push({
+        종목코드: code, 종목명: meta.종목명, 시장: meta.시장,
+        bottomDate, bottomPrice,
+        latestDate: latest.date, latestPrice: latest.종가,
+        상승률, deviations,
+      });
+    }
+
+    recoveries.sort((a, b) => b.상승률 - a.상승률);
+
+    const HDR = `  ${'종목명'.padEnd(12)}  ${'시장'.padEnd(6)}  ${'종가저점일'.padEnd(10)}  ${'저점가'.padStart(10)}  ${'최근가'.padStart(10)}  ${'저점대비'.padStart(8)}  ${'괴리일'.padEnd(10)}  ${'괴리율'.padStart(7)}`;
+    console.log('\n' + HDR);
     console.log('  ' + '─'.repeat(88));
-  }
 
-  console.log('');
-  const recovered  = recoveries.filter(r => r.상승률 >= 10);
-  const stillDown  = recoveries.filter(r => r.상승률 < 0);
-  const nearBottom = recoveries.filter(r => r.상승률 >= 0 && r.상승률 < 10);
-  console.log(`  ✔ 저점 대비 +10% 이상 반등: ${recovered.map(r=>r.종목명).join(', ') || '없음'}`);
-  console.log(`  ▲ 소폭 반등(0~+10%):       ${nearBottom.map(r=>r.종목명).join(', ') || '없음'}`);
-  console.log(`  ▼ 저점 대비 추가 하락 중:   ${stillDown.map(r=>r.종목명).join(', ') || '없음'}`);
-  console.log('═'.repeat(88) + '\n');
+    for (const r of recoveries) {
+      const s = r.상승률 >= 0 ? '+' : '';
+      const summary = `  ${r.종목명.padEnd(12)}  ${r.시장.padEnd(6)}  ${fmtDate(r.bottomDate).padEnd(10)}  ${fmtNum(r.bottomPrice).padStart(10)}  ${fmtNum(r.latestPrice).padStart(10)}  ${(s+r.상승률.toFixed(1)+'%').padStart(8)}`;
+      for (const dev of r.deviations)
+        console.log(`${summary}  ${fmtDate(dev.date).padEnd(10)}  ${dev.ratio.toFixed(1).padStart(6)}%`);
+      console.log('  ' + '─'.repeat(88));
+    }
 
-  // ── 10. 종가저점 후 MA20 터치/돌파 분석
-  console.log('\n' + '═'.repeat(88));
-  console.log(` 【MA20 터치/돌파 분석】 종가저점 이후 (${pd} · ${stockDateRange.size}종목)`);
-  console.log(' ▪ 고가 터치 = 장중 고가 ≥ MA20   ▪   종가 돌파 = 종가 ≥ MA20');
-  console.log(' ▪ 종가저점일 다음 거래일부터 탐색');
-  console.log('═'.repeat(88));
+    console.log('');
+    const recovered  = recoveries.filter(r => r.상승률 >= 10);
+    const stillDown  = recoveries.filter(r => r.상승률 < 0);
+    const nearBottom = recoveries.filter(r => r.상승률 >= 0 && r.상승률 < 10);
+    console.log(`  ✔ 저점 대비 +10% 이상 반등: ${recovered.map(r=>r.종목명).join(', ') || '없음'}`);
+    console.log(`  ▲ 소폭 반등(0~+10%):       ${nearBottom.map(r=>r.종목명).join(', ') || '없음'}`);
+    console.log(`  ▼ 저점 대비 추가 하락 중:   ${stillDown.map(r=>r.종목명).join(', ') || '없음'}`);
+    console.log('═'.repeat(88) + '\n');
 
-  const ma20Events = [];
+    // ── 종가저점 후 MA 터치/돌파 분석
+    console.log('\n' + '═'.repeat(88));
+    console.log(` 【${MA_LABEL} · 터치/돌파 분석】 종가저점 이후 (${pd} · ${stockDateRange.size}종목)`);
+    console.log(` ▪ 고가 터치 = 장중 고가 ≥ ${MA_LABEL}   ▪   종가 돌파 = 종가 ≥ ${MA_LABEL}`);
+    console.log(' ▪ 종가저점일 다음 거래일부터 탐색');
+    console.log('═'.repeat(88));
 
-  for (const r of recoveries) {
-    const bottomIdx = tradingDates.indexOf(r.bottomDate);
-    const datesAfterBottom = bottomIdx >= 0 ? tradingDates.slice(bottomIdx + 1) : [];
+    const maEvents = [];
 
-    let firstEvent = null;
-    for (const d of datesAfterBottom) {
-      const di = tradingDates.indexOf(d);
-      const lb = tradingDates.slice(Math.max(0, di - 19), di + 1);
-      const prices = [];
-      for (const ld of lb) {
-        const m = priceHistory.get(ld);
-        if (m && m.has(r.종목코드)) prices.push(m.get(r.종목코드).종가);
+    for (const r of recoveries) {
+      const emaSeries = getEmaSeries(r.종목코드);
+      const bottomIdx = tradingDates.indexOf(r.bottomDate);
+      const datesAfterBottom = bottomIdx >= 0 ? tradingDates.slice(bottomIdx + 1) : [];
+
+      let firstEvent = null;
+      for (const d of datesAfterBottom) {
+        const ema = emaSeries.get(d);
+        if (ema == null) continue;
+
+        const dayMap = priceHistory.get(d);
+        if (!dayMap || !dayMap.has(r.종목코드)) continue;
+        const stock = dayMap.get(r.종목코드);
+
+        if (stock.종가 >= ema) {
+          firstEvent = { date: d, type: '종가돌파', price: stock.종가, ma: Math.round(ema) };
+          break;
+        }
+        if (stock.고가 && stock.고가 >= ema) {
+          firstEvent = { date: d, type: '고가터치', price: stock.고가, ma: Math.round(ema) };
+          break;
+        }
       }
-      if (prices.length < 5) continue;
-      const ma20 = prices.reduce((a, b) => a + b, 0) / prices.length;
 
-      const dayMap = priceHistory.get(d);
-      if (!dayMap || !dayMap.has(r.종목코드)) continue;
-      const stock = dayMap.get(r.종목코드);
-
-      if (stock.종가 >= ma20) {
-        firstEvent = { date: d, type: '종가돌파', price: stock.종가, ma20: Math.round(ma20) };
-        break;
+      // 저점일 MA 괴리율 계산
+      let bottomRatio = null;
+      const emaAtBottom = emaSeries.get(r.bottomDate);
+      if (emaAtBottom != null) {
+        bottomRatio = (r.bottomPrice / emaAtBottom - 1) * 100;
       }
-      if (stock.고가 && stock.고가 >= ma20) {
-        firstEvent = { date: d, type: '고가터치', price: stock.고가, ma20: Math.round(ma20) };
-        break;
+
+      // 현재 MA 괴리율 계산
+      let currentMA = null, currentRatio = null;
+      const emaAtLatest = emaSeries.get(r.latestDate);
+      if (emaAtLatest != null) {
+        currentMA = Math.round(emaAtLatest);
+        currentRatio = (r.latestPrice / currentMA - 1) * 100;
+      }
+
+      // 2차 저항 탐색 (1차 저항 이후 MA × 1.2)
+      let secondEvent = null;
+      if (firstEvent) {
+        const feIdx = tradingDates.indexOf(firstEvent.date);
+        for (const d of (feIdx >= 0 ? tradingDates.slice(feIdx + 1) : [])) {
+          const ema2 = emaSeries.get(d);
+          if (ema2 == null) continue;
+          const t2 = ema2 * 1.2;
+          const dm2 = priceHistory.get(d);
+          if (!dm2 || !dm2.has(r.종목코드)) continue;
+          const st2 = dm2.get(r.종목코드);
+          if (st2.종가 >= t2) { secondEvent = { date: d, type: '종가돌파', price: st2.종가, ma: Math.round(ema2), target2: Math.round(t2) }; break; }
+          if (st2.고가 && st2.고가 >= t2) { secondEvent = { date: d, type: '고가터치', price: st2.고가, ma: Math.round(ema2), target2: Math.round(t2) }; break; }
+        }
+      }
+      // RSI(9) 과매도(≤30) — 25일선 매수구간과 별개의 보조 매수 시그널
+      const rsi9raw     = getRsiSeries(r.종목코드).get(r.latestDate);
+      const rsi9        = rsi9raw != null ? Math.round(rsi9raw * 10) / 10 : null;
+      const rsiOversold = rsi9 != null && rsi9 <= 30;
+      const comboBuy     = !firstEvent && rsiOversold; // 미돌파(매수구간) + RSI 과매도 동시충족
+
+      maEvents.push({ ...r, firstEvent, secondEvent, bottomRatio, currentMA, currentRatio, rsi9, rsiOversold, comboBuy });
+    }
+
+    const touchedStocks    = maEvents.filter(r => r.firstEvent);
+    const notTouchedStocks = maEvents.filter(r => !r.firstEvent);
+
+    const byTouchDate = {};
+    for (const r of touchedStocks) {
+      const k = r.firstEvent.date;
+      if (!byTouchDate[k]) byTouchDate[k] = [];
+      byTouchDate[k].push(r);
+    }
+
+    console.log(`\n  ■ 터치/돌파 완료: ${touchedStocks.length}개 종목`);
+    if (touchedStocks.length > 0) {
+      for (const date of Object.keys(byTouchDate).sort()) {
+        console.log(`\n  ▶ ${fmtDate(date)}`);
+        for (const r of byTouchDate[date]) {
+          const ev = r.firstEvent;
+          const touchRatio = (ev.price / r.bottomPrice - 1) * 100;
+          const sp = touchRatio >= 0 ? '+' : '';
+          const brStr = r.bottomRatio != null ? `${r.bottomRatio.toFixed(1)}%` : '─';
+          console.log(`    ${r.종목명.padEnd(14)} ${r.시장.padEnd(6)}  저점 ${fmtDate(r.bottomDate)}  ${fmtNum(r.bottomPrice).padStart(9)}원  (저점괴리 ${brStr.padStart(7)})  →  ${ev.type}  ${fmtNum(ev.price).padStart(9)}원  (${MA_LABEL} ${fmtNum(ev.ma)}원)  상승폭 ${sp}${touchRatio.toFixed(1)}%`);
+        }
+      }
+    } else {
+      console.log('\n  (없음)');
+    }
+
+    console.log(`\n  ■ 미돌파: ${notTouchedStocks.length}개 종목`);
+    if (notTouchedStocks.length > 0) {
+      console.log(`\n    ${'종목명'.padEnd(14)} ${'시장'.padEnd(6)}  ${'저점일'.padEnd(12)}  ${'저점가'.padStart(9)}  ${'현재가'.padStart(9)}  ${'저점대비'.padStart(8)}  ${('현재'+MA_LABEL).padStart(9)}  ${'현재괴리율'.padStart(9)}`);
+      console.log('    ' + '─'.repeat(88));
+      const sorted = notTouchedStocks.sort((a, b) => (b.currentRatio ?? -Infinity) - (a.currentRatio ?? -Infinity));
+      for (const r of sorted) {
+        const sp = r.상승률 >= 0 ? '+' : '';
+        const maStr  = r.currentMA  != null ? fmtNum(r.currentMA) + '원' : '─';
+        const ratioStr = r.currentRatio != null ? `${r.currentRatio.toFixed(1)}%`  : '─';
+        console.log(`    ${r.종목명.padEnd(14)} ${r.시장.padEnd(6)}  ${fmtDate(r.bottomDate).padEnd(12)}  ${fmtNum(r.bottomPrice).padStart(9)}  ${fmtNum(r.latestPrice).padStart(9)}  ${(sp + r.상승률.toFixed(1) + '%').padStart(8)}  ${maStr.padStart(9)}  ${ratioStr.padStart(9)}`);
+      }
+    } else {
+      console.log('\n  (없음)');
+    }
+
+    console.log('\n' + '═'.repeat(88) + '\n');
+
+    // ── 엔벨로프 콘솔 (MA±20%)
+    const secondTouchedConsole = maEvents.filter(r => r.secondEvent);
+    const waitingSecondConsole = maEvents.filter(r => r.firstEvent && !r.secondEvent);
+    const buyZoneConsole = maEvents.filter(r => !r.firstEvent);
+
+    console.log('\n' + '═'.repeat(92));
+    console.log(` 【${MA_LABEL} · 엔벨로프 전략】 지지·저항 단계별 분석 (${MA_LABEL} ±20%)`);
+    console.log(` ▪ 매수구간: ${MA_LABEL} -20% 이하   ▪  1차 저항: ${MA_LABEL}(0%)   ▪  2차 저항: ${MA_LABEL} +20%`);
+    console.log('═'.repeat(92));
+
+    if (buyZoneConsole.length > 0) {
+      const comboCount = buyZoneConsole.filter(r => r.comboBuy).length;
+      console.log(`\n  ■ 매수구간 (1차 미달성): ${buyZoneConsole.length}개 종목${comboCount ? ` (★복합매수 ${comboCount}개)` : ''}`);
+      console.log(`\n    ${'종목명'.padEnd(14)} ${'현재가'.padStart(10)} ${('현재'+MA_LABEL).padStart(12)} ${'괴리율'.padStart(8)} ${'RSI(9)'.padStart(7)} ${'1차목표'.padStart(12)} ${'1차↑'.padStart(8)} ${'2차목표'.padStart(12)} ${'2차↑'.padStart(8)}  신호`);
+      console.log('    ' + '─'.repeat(88));
+      const sortedBuyZone = [...buyZoneConsole].sort((a, b) => (b.comboBuy - a.comboBuy) || (b.rsiOversold - a.rsiOversold));
+      for (const r of sortedBuyZone) {
+        const t1 = r.currentMA;
+        const t2 = t1 ? Math.round(t1 * 1.2) : null;
+        const to1 = t1 && r.latestPrice ? (t1 / r.latestPrice - 1) * 100 : null;
+        const to2 = t2 && r.latestPrice ? (t2 / r.latestPrice - 1) * 100 : null;
+        const cr = r.currentRatio != null ? r.currentRatio.toFixed(1) + '%' : '─';
+        const rsiStr = r.rsi9 != null ? String(r.rsi9) : '─';
+        const sig = r.comboBuy ? '★복합매수' : r.rsiOversold ? 'RSI과매도' : '';
+        console.log(`    ${r.종목명.padEnd(14)} ${fmtNum(r.latestPrice).padStart(10)} ${(t1?fmtNum(t1):'─').padStart(12)} ${cr.padStart(8)} ${rsiStr.padStart(7)} ${(t1?fmtNum(t1):'─').padStart(12)} ${(to1!=null?'+'+to1.toFixed(1)+'%':'─').padStart(8)} ${(t2?fmtNum(t2):'─').padStart(12)} ${(to2!=null?'+'+to2.toFixed(1)+'%':'─').padStart(8)}  ${sig}`);
       }
     }
 
-    // 저점일 MA20 괴리율 계산
-    let bottomRatio = null;
-    if (bottomIdx >= 0) {
-      const lb = tradingDates.slice(Math.max(0, bottomIdx - 19), bottomIdx + 1);
-      const ps = [];
-      for (const ld of lb) {
-        const m = priceHistory.get(ld);
-        if (m && m.has(r.종목코드)) ps.push(m.get(r.종목코드).종가);
-      }
-      if (ps.length >= 5) {
-        const ma20AtBottom = ps.reduce((a, b) => a + b, 0) / ps.length;
-        bottomRatio = (r.bottomPrice / ma20AtBottom - 1) * 100;
-      }
-    }
-
-    // 현재 MA20 괴리율 계산
-    let currentMA20 = null, currentRatio = null;
-    const lastDi = tradingDates.indexOf(r.latestDate);
-    if (lastDi >= 0) {
-      const lb = tradingDates.slice(Math.max(0, lastDi - 19), lastDi + 1);
-      const ps = [];
-      for (const ld of lb) {
-        const m = priceHistory.get(ld);
-        if (m && m.has(r.종목코드)) ps.push(m.get(r.종목코드).종가);
-      }
-      if (ps.length >= 5) {
-        currentMA20 = Math.round(ps.reduce((a, b) => a + b, 0) / ps.length);
-        currentRatio = (r.latestPrice / currentMA20 - 1) * 100;
-      }
-    }
-
-    // 2차 저항 탐색 (1차 저항 이후 MA20 × 1.2)
-    let secondEvent = null;
-    if (firstEvent) {
-      const feIdx = tradingDates.indexOf(firstEvent.date);
-      for (const d of (feIdx >= 0 ? tradingDates.slice(feIdx + 1) : [])) {
-        const di2 = tradingDates.indexOf(d);
-        const lb2 = tradingDates.slice(Math.max(0, di2 - 19), di2 + 1);
-        const ps2 = [];
-        for (const ld of lb2) { const m = priceHistory.get(ld); if (m && m.has(r.종목코드)) ps2.push(m.get(r.종목코드).종가); }
-        if (ps2.length < 5) continue;
-        const ma20_2 = ps2.reduce((a, b) => a + b, 0) / ps2.length;
-        const t2 = ma20_2 * 1.2;
-        const dm2 = priceHistory.get(d);
-        if (!dm2 || !dm2.has(r.종목코드)) continue;
-        const st2 = dm2.get(r.종목코드);
-        if (st2.종가 >= t2) { secondEvent = { date: d, type: '종가돌파', price: st2.종가, ma20: Math.round(ma20_2), target2: Math.round(t2) }; break; }
-        if (st2.고가 && st2.고가 >= t2) { secondEvent = { date: d, type: '고가터치', price: st2.고가, ma20: Math.round(ma20_2), target2: Math.round(t2) }; break; }
-      }
-    }
-    ma20Events.push({ ...r, firstEvent, secondEvent, bottomRatio, currentMA20, currentRatio });
-  }
-
-  const touchedStocks    = ma20Events.filter(r => r.firstEvent);
-  const notTouchedStocks = ma20Events.filter(r => !r.firstEvent);
-
-  // 날짜별로 정렬해서 출력
-  const byTouchDate = {};
-  for (const r of touchedStocks) {
-    const k = r.firstEvent.date;
-    if (!byTouchDate[k]) byTouchDate[k] = [];
-    byTouchDate[k].push(r);
-  }
-
-  console.log(`\n  ■ 터치/돌파 완료: ${touchedStocks.length}개 종목`);
-  if (touchedStocks.length > 0) {
-    for (const date of Object.keys(byTouchDate).sort()) {
-      console.log(`\n  ▶ ${fmtDate(date)}`);
-      for (const r of byTouchDate[date]) {
+    if (waitingSecondConsole.length > 0) {
+      console.log(`\n  ■ 1차 저항 달성 → 2차 저항 대기: ${waitingSecondConsole.length}개 종목`);
+      for (const r of waitingSecondConsole) {
         const ev = r.firstEvent;
-        const touchRatio = (ev.price / r.bottomPrice - 1) * 100;
-        const sp = touchRatio >= 0 ? '+' : '';
-        const brStr = r.bottomRatio != null ? `${r.bottomRatio.toFixed(1)}%` : '─';
-        console.log(`    ${r.종목명.padEnd(14)} ${r.시장.padEnd(6)}  저점 ${fmtDate(r.bottomDate)}  ${fmtNum(r.bottomPrice).padStart(9)}원  (저점괴리 ${brStr.padStart(7)})  →  ${ev.type}  ${fmtNum(ev.price).padStart(9)}원  (MA20 ${fmtNum(ev.ma20)}원)  상승폭 ${sp}${touchRatio.toFixed(1)}%`);
+        const t2 = r.currentMA ? Math.round(r.currentMA * 1.2) : null;
+        const to2 = t2 && r.latestPrice ? (t2 / r.latestPrice - 1) * 100 : null;
+        const tr1 = (ev.price / r.bottomPrice - 1) * 100;
+        console.log(`    ${r.종목명.padEnd(14)} 1차: ${fmtDate(ev.date)} +${tr1.toFixed(1)}%  현재: ${fmtNum(r.latestPrice).padStart(9)}원  2차목표: ${t2?fmtNum(t2)+'원':'─'}  (${to2!=null?(to2>=0?'+':'')+to2.toFixed(1)+'%':'─'})`);
       }
     }
-  } else {
-    console.log('\n  (없음)');
-  }
 
-  console.log(`\n  ■ 미돌파: ${notTouchedStocks.length}개 종목`);
-  if (notTouchedStocks.length > 0) {
-    console.log(`\n    ${'종목명'.padEnd(14)} ${'시장'.padEnd(6)}  ${'저점일'.padEnd(12)}  ${'저점가'.padStart(9)}  ${'현재가'.padStart(9)}  ${'저점대비'.padStart(8)}  ${'현재MA20'.padStart(9)}  ${'현재괴리율'.padStart(9)}`);
-    console.log('    ' + '─'.repeat(88));
-    const sorted = notTouchedStocks.sort((a, b) => (b.currentRatio ?? -Infinity) - (a.currentRatio ?? -Infinity));
-    for (const r of sorted) {
-      const sp = r.상승률 >= 0 ? '+' : '';
-      const ma20Str  = r.currentMA20  != null ? fmtNum(r.currentMA20) + '원' : '─';
-      const ratioStr = r.currentRatio != null ? `${r.currentRatio.toFixed(1)}%`  : '─';
-      console.log(`    ${r.종목명.padEnd(14)} ${r.시장.padEnd(6)}  ${fmtDate(r.bottomDate).padEnd(12)}  ${fmtNum(r.bottomPrice).padStart(9)}  ${fmtNum(r.latestPrice).padStart(9)}  ${(sp + r.상승률.toFixed(1) + '%').padStart(8)}  ${ma20Str.padStart(9)}  ${ratioStr.padStart(9)}`);
+    if (secondTouchedConsole.length > 0) {
+      console.log(`\n  ■ 2차 저항 달성: ${secondTouchedConsole.length}개 종목`);
+      for (const r of secondTouchedConsole) {
+        const ev1 = r.firstEvent, ev2 = r.secondEvent;
+        const tr1 = (ev1.price / r.bottomPrice - 1) * 100;
+        const tr2 = (ev2.price / r.bottomPrice - 1) * 100;
+        console.log(`    ${r.종목명.padEnd(14)} 저점→1차(+${tr1.toFixed(1)}%)→2차 ${fmtDate(ev2.date)} ${fmtNum(ev2.price)}원 (저점대비 +${tr2.toFixed(1)}%)`);
+      }
+    } else {
+      console.log('\n  (2차 저항 달성 종목 없음)');
     }
-  } else {
-    console.log('\n  (없음)');
-  }
 
-  console.log('\n' + '═'.repeat(88) + '\n');
+    console.log('\n' + '═'.repeat(92) + '\n');
 
-  // ── 10b. 2차 저항 분석 (엔벨로프: MA20±20%)
-  const secondTouchedConsole = ma20Events.filter(r => r.secondEvent);
-  const waitingSecondConsole = ma20Events.filter(r => r.firstEvent && !r.secondEvent);
-  const buyZoneConsole = ma20Events.filter(r => !r.firstEvent);
-
-  console.log('\n' + '═'.repeat(92));
-  console.log(` 【엔벨로프 전략】 지지·저항 단계별 분석 (MA20 ±20%)`);
-  console.log(' ▪ 매수구간: MA20 -20% 이하   ▪  1차 저항: MA20(0%)   ▪  2차 저항: MA20 +20%');
-  console.log('═'.repeat(92));
-
-  if (buyZoneConsole.length > 0) {
-    console.log(`\n  ■ 매수구간 (1차 미달성): ${buyZoneConsole.length}개 종목`);
-    console.log(`\n    ${'종목명'.padEnd(14)} ${'현재가'.padStart(10)} ${'현재MA20'.padStart(12)} ${'괴리율'.padStart(8)} ${'1차목표'.padStart(12)} ${'1차↑'.padStart(8)} ${'2차목표'.padStart(12)} ${'2차↑'.padStart(8)}`);
-    console.log('    ' + '─'.repeat(88));
-    for (const r of buyZoneConsole) {
-      const t1 = r.currentMA20;
-      const t2 = t1 ? Math.round(t1 * 1.2) : null;
-      const to1 = t1 && r.latestPrice ? (t1 / r.latestPrice - 1) * 100 : null;
-      const to2 = t2 && r.latestPrice ? (t2 / r.latestPrice - 1) * 100 : null;
-      const cr = r.currentRatio != null ? r.currentRatio.toFixed(1) + '%' : '─';
-      console.log(`    ${r.종목명.padEnd(14)} ${fmtNum(r.latestPrice).padStart(10)} ${(t1?fmtNum(t1):'─').padStart(12)} ${cr.padStart(8)} ${(t1?fmtNum(t1):'─').padStart(12)} ${(to1!=null?'+'+to1.toFixed(1)+'%':'─').padStart(8)} ${(t2?fmtNum(t2):'─').padStart(12)} ${(to2!=null?'+'+to2.toFixed(1)+'%':'─').padStart(8)}`);
+    // ── stockSummaryB (현재괴리 포함, HTML용)
+    const stockSummaryB = {};
+    for (const f of findingsB) {
+      if (!stockSummaryB[f.종목명]) stockSummaryB[f.종목명] = { 시장: f.시장, 종목코드: f.종목코드, 건수: 0, 최대괴리: 0, 현재괴리: null, 날짜들: [] };
+      stockSummaryB[f.종목명].건수++;
+      if (f.ratio < stockSummaryB[f.종목명].최대괴리) stockSummaryB[f.종목명].최대괴리 = f.ratio;
+      stockSummaryB[f.종목명].날짜들.push(f.date);
     }
-  }
+    for (const [, s] of Object.entries(stockSummaryB)) {
+      const code = s.종목코드;
+      let latestP = null, latestDate2 = null;
+      for (let i = tradingDates.length - 1; i >= 0; i--) {
+        const m = priceHistory.get(tradingDates[i]);
+        if (m && m.has(code)) { latestP = m.get(code).종가; latestDate2 = tradingDates[i]; break; }
+      }
+      if (latestP == null) continue;
+      const ema = getEmaSeries(code).get(latestDate2);
+      if (ema != null) s.현재괴리 = (latestP / ema - 1) * 100;
+    }
 
-  if (waitingSecondConsole.length > 0) {
-    console.log(`\n  ■ 1차 저항 달성 → 2차 저항 대기: ${waitingSecondConsole.length}개 종목`);
-    for (const r of waitingSecondConsole) {
-      const ev = r.firstEvent;
-      const t2 = r.currentMA20 ? Math.round(r.currentMA20 * 1.2) : null;
-      const to2 = t2 && r.latestPrice ? (t2 / r.latestPrice - 1) * 100 : null;
-      const tr1 = (ev.price / r.bottomPrice - 1) * 100;
-      console.log(`    ${r.종목명.padEnd(14)} 1차: ${fmtDate(ev.date)} +${tr1.toFixed(1)}%  현재: ${fmtNum(r.latestPrice).padStart(9)}원  2차목표: ${t2?fmtNum(t2)+'원':'─'}  (${to2!=null?(to2>=0?'+':'')+to2.toFixed(1)+'%':'─'})`);
+    periodResults.push({ period, findingsA, findingsB, stockSummaryB, recoveries, maEvents, universeSize: universeMap.size });
+
+    // ── 최근 거래일 미포함 종목 탐지 (첫 번째 period에서만 안내)
+    if (period === PERIODS[0]) {
+      const latestMap       = priceHistory.get(latestDate);
+      const missingAnalysis = [...stockDateRange.entries()].filter(([code]) => !latestMap?.has(code));
+      if (missingAnalysis.length > 0) {
+        console.error(`${'─'.repeat(60)}`);
+        console.error(`[요청] ${fmtDate(latestDate)} 종가 미확보 — 분석 대상 종목:`);
+        for (const [code, info] of missingAnalysis)
+          console.error(`  → ${info.종목명} (${code})`);
+        console.error(`  ※ MANUAL_PRICES['${latestDate}'] 에 추가 후 재실행`);
+        console.error(`${'─'.repeat(60)}`);
+      }
     }
   }
 
-  if (secondTouchedConsole.length > 0) {
-    console.log(`\n  ■ 2차 저항 달성: ${secondTouchedConsole.length}개 종목`);
-    for (const r of secondTouchedConsole) {
-      const ev1 = r.firstEvent, ev2 = r.secondEvent;
-      const tr1 = (ev1.price / r.bottomPrice - 1) * 100;
-      const tr2 = (ev2.price / r.bottomPrice - 1) * 100;
-      console.log(`    ${r.종목명.padEnd(14)} 저점→1차(+${tr1.toFixed(1)}%)→2차 ${fmtDate(ev2.date)} ${fmtNum(ev2.price)}원 (저점대비 +${tr2.toFixed(1)}%)`);
-    }
-  } else {
-    console.log('\n  (2차 저항 달성 종목 없음)');
-  }
-
-  console.log('\n' + '═'.repeat(92) + '\n');
-
-  // ── HTML 리포트 자동 생성
-  const stockSummaryB = {};
-  for (const f of findingsB) {
-    if (!stockSummaryB[f.종목명]) stockSummaryB[f.종목명] = { 시장: f.시장, 종목코드: f.종목코드, 건수: 0, 최대괴리: 0, 현재괴리: null, 날짜들: [] };
-    stockSummaryB[f.종목명].건수++;
-    if (f.ratio < stockSummaryB[f.종목명].최대괴리) stockSummaryB[f.종목명].최대괴리 = f.ratio;
-    stockSummaryB[f.종목명].날짜들.push(f.date);
-  }
-  for (const [, s] of Object.entries(stockSummaryB)) {
-    const code = s.종목코드;
-    let latestP = null, latestDi = -1;
-    for (let i = tradingDates.length - 1; i >= 0; i--) {
-      const m = priceHistory.get(tradingDates[i]);
-      if (m && m.has(code)) { latestP = m.get(code).종가; latestDi = i; break; }
-    }
-    if (latestP == null) continue;
-    const lb = tradingDates.slice(Math.max(0, latestDi - 19), latestDi + 1);
-    const ps = [];
-    for (const ld of lb) { const m = priceHistory.get(ld); if (m && m.has(code)) ps.push(m.get(code).종가); }
-    if (ps.length >= 5) s.현재괴리 = (latestP / (ps.reduce((a, b) => a + b, 0) / ps.length) - 1) * 100;
-  }
   generateAndSaveHTML({
     period: { start: targetDates[0], end: targetDates[targetDates.length - 1], pd },
     universeSize: universeMap.size,
-    findingsA, findingsB,
-    stockSummaryB,
-    recoveries, ma20Events,
+    periodResults,
     latestDate,
   });
-
-  // ── 11. 최근 거래일 미포함 종목 탐지
-  const latestMap       = priceHistory.get(latestDate);
-  const missingAnalysis = [...stockDateRange.entries()].filter(([code]) => !latestMap?.has(code));
-  if (missingAnalysis.length > 0) {
-    console.error(`${'─'.repeat(60)}`);
-    console.error(`[요청] ${fmtDate(latestDate)} 종가 미확보 — 분석 대상 종목:`);
-    for (const [code, info] of missingAnalysis)
-      console.error(`  → ${info.종목명} (${code})`);
-    console.error(`  ※ MANUAL_PRICES['${latestDate}'] 에 추가 후 재실행`);
-    console.error(`${'─'.repeat(60)}`);
-  }
 }
 
-// ─── HTML 리포트 생성 ───────────────────────────────────────────────────────
-function generateAndSaveHTML({ period, universeSize, findingsA, findingsB, stockSummaryB, recoveries, ma20Events, latestDate }) {
-  const now = new Date(Date.now() + 9*3600*1000);
-  const p2  = n => String(n).padStart(2,'0');
-  const ts  = `${now.getUTCFullYear()}${p2(now.getUTCMonth()+1)}${p2(now.getUTCDate())}${p2(now.getUTCHours())}${p2(now.getUTCMinutes())}`;
-  const { start, end, pd } = period;
+// ─── HTML: 25일선 기준 5탭 섹션 빌더 ─────────────────────────────────
+function buildAnalysisSection(pr, shared) {
+  const { period, findingsA, findingsB, stockSummaryB, recoveries, maEvents, universeSize } = pr;
+  const { latestDate, latestFmt, pd } = shared;
+  const sfx = String(period);
+  const ML  = MA_LABEL;
 
-  // ── 유틸
   const esc  = s => String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const fN   = n => n!=null ? Number(n).toLocaleString('ko-KR') : '─';
   const rS   = r => (r>=0?'+':'')+r.toFixed(1)+'%';
   const rc    = r => r<=-25?'t-neg-hi':r<-5?'t-neg':r>=10?'t-pos':'t-flat';
-  const rcCur = r => r > 0 ? 't-pos' : r < 0 ? 't-neg' : 't-flat'; // 현재괴리율용 (0 기준 단순 색상)
+  const rcCur = r => r > 0 ? 't-pos' : r < 0 ? 't-neg' : 't-flat';
   const fMD  = s => s.slice(4,6)+'-'+s.slice(6,8);
   const dow  = s => { const d=new Date(`${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`); return ['일','월','화','수','목','금','토'][d.getDay()]; };
-  const latestFmt = fmtDate(latestDate);
 
-  // ── 데이터 가공
   const latestFindingsB = findingsB.filter(f=>f.date===latestDate).sort((a,b)=>a.ratio-b.ratio);
   const findingsAByDate = {};
   for (const f of findingsA) { if(!findingsAByDate[f.date])findingsAByDate[f.date]=[]; findingsAByDate[f.date].push(f); }
   const ssB = Object.entries(stockSummaryB).sort((a,b)=>b[1].건수-a[1].건수||a[1].최대괴리-b[1].최대괴리);
-  const touchedStocks = ma20Events.filter(r=>r.firstEvent);
-  const notTouched    = ma20Events.filter(r=>!r.firstEvent).sort((a,b)=>(b.currentRatio??-Infinity)-(a.currentRatio??-Infinity));
+  const touchedStocks = maEvents.filter(r=>r.firstEvent);
+  const notTouched    = maEvents.filter(r=>!r.firstEvent).sort((a,b)=>(b.comboBuy-a.comboBuy)||(b.rsiOversold-a.rsiOversold)||((b.currentRatio??-Infinity)-(a.currentRatio??-Infinity)));
+  const comboZone     = notTouched.filter(r=>r.comboBuy);
+  const rsiZone       = notTouched.filter(r=>r.rsiOversold);
   const recovered  = recoveries.filter(r=>r.상승률>=10);
   const nearBottom = recoveries.filter(r=>r.상승률>=0&&r.상승률<10);
   const stillDown  = recoveries.filter(r=>r.상승률<0);
   const uA = [...new Set(findingsA.map(f=>f.종목명))].length;
   const uB = [...new Set(findingsB.map(f=>f.종목명))].length;
 
-  // 방식A 종목 요약
   const ssA = {};
   for (const f of findingsA) {
     if(!ssA[f.종목명]) ssA[f.종목명]={시장:f.시장,건수:0,최대괴리:0,날짜들:[]};
@@ -917,27 +964,25 @@ function generateAndSaveHTML({ period, universeSize, findingsA, findingsB, stock
     ssA[f.종목명].날짜들.push(fMD(f.date));
   }
 
-  // ── 날짜 섹션 생성 헬퍼
   function dateSection(date, items) {
     const sorted = [...items].sort((a,b)=>a.ratio-b.ratio);
     const tag = date===latestDate
       ? `<span class="date-tag today">최근거래일</span>`
       : `<span class="date-tag">${dow(date)}</span>`;
     const trows = sorted.map(f=>
-      `<tr><td class="c t-rank">${f.rank?f.rank+'위':'─'}</td><td class="l t-name">${esc(f.종목명)}</td><td class="c t-mkt">${f.시장}</td><td class="t-price">${fN(f.종가)}</td><td>${fN(f.ma20)}</td><td class="${rc(f.ratio)}">${f.ratio.toFixed(1)}%</td></tr>`
+      `<tr><td class="c t-rank">${f.rank?f.rank+'위':'─'}</td><td class="l t-name">${esc(f.종목명)}</td><td class="c t-mkt">${f.시장}</td><td class="t-price">${fN(f.종가)}</td><td>${fN(f.ma)}</td><td class="${rc(f.ratio)}">${f.ratio.toFixed(1)}%</td></tr>`
     ).join('');
     const cards = sorted.map(f=>
-      `<div class="stock-card"><div class="sc-head"><span class="sc-name">${esc(f.종목명)}</span><span class="sc-ratio ${rc(f.ratio)}">${f.ratio.toFixed(1)}%</span></div><div class="sc-grid"><div class="sc-item"><span class="sc-item-l">시장</span><span class="sc-item-v">${f.시장}</span></div><div class="sc-item"><span class="sc-item-l">순위</span><span class="sc-item-v">${f.rank?f.rank+'위':'─'}</span></div><div class="sc-item"><span class="sc-item-l">종가</span><span class="sc-item-v">${fN(f.종가)}원</span></div><div class="sc-item"><span class="sc-item-l">MA20</span><span class="sc-item-v">${fN(f.ma20)}원</span></div></div></div>`
+      `<div class="stock-card"><div class="sc-head"><span class="sc-name">${esc(f.종목명)}</span><span class="sc-ratio ${rc(f.ratio)}">${f.ratio.toFixed(1)}%</span></div><div class="sc-grid"><div class="sc-item"><span class="sc-item-l">시장</span><span class="sc-item-v">${f.시장}</span></div><div class="sc-item"><span class="sc-item-l">순위</span><span class="sc-item-v">${f.rank?f.rank+'위':'─'}</span></div><div class="sc-item"><span class="sc-item-l">종가</span><span class="sc-item-v">${fN(f.종가)}원</span></div><div class="sc-item"><span class="sc-item-l">${ML}</span><span class="sc-item-v">${fN(f.ma)}원</span></div></div></div>`
     ).join('');
-    return `<div class="date-hdr"><span class="date-lbl">${fmtDate(date)}</span>${tag}</div><div class="tbl-wrap stock-cards-target"><table><thead><tr><th class="c">순위</th><th class="l">종목명</th><th class="c">시장</th><th>종가</th><th>MA20</th><th>괴리율</th></tr></thead><tbody>${trows}</tbody></table></div><div class="stock-cards">${cards}</div>`;
+    return `<div class="date-hdr"><span class="date-lbl">${fmtDate(date)}</span>${tag}</div><div class="tbl-wrap stock-cards-target"><table><thead><tr><th class="c">순위</th><th class="l">종목명</th><th class="c">시장</th><th>종가</th><th>${ML}</th><th>괴리율</th></tr></thead><tbody>${trows}</tbody></table></div><div class="stock-cards">${cards}</div>`;
   }
 
-  // ── 패널별 데이터 행
   const p0Rows  = latestFindingsB.map(f=>
-    `<tr><td class="c t-rank" style="color:${f.inTop10?'var(--coral)':'var(--amber)'}">${f.inTop10?'당일':'기간'}</td><td class="l t-name">${esc(f.종목명)}</td><td class="c t-mkt mob-hide">${f.시장}</td><td class="t-price">${fN(f.종가)}</td><td class="mob-hide">${fN(f.ma20)}</td><td class="${rc(f.ratio)}">${f.ratio.toFixed(1)}%</td><td class="c mob-hide"><span class="badge ${f.rank&&f.rank<=10?'bdg-coral':'bdg-gray'}">${f.rank?f.rank+'위':'─'}</span></td></tr>`
+    `<tr><td class="c t-rank" style="color:${f.inTop10?'var(--coral)':'var(--amber)'}">${f.inTop10?'당일':'기간'}</td><td class="l t-name">${esc(f.종목명)}</td><td class="c t-mkt mob-hide">${f.시장}</td><td class="t-price">${fN(f.종가)}</td><td class="mob-hide">${fN(f.ma)}</td><td class="${rc(f.ratio)}">${f.ratio.toFixed(1)}%</td><td class="c mob-hide"><span class="badge ${f.rank&&f.rank<=10?'bdg-coral':'bdg-gray'}">${f.rank?f.rank+'위':'─'}</span></td></tr>`
   ).join('');
   const p0Cards = latestFindingsB.map(f=>
-    `<div class="stock-card"><div class="sc-head"><span class="sc-name">${esc(f.종목명)}</span><span class="sc-ratio ${rc(f.ratio)}">${f.ratio.toFixed(1)}%</span></div><div class="sc-grid"><div class="sc-item"><span class="sc-item-l">구분</span><span class="sc-item-v" style="color:${f.inTop10?'var(--coral)':'var(--amber)'}">${f.inTop10?'당일':'기간'}</span></div><div class="sc-item"><span class="sc-item-l">시장</span><span class="sc-item-v">${f.시장}</span></div><div class="sc-item"><span class="sc-item-l">종가</span><span class="sc-item-v">${fN(f.종가)}원</span></div><div class="sc-item"><span class="sc-item-l">MA20</span><span class="sc-item-v">${fN(f.ma20)}원</span></div></div></div>`
+    `<div class="stock-card"><div class="sc-head"><span class="sc-name">${esc(f.종목명)}</span><span class="sc-ratio ${rc(f.ratio)}">${f.ratio.toFixed(1)}%</span></div><div class="sc-grid"><div class="sc-item"><span class="sc-item-l">구분</span><span class="sc-item-v" style="color:${f.inTop10?'var(--coral)':'var(--amber)'}">${f.inTop10?'당일':'기간'}</span></div><div class="sc-item"><span class="sc-item-l">시장</span><span class="sc-item-v">${f.시장}</span></div><div class="sc-item"><span class="sc-item-l">종가</span><span class="sc-item-v">${fN(f.종가)}원</span></div><div class="sc-item"><span class="sc-item-l">${ML}</span><span class="sc-item-v">${fN(f.ma)}원</span></div></div></div>`
   ).join('');
 
   const p1Sections = Object.keys(findingsAByDate).sort((a,b)=>b.localeCompare(a)).map(d=>dateSection(d, findingsAByDate[d])).join('');
@@ -962,42 +1007,29 @@ function generateAndSaveHTML({ period, universeSize, findingsA, findingsB, stock
     `<div class="stock-card"><div class="sc-head"><span class="sc-name">${esc(r.종목명)}</span><span class="sc-ratio ${rcCur(r.상승률)}">${rS(r.상승률)}</span></div><div class="sc-grid"><div class="sc-item"><span class="sc-item-l">시장</span><span class="sc-item-v">${r.시장}</span></div><div class="sc-item"><span class="sc-item-l">저점일</span><span class="sc-item-v">${fMD(r.bottomDate)}</span></div><div class="sc-item"><span class="sc-item-l">저점가</span><span class="sc-item-v">${fN(r.bottomPrice)}원</span></div><div class="sc-item"><span class="sc-item-l">최근가</span><span class="sc-item-v">${fN(r.latestPrice)}원</span></div></div></div>`
   ).join('');
 
-  const p4TouchRows = touchedStocks.map(r=>{
-    const ev=r.firstEvent, tr2=(ev.price/r.bottomPrice-1)*100;
-    const brStr=r.bottomRatio!=null?r.bottomRatio.toFixed(1)+'%':'─';
-    return `<tr><td class="l t-name">${esc(r.종목명)}</td><td class="c t-mkt">${r.시장}</td><td class="c">${fMD(r.bottomDate)}</td><td class="t-price">${fN(r.bottomPrice)}</td><td class="${rc(r.bottomRatio??0)}">${brStr}</td><td class="c"><span class="badge bdg-teal">${ev.type}</span></td><td class="c">${fMD(ev.date)}</td><td class="t-price">${fN(ev.price)}</td><td>${fN(ev.ma20)}</td><td class="t-pos">${rS(tr2)}</td></tr>`;
-  }).join('');
-  const p4TouchCards = touchedStocks.map(r=>{
-    const ev=r.firstEvent, tr2=(ev.price/r.bottomPrice-1)*100;
-    return `<div class="stock-card" style="border-top:3px solid var(--teal600)"><div class="sc-head"><span class="sc-name">${esc(r.종목명)}</span><span class="sc-ratio t-pos">${rS(tr2)}</span></div><div class="sc-grid"><div class="sc-item"><span class="sc-item-l">저점일</span><span class="sc-item-v">${fMD(r.bottomDate)}</span></div><div class="sc-item"><span class="sc-item-l">터치일</span><span class="sc-item-v">${fMD(ev.date)}</span></div><div class="sc-item"><span class="sc-item-l">저점가</span><span class="sc-item-v">${fN(r.bottomPrice)}원</span></div><div class="sc-item"><span class="sc-item-l">터치가</span><span class="sc-item-v">${fN(ev.price)}원</span></div><div class="sc-item"><span class="sc-item-l">저점괴리</span><span class="sc-item-v ${rc(r.bottomRatio??0)}">${r.bottomRatio!=null?r.bottomRatio.toFixed(1)+'%':'─'}</span></div><div class="sc-item"><span class="sc-item-l">터치유형</span><span class="sc-item-v" style="color:var(--teal600)">${ev.type}</span></div></div></div>`;
-  }).join('');
-  const p4MissRows = notTouched.map(r=>
-    `<tr><td class="l t-name">${esc(r.종목명)}</td><td class="c t-mkt">${r.시장}</td><td class="c">${fMD(r.bottomDate)}</td><td class="t-price">${fN(r.bottomPrice)}</td><td class="t-price">${fN(r.latestPrice)}</td><td class="${rc(r.상승률)}">${rS(r.상승률)}</td><td>${fN(r.currentMA20)}원</td><td class="${rc(r.currentRatio??0)}">${r.currentRatio!=null?r.currentRatio.toFixed(1)+'%':'─'}</td></tr>`
-  ).join('');
-  const p4MissCards = notTouched.map(r=>
-    `<div class="stock-card"${(r.currentRatio??0)<=-25?' style="border-top:3px solid var(--red)"':''}><div class="sc-head"><span class="sc-name">${esc(r.종목명)}</span><span class="sc-ratio ${rc(r.currentRatio??0)}">${r.currentRatio!=null?r.currentRatio.toFixed(1)+'%':'─'}</span></div><div class="sc-grid"><div class="sc-item"><span class="sc-item-l">저점가</span><span class="sc-item-v">${fN(r.bottomPrice)}원</span></div><div class="sc-item"><span class="sc-item-l">현재MA20</span><span class="sc-item-v">${fN(r.currentMA20)}원</span></div></div></div>`
-  ).join('');
-
-  // ── 2차 저항 데이터
   const secondTouched = touchedStocks.filter(r=>r.secondEvent);
   const waitingSecond = touchedStocks.filter(r=>!r.secondEvent);
 
+  const rsiCell = r => r.rsi9 != null ? `<span class="${r.rsiOversold?'t-neg-hi':'t-flat'}">${r.rsi9}</span>` : '─';
+  const signalBadge = r => r.comboBuy
+    ? `<span class="badge bdg-red">★복합매수</span>`
+    : r.rsiOversold ? `<span class="badge bdg-coral">RSI과매도</span>` : `<span class="badge bdg-blue">괴리율</span>`;
   const p4BuyRows = notTouched.map(r=>{
-    const t2=r.currentMA20?Math.round(r.currentMA20*1.2):null;
-    const to1=r.currentMA20&&r.latestPrice?(r.currentMA20/r.latestPrice-1)*100:null;
+    const t2=r.currentMA?Math.round(r.currentMA*1.2):null;
+    const to1=r.currentMA&&r.latestPrice?(r.currentMA/r.latestPrice-1)*100:null;
     const to2=t2&&r.latestPrice?(t2/r.latestPrice-1)*100:null;
-    return `<tr><td class="l t-name">${esc(r.종목명)}</td><td class="c t-mkt mob-hide">${r.시장}</td><td class="t-price">${fN(r.latestPrice)}</td><td class="${rc(r.currentRatio??0)}">${r.currentRatio!=null?r.currentRatio.toFixed(1)+'%':'─'}</td><td class="mob-hide">${fN(r.currentMA20)}원</td><td class="t-pos mob-hide">${to1!=null?'+'+to1.toFixed(1)+'%':'─'}</td><td class="mob-hide">${fN(t2)}원</td><td class="t-pos">${to2!=null?'+'+to2.toFixed(1)+'%':'─'}</td></tr>`;
+    return `<tr${r.comboBuy?' style="background:var(--red50)"':''}><td class="l t-name">${esc(r.종목명)}</td><td class="c t-mkt mob-hide">${r.시장}</td><td class="t-price">${fN(r.latestPrice)}</td><td class="${rc(r.currentRatio??0)}">${r.currentRatio!=null?r.currentRatio.toFixed(1)+'%':'─'}</td><td class="mob-hide">${rsiCell(r)}</td><td class="c">${signalBadge(r)}</td><td class="mob-hide">${fN(r.currentMA)}원</td><td class="t-pos mob-hide">${to1!=null?'+'+to1.toFixed(1)+'%':'─'}</td><td class="mob-hide">${fN(t2)}원</td><td class="t-pos">${to2!=null?'+'+to2.toFixed(1)+'%':'─'}</td></tr>`;
   }).join('');
   const p4BuyCards = notTouched.map(r=>{
-    const t2=r.currentMA20?Math.round(r.currentMA20*1.2):null;
-    const to1=r.currentMA20&&r.latestPrice?(r.currentMA20/r.latestPrice-1)*100:null;
+    const t2=r.currentMA?Math.round(r.currentMA*1.2):null;
+    const to1=r.currentMA&&r.latestPrice?(r.currentMA/r.latestPrice-1)*100:null;
     const to2=t2&&r.latestPrice?(t2/r.latestPrice-1)*100:null;
-    return `<div class="stock-card"><div class="sc-head"><span class="sc-name">${esc(r.종목명)}</span><span class="sc-ratio ${rc(r.currentRatio??0)}">${r.currentRatio!=null?r.currentRatio.toFixed(1)+'%':'─'}</span></div><div class="sc-grid"><div class="sc-item"><span class="sc-item-l">현재가</span><span class="sc-item-v">${fN(r.latestPrice)}원</span></div><div class="sc-item"><span class="sc-item-l">시장</span><span class="sc-item-v">${r.시장}</span></div><div class="sc-item"><span class="sc-item-l">1차목표(MA20)</span><span class="sc-item-v">${fN(r.currentMA20)}원</span></div><div class="sc-item"><span class="sc-item-l">1차 수익률</span><span class="sc-item-v t-pos">${to1!=null?'+'+to1.toFixed(1)+'%':'─'}</span></div><div class="sc-item"><span class="sc-item-l">2차목표(+20%)</span><span class="sc-item-v">${fN(t2)}원</span></div><div class="sc-item"><span class="sc-item-l">2차 수익률</span><span class="sc-item-v t-pos">${to2!=null?'+'+to2.toFixed(1)+'%':'─'}</span></div></div></div>`;
+    return `<div class="stock-card" style="border-top:3px solid ${r.comboBuy?'var(--red)':'var(--sky)'}"><div class="sc-head"><span class="sc-name">${esc(r.종목명)}</span><span class="sc-ratio ${rc(r.currentRatio??0)}">${r.currentRatio!=null?r.currentRatio.toFixed(1)+'%':'─'}</span></div><div class="sc-grid"><div class="sc-item"><span class="sc-item-l">현재가</span><span class="sc-item-v">${fN(r.latestPrice)}원</span></div><div class="sc-item"><span class="sc-item-l">시장</span><span class="sc-item-v">${r.시장}</span></div><div class="sc-item"><span class="sc-item-l">RSI(9)</span><span class="sc-item-v">${rsiCell(r)}</span></div><div class="sc-item sc-full"><span class="sc-item-l">매수신호</span><span class="sc-item-v">${signalBadge(r)}</span></div><div class="sc-item"><span class="sc-item-l">1차목표(${ML})</span><span class="sc-item-v">${fN(r.currentMA)}원</span></div><div class="sc-item"><span class="sc-item-l">1차 수익률</span><span class="sc-item-v t-pos">${to1!=null?'+'+to1.toFixed(1)+'%':'─'}</span></div><div class="sc-item"><span class="sc-item-l">2차목표(+20%)</span><span class="sc-item-v">${fN(t2)}원</span></div><div class="sc-item"><span class="sc-item-l">2차 수익률</span><span class="sc-item-v t-pos">${to2!=null?'+'+to2.toFixed(1)+'%':'─'}</span></div></div></div>`;
   }).join('');
 
   const p4TgtRows = touchedStocks.map(r=>{
     const ev=r.firstEvent, tr1=(ev.price/r.bottomPrice-1)*100;
-    const t2now=r.currentMA20?Math.round(r.currentMA20*1.2):null;
+    const t2now=r.currentMA?Math.round(r.currentMA*1.2):null;
     const to2=t2now&&r.latestPrice?(t2now/r.latestPrice-1)*100:null;
     const s2=r.secondEvent;
     const s2str=s2?`<span class="badge bdg-purple">${s2.type} ${fMD(s2.date)}</span>`:`<span class="badge bdg-gray">대기중</span>`;
@@ -1005,10 +1037,10 @@ function generateAndSaveHTML({ period, universeSize, findingsA, findingsB, stock
   }).join('');
   const p4TgtCards = touchedStocks.map(r=>{
     const ev=r.firstEvent, tr1=(ev.price/r.bottomPrice-1)*100;
-    const t2now=r.currentMA20?Math.round(r.currentMA20*1.2):null;
+    const t2now=r.currentMA?Math.round(r.currentMA*1.2):null;
     const to2=t2now&&r.latestPrice?(t2now/r.latestPrice-1)*100:null;
     const s2=r.secondEvent;
-    return `<div class="stock-card" style="border-top:3px solid ${s2?'var(--purple)':'var(--teal600)'}"><div class="sc-head"><span class="sc-name">${esc(r.종목명)}</span><span class="sc-ratio t-pos">+${tr1.toFixed(1)}%</span></div><div class="sc-grid"><div class="sc-item"><span class="sc-item-l">1차달성일</span><span class="sc-item-v">${fMD(ev.date)}</span></div><div class="sc-item"><span class="sc-item-l">1차 상승폭</span><span class="sc-item-v t-pos">+${tr1.toFixed(1)}%</span></div><div class="sc-item"><span class="sc-item-l">현재가</span><span class="sc-item-v">${fN(r.latestPrice)}원</span></div><div class="sc-item"><span class="sc-item-l">현재MA20 괴리</span><span class="sc-item-v ${rc(r.currentRatio??0)}">${r.currentRatio!=null?r.currentRatio.toFixed(1)+'%':'─'}</span></div><div class="sc-item"><span class="sc-item-l">2차목표(+20%)</span><span class="sc-item-v">${fN(t2now)}원</span></div><div class="sc-item"><span class="sc-item-l">2차 여부</span><span class="sc-item-v" style="color:${s2?'var(--purple)':'var(--txt2)'}">${s2?s2.type+' '+fMD(s2.date):'대기중'}</span></div></div></div>`;
+    return `<div class="stock-card" style="border-top:3px solid ${s2?'var(--purple)':'var(--teal600)'}"><div class="sc-head"><span class="sc-name">${esc(r.종목명)}</span><span class="sc-ratio t-pos">+${tr1.toFixed(1)}%</span></div><div class="sc-grid"><div class="sc-item"><span class="sc-item-l">1차달성일</span><span class="sc-item-v">${fMD(ev.date)}</span></div><div class="sc-item"><span class="sc-item-l">1차 상승폭</span><span class="sc-item-v t-pos">+${tr1.toFixed(1)}%</span></div><div class="sc-item"><span class="sc-item-l">현재가</span><span class="sc-item-v">${fN(r.latestPrice)}원</span></div><div class="sc-item"><span class="sc-item-l">현재${ML} 괴리</span><span class="sc-item-v ${rc(r.currentRatio??0)}">${r.currentRatio!=null?r.currentRatio.toFixed(1)+'%':'─'}</span></div><div class="sc-item"><span class="sc-item-l">2차목표(+20%)</span><span class="sc-item-v">${fN(t2now)}원</span></div><div class="sc-item"><span class="sc-item-l">2차 여부</span><span class="sc-item-v" style="color:${s2?'var(--purple)':'var(--txt2)'}">${s2?s2.type+' '+fMD(s2.date):'대기중'}</span></div></div></div>`;
   }).join('');
 
   const p4SecRows = secondTouched.map(r=>{
@@ -1022,7 +1054,7 @@ function generateAndSaveHTML({ period, universeSize, findingsA, findingsB, stock
     return `<div class="stock-card" style="border-top:3px solid var(--purple)"><div class="sc-head"><span class="sc-name">${esc(r.종목명)}</span><span class="sc-ratio t-pos">+${tr2.toFixed(1)}%</span></div><div class="sc-grid"><div class="sc-item"><span class="sc-item-l">저점대비</span><span class="sc-item-v t-pos">+${tr1.toFixed(1)}%(1차)</span></div><div class="sc-item"><span class="sc-item-l">2차달성일</span><span class="sc-item-v" style="color:var(--purple)">${fMD(ev2.date)}</span></div><div class="sc-item"><span class="sc-item-l">2차달성가</span><span class="sc-item-v">${fN(ev2.price)}원</span></div><div class="sc-item"><span class="sc-item-l">2차저항</span><span class="sc-item-v">${fN(ev2.target2)}원</span></div></div></div>`;
   }).join('');
 
-  // ── AI 인사이트 계산
+  // ── AI 인사이트
   const _cr  = latestFindingsB.map(f=>f.ratio);
   const _avgCr = _cr.length ? _cr.reduce((s,v)=>s+v,0)/_cr.length : null;
   const _worst = latestFindingsB[0]??null;
@@ -1043,17 +1075,17 @@ function generateAndSaveHTML({ period, universeSize, findingsA, findingsB, stock
   const aiCard0 = `<div class="ai-sc">${_aiHdr('AI 분석 인사이트')}<div class="ai-list">${[
     _cr.length
       ? _ai('red', `<b>이탈 강도</b> — ${latestFindingsB.length}종목 이탈 중, 평균 괴리율 <span class="hi">${_avgCr.toFixed(1)}%</span>${_worst ? ` · 최심각: <b>${esc(_worst.종목명)}</b> (<span class="hi">${_worst.ratio.toFixed(1)}%</span>)` : ''}`)
-      : _ai('teal', '최근거래일 기준 MA20 이탈 종목 없음 — 안정적 상태'),
+      : _ai('teal', `최근거래일 기준 ${ML} 이탈 종목 없음 — 안정적 상태`),
     _cr.length ? _ai('sky', `<b>시장 분포</b> — KOSPI <b>${_kospiN}</b> / KOSDAQ <b>${_kosdaqN}</b>종목 이탈${_kospiN > _kosdaqN ? ' · KOSPI 집중 양상' : _kosdaqN > _kospiN ? ' · KOSDAQ 집중 양상' : ' · 균등 분포'}`) : null,
     recoveries.length ? _ai('teal', `<b>반등 현황</b> — 추적 ${recoveries.length}종목 중 <b>${_recOk.length}</b>종목(${_recPct}%) +10%↑ 성공${_bestRec ? ` · 선두: <b>${esc(_bestRec.종목명)}</b> <span class="ok">${rS(_bestRec.상승률)}</span>` : ''}`) : null,
-    (touchedStocks.length || notTouched.length) ? _ai('amber', `<b>MA20 회복</b> — 돌파 완료 <b>${touchedStocks.length}</b>종목${_avgTG ? ` (평균 <span class="ok">+${_avgTG}%</span>)` : ''} · 미돌파 <b>${notTouched.length}</b>종목 진행 중${_nearMA.length ? ` · 근접 후보: ${_nearMA.map(r=>`<b>${esc(r.종목명)}</b>`).join(', ')}` : ''}`) : null,
+    (touchedStocks.length || notTouched.length) ? _ai('amber', `<b>${ML} 회복</b> — 돌파 완료 <b>${touchedStocks.length}</b>종목${_avgTG ? ` (평균 <span class="ok">+${_avgTG}%</span>)` : ''} · 미돌파 <b>${notTouched.length}</b>종목 진행 중${_nearMA.length ? ` · 근접 후보: ${_nearMA.map(r=>`<b>${esc(r.종목명)}</b>`).join(', ')}` : ''}`) : null,
     _persistS.length ? _ai('purple', `<b>지속 이탈 경고</b> — 5일↑ 연속 이탈: ${_persistS.map(([nm,s])=>`<b>${esc(nm)}</b>(${s.건수}일)`).join(' · ')} · 단기 반등보다 구조적 약세 원인 점검 권장`) : null,
   ].filter(Boolean).join('')}</div></div>`;
 
   const aiCard3 = (() => {
     const items = [
       _recOk.length ? _ai('teal', `<b>반등 성공</b>(+10%↑) <b>${_recOk.length}</b>종목${_recAvg ? ` · 평균 <span class="ok">+${_recAvg}%</span>` : ''} · 최고: <b>${esc(_recOk[0].종목명)}</b> <span class="ok">${rS(_recOk[0].상승률)}</span>`) : null,
-      nearBottom.length ? _ai('amber', `<b>소폭 반등</b>(0~10%) <b>${nearBottom.length}</b>종목 · MA20 재터치 여부가 단기 방향성 분기점`) : null,
+      nearBottom.length ? _ai('amber', `<b>소폭 반등</b>(0~10%) <b>${nearBottom.length}</b>종목 · ${ML} 재터치 여부가 단기 방향성 분기점`) : null,
       _worstRec && _worstRec.상승률 < 0 ? _ai('red', `<b>추가 하락 주의</b> · 낙폭 최대: <b>${esc(_worstRec.종목명)}</b> <span class="hi">${rS(_worstRec.상승률)}</span> · 저점 재탐색 가능성 유의`) : null,
     ].filter(Boolean).join('');
     return items ? `<div class="ai-sc">${_aiHdr('저점 패턴 분석')}<div class="ai-list">${items}</div></div>` : '';
@@ -1061,18 +1093,157 @@ function generateAndSaveHTML({ period, universeSize, findingsA, findingsB, stock
 
   const aiCard4 = (() => {
     const deepDown = notTouched.filter(r=>(r.currentRatio??0)<-25);
-    const maxUpside = notTouched.filter(r=>r.currentMA20&&r.latestPrice).map(r=>(r.currentMA20*1.2/r.latestPrice-1)*100);
+    const maxUpside = notTouched.filter(r=>r.currentMA&&r.latestPrice).map(r=>(r.currentMA*1.2/r.latestPrice-1)*100);
     const avgUpside = maxUpside.length ? (maxUpside.reduce((a,b)=>a+b,0)/maxUpside.length).toFixed(1) : null;
-    const topUpside = notTouched.filter(r=>r.currentMA20&&r.latestPrice).sort((a,b)=>(b.currentMA20*1.2/b.latestPrice)-(a.currentMA20*1.2/a.latestPrice))[0]??null;
     const items = [
-      notTouched.length ? _ai('blue', `<b>매수구간</b> <b>${notTouched.length}</b>종목 대기 중 · 2차 목표(MA20+20%) 평균 잠재수익 <span class="ok">${avgUpside?'+'+avgUpside+'%':'─'}</span>`) : null,
-      touchedStocks.length ? _ai('teal', `<b>1차 저항 달성</b> <b>${touchedStocks.length}</b>종목 · 저점 대비 평균 <span class="ok">${_avgTG?'+'+_avgTG+'%':'─'}</span> 상승 후 MA20 터치 완료`) : null,
+      comboZone.length ? _ai('red', `<b>★복합매수(괴리율+RSI) ${comboZone.length}종목</b> — <b>${comboZone.map(r=>esc(r.종목명)).join(', ')}</b> ${ML} −20% 이하 + RSI(9) ≤30 동시 충족 · 매수구간 중 최우선 후보`) : null,
+      notTouched.length ? _ai('blue', `<b>매수구간</b> <b>${notTouched.length}</b>종목 대기 중 · 2차 목표(${ML}+20%) 평균 잠재수익 <span class="ok">${avgUpside?'+'+avgUpside+'%':'─'}</span>`) : null,
+      rsiZone.length ? _ai('coral', `<b>RSI 과매도</b> <b>${rsiZone.length}</b>종목 · RSI(9) ≤30 · ${ML} 괴리율과 별개의 단기 반등 후보`) : null,
+      touchedStocks.length ? _ai('teal', `<b>1차 저항 달성</b> <b>${touchedStocks.length}</b>종목 · 저점 대비 평균 <span class="ok">${_avgTG?'+'+_avgTG+'%':'─'}</span> 상승 후 ${ML} 터치 완료`) : null,
       waitingSecond.length ? _ai('amber', `<b>2차 저항 대기</b> <b>${waitingSecond.length}</b>종목 진행 중 · ${_nearMA.length?`2차 목표까지 상위: ${_nearMA.map(r=>`<b>${esc(r.종목명)}</b>`).join(', ')}`:''}`) : null,
       secondTouched.length ? _ai('purple', `<b>2차 저항 달성</b> <b>${secondTouched.length}</b>종목 · 엔벨로프 최종 목표가 도달 완료`) : null,
-      deepDown.length ? _ai('red', `<b>심층 이탈 주의</b> · 현재괴리 -25% 이하 <b>${deepDown.length}</b>종목 · MA20 1차 회복까지 장기 추적 필요`) : null,
+      deepDown.length ? _ai('red', `<b>심층 이탈 주의</b> · 현재괴리 -25% 이하 <b>${deepDown.length}</b>종목 · ${ML} 1차 회복까지 장기 추적 필요`) : null,
     ].filter(Boolean).join('');
     return items ? `<div class="ai-sc">${_aiHdr('엔벨로프 전략 진행 현황')}<div class="ai-list">${items}</div></div>` : '';
   })();
+
+  const touchSummary = touchedStocks.length
+    ? touchedStocks.map(r=>{const ev=r.firstEvent,tr2=(ev.price/r.bottomPrice-1)*100;return `<div class="summary-line"><b>${esc(r.종목명)}</b> — ${fMD(r.bottomDate)} 저점(${fN(r.bottomPrice)}원, <span class="hi">${rS(r.bottomRatio??0)}</span>) → ${fMD(ev.date)} ${ev.type}(${fN(ev.price)}원) <span class="ok">${rS(tr2)}</span></div>`;}).join('')
+    : '<div class="summary-line">(없음)</div>';
+
+  const navHtml = `
+  <button class="tab-btn on" data-tab="0">요약</button>
+  <button class="tab-btn" data-tab="1">당일<span class="tab-badge">${findingsA.length}건</span></button>
+  <button class="tab-btn" data-tab="2">기간<span class="tab-badge">${findingsB.length}건</span></button>
+  <button class="tab-btn" data-tab="3">저점분석</button>
+  <button class="tab-btn" data-tab="4">지지,저항</button>`;
+
+  const panelsHtml = `
+<div class="panel on" id="p0-${sfx}">
+  <div class="kpi-row">
+    <div class="kpi-card kpi-sky"><div class="num">${uB}</div><div class="lbl">이탈종목</div></div>
+    <div class="kpi-card kpi-amber"><div class="num">${findingsB.length}</div><div class="lbl">기간이탈</div></div>
+    <div class="kpi-card kpi-coral"><div class="num">${findingsA.length}</div><div class="lbl">당일이탈</div></div>
+    <div class="kpi-card kpi-teal"><div class="num">${touchedStocks.length}</div><div class="lbl">1차달성</div></div>
+    <div class="kpi-card kpi-red"><div class="num">${notTouched.length}</div><div class="lbl">미돌파</div></div>
+  </div>
+  <div class="sc">
+    <div class="sc-title">${latestFmt} 핵심 현황<span class="badge bdg-red">최근거래일</span></div>
+    ${latestFindingsB.length ? `<div class="tbl-wrap stock-cards-target"><table><thead><tr><th class="c">구분</th><th class="l">종목명</th><th class="c mob-hide">시장</th><th>종가</th><th class="mob-hide">${ML}</th><th>괴리율</th><th class="c mob-hide">비고</th></tr></thead><tbody>${p0Rows}</tbody></table></div><div class="stock-cards">${p0Cards}</div>` : '<div class="empty"><div class="msg">해당 없음</div></div>'}
+  </div>
+  <div class="sc">
+    <div class="sc-title">${ML} 지지·저항 요약</div>
+    ${touchedStocks.length ? `<div class="touch-banner"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>터치/돌파 완료 ${touchedStocks.length}종목</div>` : ''}
+    ${notTouched.length ? `<div class="miss-banner"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>미돌파 ${notTouched.length}종목</div>` : ''}
+    <div class="summary-sc">${touchSummary}</div>
+  </div>
+  ${aiCard0}
+</div>
+
+<div class="panel" id="p1-${sfx}">
+  <div class="kpi-row">
+    <div class="kpi-card kpi-coral"><div class="num">${findingsA.length}</div><div class="lbl">총 건수</div></div>
+    <div class="kpi-card kpi-sky"><div class="num">${uA}</div><div class="lbl">해당종목</div></div>
+    <div class="kpi-card kpi-amber"><div class="num">${Object.keys(findingsAByDate).length}</div><div class="lbl">해당일수</div></div>
+  </div>
+  <div class="sc">
+    <div class="sc-title">【당일】 당일 TOP10 × ${ML} -20% 이하<span class="badge bdg-coral">${pd} · ${findingsA.length}건</span></div>
+    <div class="sc-note">해당일 거래대금 TOP10 종목 중 ${ML} 대비 -20% 이하 이탈 종목. 순위는 해당일 거래대금 기준.</div>
+    ${p1Sections || '<div class="empty"><div class="msg">해당 없음</div></div>'}
+  </div>
+  <div class="sc">
+    <div class="sc-title">종목별 요약</div>
+    <div class="tbl-wrap stock-cards-target"><table><thead><tr><th class="l">종목명</th><th class="c mob-hide">시장</th><th>이탈일수</th><th>최대괴리율</th><th class="mob-hide">이탈일</th></tr></thead><tbody>${p1SumRows}</tbody></table></div><div class="stock-cards">${p1SumCards}</div>
+  </div>
+</div>
+
+<div class="panel" id="p2-${sfx}">
+  <div class="kpi-row">
+    <div class="kpi-card kpi-amber"><div class="num">${findingsB.length}</div><div class="lbl">총 건수</div></div>
+    <div class="kpi-card kpi-sky"><div class="num">${uB}</div><div class="lbl">해당종목</div></div>
+    <div class="kpi-card kpi-coral"><div class="num">${latestFindingsB.length}</div><div class="lbl">최근일 해당</div></div>
+  </div>
+  <div class="sc">
+    <div class="sc-title">최근거래일(${latestFmt}) 해당 종목<span class="badge bdg-red">${latestFindingsB.length}종목</span></div>
+    <div class="sc-note">유니버스 ${universeSize}종목 중 최근 거래일 ${ML} -20% 이하. 순위는 전체 거래대금 기준.</div>
+    ${p2LatestSection}
+  </div>
+  <div class="sc">
+    <div class="sc-title">종목별 요약 (${uB}종목)<span class="sub">· 현재괴리 = 최근가 기준 ${ML} 대비</span></div>
+    <div class="tbl-wrap stock-cards-target"><table><thead><tr><th class="l">종목명</th><th class="c mob-hide">시장</th><th>이탈일수</th><th>최대괴리율</th><th>현재괴리율</th><th class="mob-hide">이탈일</th></tr></thead><tbody>${p2SumRows}</tbody></table></div><div class="stock-cards">${p2SumCards}</div>
+  </div>
+</div>
+
+<div class="panel" id="p3-${sfx}">
+  <div class="kpi-row">
+    <div class="kpi-card kpi-teal"><div class="num">${recovered.length}</div><div class="lbl">+10% 이상</div></div>
+    <div class="kpi-card kpi-amber"><div class="num">${nearBottom.length}</div><div class="lbl">소폭 반등</div></div>
+    <div class="kpi-card kpi-red"><div class="num">${stillDown.length}</div><div class="lbl">추가 하락</div></div>
+  </div>
+  <div class="sc">
+    <div class="sc-title">【저점 대비 현재 상승률】<span class="badge bdg-sky">${uB}종목</span></div>
+    <div class="sc-note">저점 = 방식B 첫 이탈일~최근일 중 실제 최저 종가일. 최근가 = ${latestFmt} 종가.</div>
+    <div class="tbl-wrap stock-cards-target"><table><thead><tr><th class="l">종목명</th><th class="c mob-hide">시장</th><th>저점일</th><th class="mob-hide">저점가</th><th>최근가</th><th>저점대비</th></tr></thead><tbody>${p3Rows}</tbody></table></div><div class="stock-cards">${p3Cards}</div>
+  </div>
+  <div class="sc">
+    <div class="sc-title">저점 분류</div>
+    <div class="summary-sc">
+      <div class="summary-line"><span class="ok">✔ +10% 이상 반등</span>: ${recovered.length ? recovered.map(r=>esc(r.종목명)).join(', ') : '없음'}</div>
+      <div class="summary-line"><span style="color:var(--amber);font-weight:700">▲ 소폭 반등(0~+10%)</span>: ${nearBottom.length ? nearBottom.map(r=>esc(r.종목명)).join(', ') : '없음'}</div>
+      <div class="summary-line"><span class="hi">▼ 추가 하락</span>: ${stillDown.length ? stillDown.map(r=>esc(r.종목명)).join(', ') : '없음'}</div>
+    </div>
+  </div>
+  ${aiCard3}
+</div>
+
+<div class="panel" id="p4-${sfx}">
+  <div class="kpi-row">
+    <div class="kpi-card kpi-blue"><div class="num">${notTouched.length}</div><div class="lbl">매수구간</div></div>
+    <div class="kpi-card kpi-red"><div class="num">${comboZone.length}</div><div class="lbl">★복합매수</div></div>
+    <div class="kpi-card kpi-teal"><div class="num">${touchedStocks.length}</div><div class="lbl">1차달성</div></div>
+    <div class="kpi-card kpi-purple"><div class="num">${secondTouched.length}</div><div class="lbl">2차달성</div></div>
+  </div>
+  <div class="sc">
+    <div class="sc-title">엔벨로프 전략 개요<span class="badge bdg-sky">${ML} 기준</span></div>
+    <div class="env-overview">
+      <div class="env-zone env-buy"><div class="env-zone-label">매수구간</div><div class="env-zone-val">${ML} −20% 이하</div></div>
+      <div class="env-arrow">→</div>
+      <div class="env-zone env-r1"><div class="env-zone-label">1차 저항</div><div class="env-zone-val">${ML} (0%)</div></div>
+      <div class="env-arrow">→</div>
+      <div class="env-zone env-r2"><div class="env-zone-label">2차 저항 / 목표가</div><div class="env-zone-val">${ML} +20%</div></div>
+    </div>
+    <div class="sc-note" style="margin-top:10px">▪ 종가돌파 = 종가 ≥ 저항선 (강한 신호) &nbsp;▪ 고가터치 = 장중 고가 ≥ 저항선 &nbsp;▪ 2차목표 = 해당일 ${ML} × 1.2 기준 &nbsp;▪ RSI(9) ≤30 = 과매도 보조 매수신호 &nbsp;▪ ★복합매수 = 매수구간 + RSI과매도 동시충족</div>
+  </div>
+  <div class="sc">
+    <div class="sc-title">【매수구간 현황】 1차/2차 목표 시나리오<span class="badge bdg-blue">${notTouched.length}종목</span>${comboZone.length?`<span class="badge bdg-red">★복합매수 ${comboZone.length}</span>`:''}</div>
+    <div class="sc-note">현재 ${ML} −20% 이하 이탈 상태 종목. 1차 목표(${ML}) 및 2차 목표(${ML}+20%) 달성 시 예상 수익률. RSI(9) ≤30(과매도) 동시충족 시 ★복합매수로 최우선 표시.</div>
+    ${notTouched.length ? `<div class="tbl-wrap stock-cards-target"><table><thead><tr><th class="l">종목명</th><th class="c mob-hide">시장</th><th>현재가</th><th>현재괴리</th><th class="mob-hide">RSI(9)</th><th class="c">매수신호</th><th class="mob-hide">1차목표(${ML})</th><th class="mob-hide">1차 수익률</th><th class="mob-hide">2차목표(+20%)</th><th>2차 수익률</th></tr></thead><tbody>${p4BuyRows}</tbody></table></div><div class="stock-cards">${p4BuyCards}</div>` : '<div class="empty"><div class="msg">없음</div></div>'}
+  </div>
+  <div class="sc">
+    <div class="sc-title">【1차 저항 달성 → 2차 저항 진행】<span class="badge bdg-teal">${touchedStocks.length}종목</span></div>
+    <div class="sc-note">▪ 1차 저항(${ML}) 달성 후 2차 저항(${ML}+20%) 추적. ▪ 2차 목표가 = 현재 ${ML} × 1.2 기준.</div>
+    ${touchedStocks.length ? `<div class="tbl-wrap stock-cards-target"><table><thead><tr><th class="l">종목명</th><th class="c mob-hide">시장</th><th>저점일</th><th>1차상승폭</th><th>현재가</th><th class="mob-hide">현재${ML}괴리</th><th class="mob-hide">2차목표</th><th class="mob-hide">2차까지</th><th class="c">2차 현황</th></tr></thead><tbody>${p4TgtRows}</tbody></table></div><div class="stock-cards">${p4TgtCards}</div>` : '<div class="empty"><div class="msg">없음</div></div>'}
+  </div>
+  ${secondTouched.length ? `<div class="sc"><div class="sc-title">【2차 저항 달성 완료】<span class="badge bdg-purple">${secondTouched.length}종목</span></div><div class="sc-note">저점→1차→2차 전체 엔벨로프 목표가 도달 완료 종목.</div><div class="tbl-wrap stock-cards-target"><table><thead><tr><th class="l">종목명</th><th class="c mob-hide">시장</th><th>저점일</th><th class="mob-hide">저점가</th><th>1차 상승폭</th><th>2차달성일</th><th>2차달성가</th><th>저점대비</th></tr></thead><tbody>${p4SecRows}</tbody></table></div><div class="stock-cards">${p4SecCards}</div></div>` : ''}
+  ${aiCard4}
+</div>`;
+
+  return { navHtml, panelsHtml };
+}
+
+// ─── HTML 리포트 생성 (25일선 단일 지표) ─────────────────────────────────
+function generateAndSaveHTML({ period, universeSize, periodResults, latestDate }) {
+  const now = new Date(Date.now() + 9*3600*1000);
+  const p2  = n => String(n).padStart(2,'0');
+  const ts  = `${now.getUTCFullYear()}${p2(now.getUTCMonth()+1)}${p2(now.getUTCDate())}${p2(now.getUTCHours())}${p2(now.getUTCMinutes())}`;
+  const { start, end, pd } = period;
+  const latestFmt = fmtDate(latestDate);
+
+  const shared = { latestDate, latestFmt, pd };
+  const sections = periodResults.map(pr => ({ period: pr.period, ...buildAnalysisSection(pr, shared) }));
+
+  const navBlocks   = sections.map(s=>`<nav class="top-nav" id="nav-${s.period}">${s.navHtml}</nav>`).join('');
+  const panelBlocks = sections.map(s=>`<div class="mode-panels" id="mode-${s.period}">${s.panelsHtml}</div>`).join('');
 
   // ── CSS
   const CSS = `:root{
@@ -1085,7 +1256,7 @@ function generateAndSaveHTML({ period, universeSize, findingsA, findingsB, stock
   --red:#D8302F;--red50:#FBE9E8;--blue:#2563C9;--blue50:#E7EFFB;
   --gray50:#F1EFE8;--gray600:#5F5E5A;
   --bg:#F5F8FF;--card:#FFFFFF;--border:#E0EAF5;--border2:#EBF3FF;
-  --txt:#1A2535;--txt2:#3D4F68;--txt3:#6B7E99;
+  --txt:#1A2535;--txt2:#3D4F68;--txt3:#6B7E99;--hdrbg:#0C447C;
   --r8:8px;--r12:12px;--r16:16px;--r20:20px;
   --shadow:0 2px 12px rgba(55,138,221,.08);--shadow-h:0 6px 24px rgba(55,138,221,.15);
 }
@@ -1093,7 +1264,7 @@ function generateAndSaveHTML({ period, universeSize, findingsA, findingsB, stock
 body{font-family:'Pretendard',-apple-system,'Apple SD Gothic Neo',sans-serif;font-size:15px;line-height:1.6;word-break:keep-all;color:var(--txt);background:var(--bg);-webkit-font-smoothing:antialiased}
 .wrap{max-width:1100px;margin:0 auto;min-height:100dvh}
 .hdr-wrap{position:fixed;top:0;left:0;right:0;z-index:50;box-shadow:0 2px 12px rgba(12,68,124,.18);user-select:none;-webkit-user-select:none}
-.header{background:var(--sky800);padding:max(12px,env(safe-area-inset-top)) 16px 12px;display:flex;align-items:center;justify-content:space-between;max-width:1100px;margin:0 auto}
+.header{background:var(--hdrbg);padding:max(12px,env(safe-area-inset-top)) 16px 12px;display:flex;align-items:center;justify-content:space-between;max-width:1100px;margin:0 auto}
 .header-left{display:flex;align-items:center;gap:10px;flex:1;min-width:0;overflow:hidden}
 .logo-mark{width:38px;height:38px;background:rgba(255,255,255,.15);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .logo-mark svg{display:block}
@@ -1103,7 +1274,7 @@ body{font-family:'Pretendard',-apple-system,'Apple SD Gothic Neo',sans-serif;fon
 .header-right{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0;margin-left:10px}
 .hdr-date{font-size:12.5px;font-weight:700;color:#fff;white-space:nowrap}
 .hdr-meta{font-size:11px;color:rgba(255,255,255,.88);white-space:nowrap}
-.nav-spacer{height:calc(104px + env(safe-area-inset-top,0px))}
+.nav-spacer{height:calc(98px + env(safe-area-inset-top,0px))}
 .top-nav{background:#fff;border-bottom:1.5px solid var(--border);display:flex;padding:0 4px;max-width:1100px;margin:0 auto;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;overscroll-behavior-x:contain}
 .top-nav::-webkit-scrollbar{display:none}
 .tab-btn{flex:1;flex-shrink:0;min-width:64px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;color:var(--txt);font-size:13.5px;font-weight:700;font-family:inherit;cursor:pointer;padding:13px 6px;-webkit-tap-highlight-color:transparent;touch-action:manipulation;transition:color .15s;position:relative;white-space:nowrap;pointer-events:auto;user-select:none;-webkit-user-select:none}
@@ -1151,7 +1322,7 @@ body{font-family:'Pretendard',-apple-system,'Apple SD Gothic Neo',sans-serif;fon
 .date-hdr:first-child{margin-top:0}
 .date-hdr .date-lbl{font-size:14px;font-weight:800;color:var(--sky800)}
 .date-hdr .date-tag{font-size:11.5px;font-weight:700;padding:2px 9px;border-radius:9px;background:var(--sky50);color:var(--sky600)}
-.date-hdr .date-tag.today{background:var(--sky800);color:#fff}
+.date-hdr .date-tag.today{background:var(--hdrbg);color:#fff}
 .tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:var(--r8);overscroll-behavior-x:contain}
 table{min-width:100%;border-collapse:collapse;font-size:13.5px}
 thead th{background:var(--sky50);color:var(--sky800);font-weight:800;font-size:12.5px;padding:9px 8px;text-align:right;white-space:nowrap}
@@ -1184,22 +1355,17 @@ tbody tr:hover{background:var(--sky50)}
 .empty .msg{font-size:14px;font-weight:700;color:var(--txt2)}
 .footer{margin-top:20px;font-size:12px;color:var(--txt2);text-align:center;padding:12px 0 24px;border-top:1px solid var(--border)}
 @media(max-width:374px){.logo-sub{display:none}.tab-btn{font-size:12px;padding:11px 2px;min-width:52px}.tab-badge{display:none}.kpi-card{min-width:60px;padding:8px 4px}.kpi-card .num{font-size:16px}.kpi-card .lbl{font-size:11px}}
-@media(max-width:600px){.nav-spacer{height:calc(108px + env(safe-area-inset-top,0px))}.main{padding:0 10px max(20px,env(safe-area-inset-bottom))}.sc{padding:12px 12px}.sc-title{font-size:14px;gap:5px}.kpi-row{gap:6px;padding-top:8px;margin-bottom:12px}.kpi-card{min-width:64px;padding:9px 6px}.kpi-card .num{font-size:19px}.kpi-card .lbl{font-size:12.5px;margin-top:3px}.tab-btn{font-size:13px;padding:12px 4px}table{font-size:12.5px}thead th,tbody td{padding:8px 5px}.t-name{font-size:13.5px}.stock-cards{display:block}.stock-cards-target{display:none}.mob-hide{display:none!important}}
-@media(min-width:601px) and (max-width:900px){.kpi-card .num{font-size:20px}}
-@media(min-width:769px){.nav-spacer{height:calc(106px + env(safe-area-inset-top,0px))}.main{padding:0 20px max(20px,env(safe-area-inset-bottom))}.sc{padding:18px 20px}.sc-title{font-size:15px;margin-bottom:14px}.kpi-card{padding:13px 16px}.kpi-card .num{font-size:22px}.kpi-card .lbl{font-size:13px;margin-top:5px}table{font-size:14px}thead th{font-size:13px}thead th,tbody td{padding:10px 9px}.tab-btn{font-size:14px}}
-@media(min-width:1024px){.kpi-row{gap:12px}.kpi-card .num{font-size:24px}}.ai-sc{background:linear-gradient(135deg,var(--sky50) 0%,var(--card) 100%);border:1px solid var(--sky100);border-left:4px solid var(--sky);border-radius:var(--r12);padding:16px;margin-bottom:14px;box-shadow:var(--shadow)}.ai-title{font-size:14.5px;font-weight:800;color:var(--sky800);margin-bottom:12px;display:flex;align-items:center;gap:8px}.ai-badge{margin-left:auto}.ai-list{display:flex;flex-direction:column;gap:7px}.ai-item{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--txt);line-height:1.55}.ai-dot{flex-shrink:0;width:6px;height:6px;border-radius:50%;margin-top:8px}.ai-dot-red{background:var(--red)}.ai-dot-teal{background:var(--teal)}.ai-dot-sky{background:var(--sky)}.ai-dot-amber{background:var(--amber)}.ai-dot-purple{background:var(--purple)}`;
-
-  // ── HTML 조립
-  const touchSummary = touchedStocks.length
-    ? touchedStocks.map(r=>{const ev=r.firstEvent,tr2=(ev.price/r.bottomPrice-1)*100;return `<div class="summary-line"><b>${esc(r.종목명)}</b> — ${fMD(r.bottomDate)} 저점(${fN(r.bottomPrice)}원, <span class="hi">${rS(r.bottomRatio??0)}</span>) → ${fMD(ev.date)} ${ev.type}(${fN(ev.price)}원) <span class="ok">${rS(tr2)}</span></div>`;}).join('')
-    : '<div class="summary-line">(없음)</div>';
+@media(max-width:600px){.nav-spacer{height:calc(102px + env(safe-area-inset-top,0px))}.main{padding:0 10px max(20px,env(safe-area-inset-bottom))}.sc{padding:12px 12px}.sc-title{font-size:14px;gap:5px}.kpi-row{gap:6px;padding-top:8px;margin-bottom:12px}.kpi-card{min-width:64px;padding:9px 6px}.kpi-card .num{font-size:19px}.kpi-card .lbl{font-size:12.5px;margin-top:3px}.tab-btn{font-size:13px;padding:12px 4px}table{font-size:12.5px}thead th,tbody td{padding:8px 5px}.t-name{font-size:13.5px}.stock-cards{display:block}.stock-cards-target{display:none}.mob-hide{display:none!important}}
+@media(min-width:601px) and (max-width:900px){.kpi-card .num{font-size:20px}.mob-hide{display:none}}
+@media(min-width:769px){.nav-spacer{height:calc(100px + env(safe-area-inset-top,0px))}.main{padding:0 20px max(20px,env(safe-area-inset-bottom))}.sc{padding:18px 20px}.sc-title{font-size:15px;margin-bottom:14px}.kpi-card{padding:13px 16px}.kpi-card .num{font-size:22px}.kpi-card .lbl{font-size:13px;margin-top:5px}table{font-size:14px}thead th{font-size:13px}thead th,tbody td{padding:10px 9px}.tab-btn{font-size:14px}}
+@media(min-width:1024px){.kpi-row{gap:12px}.kpi-card .num{font-size:24px}}.ai-sc{background:linear-gradient(135deg,var(--sky50) 0%,var(--card) 100%);border:1px solid var(--sky100);border-left:4px solid var(--sky);border-radius:var(--r12);padding:16px;margin-bottom:14px;box-shadow:var(--shadow)}.ai-title{font-size:14.5px;font-weight:800;color:var(--sky800);margin-bottom:12px;display:flex;align-items:center;gap:8px}.ai-badge{margin-left:auto}.ai-list{display:flex;flex-direction:column;gap:7px}.ai-item{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--txt);line-height:1.55}.ai-dot{flex-shrink:0;width:6px;height:6px;border-radius:50%;margin-top:8px}.ai-dot-red{background:var(--red)}.ai-dot-teal{background:var(--teal)}.ai-dot-sky{background:var(--sky)}.ai-dot-amber{background:var(--amber)}.ai-dot-purple{background:var(--purple)}.ai-dot-coral{background:var(--coral)}`;
 
   const html = `<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>MA20 괴리율 분석 — ${latestFmt}</title>
+<title>${MA_LABEL} 괴리율 분석 — ${latestFmt}</title>
 <link rel="preload" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/pretendard.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
 <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/pretendard.css"></noscript>
 <style>${CSS}</style>
@@ -1209,146 +1375,28 @@ tbody tr:hover{background:var(--sky50)}
 <div class="header">
   <div class="header-left">
     <div class="logo-mark"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg></div>
-    <div class="logo-info"><div class="logo-title">MA20 괴리율 분석</div><div class="logo-sub">${fmtDate(start)} ~ ${fmtDate(end)} · KRX + Yahoo Finance</div></div>
+    <div class="logo-info"><div class="logo-title">${MA_LABEL} 괴리율 분석</div><div class="logo-sub">${fmtDate(start)} ~ ${fmtDate(end)} · KRX + Yahoo Finance</div></div>
   </div>
   <div class="header-right"><div class="hdr-date">${latestFmt} 기준</div><div class="hdr-meta">20거래일 · 유니버스 ${universeSize}종목</div></div>
 </div>
-<nav class="top-nav">
-  <button class="tab-btn on" data-tab="0">요약</button>
-  <button class="tab-btn" data-tab="1">당일<span class="tab-badge">${findingsA.length}건</span></button>
-  <button class="tab-btn" data-tab="2">기간<span class="tab-badge">${findingsB.length}건</span></button>
-  <button class="tab-btn" data-tab="3">저점분석</button>
-  <button class="tab-btn" data-tab="4">지지,저항</button>
-</nav>
+${navBlocks}
 </div></div>
 <div class="nav-spacer"></div>
 <div class="wrap"><div class="main">
-
-<!-- ── Panel 0: 요약 ── -->
-<div class="panel on" id="p0">
-  <div class="kpi-row">
-    <div class="kpi-card kpi-sky"><div class="num">${uB}</div><div class="lbl">이탈종목</div></div>
-    <div class="kpi-card kpi-amber"><div class="num">${findingsB.length}</div><div class="lbl">기간이탈</div></div>
-    <div class="kpi-card kpi-coral"><div class="num">${findingsA.length}</div><div class="lbl">당일이탈</div></div>
-    <div class="kpi-card kpi-teal"><div class="num">${touchedStocks.length}</div><div class="lbl">1차달성</div></div>
-    <div class="kpi-card kpi-red"><div class="num">${notTouched.length}</div><div class="lbl">미돌파</div></div>
-  </div>
-  <div class="sc">
-    <div class="sc-title">${latestFmt} 핵심 현황<span class="badge bdg-red">최근거래일</span></div>
-    ${latestFindingsB.length ? `<div class="tbl-wrap stock-cards-target"><table><thead><tr><th class="c">구분</th><th class="l">종목명</th><th class="c mob-hide">시장</th><th>종가</th><th class="mob-hide">MA20</th><th>괴리율</th><th class="c mob-hide">비고</th></tr></thead><tbody>${p0Rows}</tbody></table></div><div class="stock-cards">${p0Cards}</div>` : '<div class="empty"><div class="msg">해당 없음</div></div>'}
-  </div>
-  <div class="sc">
-    <div class="sc-title">MA20 지지·저항 요약</div>
-    ${touchedStocks.length ? `<div class="touch-banner"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>터치/돌파 완료 ${touchedStocks.length}종목</div>` : ''}
-    ${notTouched.length ? `<div class="miss-banner"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>미돌파 ${notTouched.length}종목</div>` : ''}
-    <div class="summary-sc">${touchSummary}</div>
-  </div>
-  ${aiCard0}
-</div>
-
-<!-- ── Panel 1: 당일 ── -->
-<div class="panel" id="p1">
-  <div class="kpi-row">
-    <div class="kpi-card kpi-coral"><div class="num">${findingsA.length}</div><div class="lbl">총 건수</div></div>
-    <div class="kpi-card kpi-sky"><div class="num">${uA}</div><div class="lbl">해당종목</div></div>
-    <div class="kpi-card kpi-amber"><div class="num">${Object.keys(findingsAByDate).length}</div><div class="lbl">해당일수</div></div>
-  </div>
-  <div class="sc">
-    <div class="sc-title">【당일】 당일 TOP10 × MA20 -20% 이하<span class="badge bdg-coral">${pd} · ${findingsA.length}건</span></div>
-    <div class="sc-note">해당일 거래대금 TOP10 종목 중 MA20 대비 -20% 이하 이탈 종목. 순위는 해당일 거래대금 기준.</div>
-    ${p1Sections || '<div class="empty"><div class="msg">해당 없음</div></div>'}
-  </div>
-  <div class="sc">
-    <div class="sc-title">종목별 요약</div>
-    <div class="tbl-wrap stock-cards-target"><table><thead><tr><th class="l">종목명</th><th class="c mob-hide">시장</th><th>이탈일수</th><th>최대괴리율</th><th class="mob-hide">이탈일</th></tr></thead><tbody>${p1SumRows}</tbody></table></div><div class="stock-cards">${p1SumCards}</div>
-  </div>
-</div>
-
-<!-- ── Panel 2: 기간 ── -->
-<div class="panel" id="p2">
-  <div class="kpi-row">
-    <div class="kpi-card kpi-amber"><div class="num">${findingsB.length}</div><div class="lbl">총 건수</div></div>
-    <div class="kpi-card kpi-sky"><div class="num">${uB}</div><div class="lbl">해당종목</div></div>
-    <div class="kpi-card kpi-coral"><div class="num">${latestFindingsB.length}</div><div class="lbl">최근일 해당</div></div>
-  </div>
-  <div class="sc">
-    <div class="sc-title">최근거래일(${latestFmt}) 해당 종목<span class="badge bdg-red">${latestFindingsB.length}종목</span></div>
-    <div class="sc-note">유니버스 ${universeSize}종목 중 최근 거래일 MA20 -20% 이하. 순위는 전체 거래대금 기준.</div>
-    ${p2LatestSection}
-  </div>
-  <div class="sc">
-    <div class="sc-title">종목별 요약 (${uB}종목)<span class="sub">· 현재괴리 = 최근가 기준 MA20 대비</span></div>
-    <div class="tbl-wrap stock-cards-target"><table><thead><tr><th class="l">종목명</th><th class="c mob-hide">시장</th><th>이탈일수</th><th>최대괴리율</th><th>현재괴리율</th><th class="mob-hide">이탈일</th></tr></thead><tbody>${p2SumRows}</tbody></table></div><div class="stock-cards">${p2SumCards}</div>
-  </div>
-</div>
-
-<!-- ── Panel 3: 저점분석 ── -->
-<div class="panel" id="p3">
-  <div class="kpi-row">
-    <div class="kpi-card kpi-teal"><div class="num">${recovered.length}</div><div class="lbl">+10% 이상</div></div>
-    <div class="kpi-card kpi-amber"><div class="num">${nearBottom.length}</div><div class="lbl">소폭 반등</div></div>
-    <div class="kpi-card kpi-red"><div class="num">${stillDown.length}</div><div class="lbl">추가 하락</div></div>
-  </div>
-  <div class="sc">
-    <div class="sc-title">【저점 대비 현재 상승률】<span class="badge bdg-sky">${uB}종목</span></div>
-    <div class="sc-note">저점 = 방식B 첫 이탈일~최근일 중 실제 최저 종가일. 최근가 = ${latestFmt} 종가.</div>
-    <div class="tbl-wrap stock-cards-target"><table><thead><tr><th class="l">종목명</th><th class="c mob-hide">시장</th><th>저점일</th><th class="mob-hide">저점가</th><th>최근가</th><th>저점대비</th></tr></thead><tbody>${p3Rows}</tbody></table></div><div class="stock-cards">${p3Cards}</div>
-  </div>
-  <div class="sc">
-    <div class="sc-title">저점 분류</div>
-    <div class="summary-sc">
-      <div class="summary-line"><span class="ok">✔ +10% 이상 반등</span>: ${recovered.length ? recovered.map(r=>esc(r.종목명)).join(', ') : '없음'}</div>
-      <div class="summary-line"><span style="color:var(--amber);font-weight:700">▲ 소폭 반등(0~+10%)</span>: ${nearBottom.length ? nearBottom.map(r=>esc(r.종목명)).join(', ') : '없음'}</div>
-      <div class="summary-line"><span class="hi">▼ 추가 하락</span>: ${stillDown.length ? stillDown.map(r=>esc(r.종목명)).join(', ') : '없음'}</div>
-    </div>
-  </div>
-  ${aiCard3}
-</div>
-
-<!-- ── Panel 4: 지지,저항 ── -->
-<div class="panel" id="p4">
-  <div class="kpi-row">
-    <div class="kpi-card kpi-blue"><div class="num">${notTouched.length}</div><div class="lbl">매수구간</div></div>
-    <div class="kpi-card kpi-teal"><div class="num">${touchedStocks.length}</div><div class="lbl">1차달성</div></div>
-    <div class="kpi-card kpi-purple"><div class="num">${secondTouched.length}</div><div class="lbl">2차달성</div></div>
-  </div>
-  <div class="sc">
-    <div class="sc-title">엔벨로프 전략 개요<span class="badge bdg-sky">MA20 기준</span></div>
-    <div class="env-overview">
-      <div class="env-zone env-buy"><div class="env-zone-label">매수구간</div><div class="env-zone-val">MA20 −20% 이하</div></div>
-      <div class="env-arrow">→</div>
-      <div class="env-zone env-r1"><div class="env-zone-label">1차 저항</div><div class="env-zone-val">MA20 (0%)</div></div>
-      <div class="env-arrow">→</div>
-      <div class="env-zone env-r2"><div class="env-zone-label">2차 저항 / 목표가</div><div class="env-zone-val">MA20 +20%</div></div>
-    </div>
-    <div class="sc-note" style="margin-top:10px">▪ 종가돌파 = 종가 ≥ 저항선 (강한 신호) &nbsp;▪ 고가터치 = 장중 고가 ≥ 저항선 &nbsp;▪ 2차목표 = 해당일 MA20 × 1.2 기준</div>
-  </div>
-  <div class="sc">
-    <div class="sc-title">【매수구간 현황】 1차/2차 목표 시나리오<span class="badge bdg-blue">${notTouched.length}종목</span></div>
-    <div class="sc-note">현재 MA20 −20% 이하 이탈 상태 종목. 1차 목표(MA20) 및 2차 목표(MA20+20%) 달성 시 예상 수익률.</div>
-    ${notTouched.length ? `<div class="tbl-wrap stock-cards-target"><table><thead><tr><th class="l">종목명</th><th class="c mob-hide">시장</th><th>현재가</th><th>현재괴리</th><th class="mob-hide">1차목표(MA20)</th><th class="mob-hide">1차 수익률</th><th class="mob-hide">2차목표(+20%)</th><th>2차 수익률</th></tr></thead><tbody>${p4BuyRows}</tbody></table></div><div class="stock-cards">${p4BuyCards}</div>` : '<div class="empty"><div class="msg">없음</div></div>'}
-  </div>
-  <div class="sc">
-    <div class="sc-title">【1차 저항 달성 → 2차 저항 진행】<span class="badge bdg-teal">${touchedStocks.length}종목</span></div>
-    <div class="sc-note">▪ 1차 저항(MA20) 달성 후 2차 저항(MA20+20%) 추적. ▪ 2차 목표가 = 현재 MA20 × 1.2 기준.</div>
-    ${touchedStocks.length ? `<div class="tbl-wrap stock-cards-target"><table><thead><tr><th class="l">종목명</th><th class="c mob-hide">시장</th><th>저점일</th><th>1차상승폭</th><th>현재가</th><th class="mob-hide">현재MA20괴리</th><th class="mob-hide">2차목표</th><th class="mob-hide">2차까지</th><th class="c">2차 현황</th></tr></thead><tbody>${p4TgtRows}</tbody></table></div><div class="stock-cards">${p4TgtCards}</div>` : '<div class="empty"><div class="msg">없음</div></div>'}
-  </div>
-  ${secondTouched.length ? `<div class="sc"><div class="sc-title">【2차 저항 달성 완료】<span class="badge bdg-purple">${secondTouched.length}종목</span></div><div class="sc-note">저점→1차→2차 전체 엔벨로프 목표가 도달 완료 종목.</div><div class="tbl-wrap stock-cards-target"><table><thead><tr><th class="l">종목명</th><th class="c mob-hide">시장</th><th>저점일</th><th class="mob-hide">저점가</th><th>1차 상승폭</th><th>2차달성일</th><th>2차달성가</th><th>저점대비</th></tr></thead><tbody>${p4SecRows}</tbody></table></div><div class="stock-cards">${p4SecCards}</div></div>` : ''}
-  ${aiCard4}
-</div>
-
+${panelBlocks}
 </div></div>
 <div class="footer">20ma_analysis.mjs · KRX + Yahoo Finance · 분석기준 ${latestFmt} 종가</div>
 <script>
-function showTab(i){
-  document.querySelectorAll('.panel').forEach((p,j)=>p.classList.toggle('on',j===i));
-  document.querySelectorAll('.tab-btn').forEach((t,j)=>t.classList.toggle('on',j===i));
+function showTab(mode, i){
+  document.querySelectorAll('#mode-'+mode+' .panel').forEach((p,j)=>p.classList.toggle('on',j===i));
+  document.querySelectorAll('#nav-'+mode+' .tab-btn').forEach((t,j)=>t.classList.toggle('on',j===i));
   window.scrollTo({top:0,behavior:'smooth'});
 }
 document.querySelectorAll('.tab-btn[data-tab]').forEach(btn=>{
-  btn.addEventListener('click',function(e){
+  btn.addEventListener('click', function(e){
     e.stopPropagation();
-    showTab(parseInt(this.dataset.tab));
+    const mode = this.closest('.top-nav').id.replace('nav-','');
+    showTab(mode, parseInt(this.dataset.tab));
   });
 });
 </script>
