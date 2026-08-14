@@ -260,6 +260,86 @@ async function loadStockSignals(stock, marketRegime, opts) {
   return { ...stock, seq, entries };
 }
 
+function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function fmtV(n) { return Math.round(n).toLocaleString('ko-KR'); }
+function fmt(v) { return v == null ? '─' : `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`; }
+function retClass(n) { return n <= -25 ? 't-neg-hi' : n < 0 ? 't-neg' : n > 0 ? 't-pos' : 't-flat'; }
+
+// 상태(진행중/청산완료+사유)를 표·차트카드가 공유하는 배지·부연설명으로 변환
+function statusInfo(row) {
+  let primary;
+  if (row.status === 'OPEN') {
+    primary = { cls: 'bdg-teal', label: '보유중' };
+  } else {
+    primary = {
+      SL: { cls: 'bdg-red', label: '손절' },
+      TREND_BREAK: { cls: 'bdg-gray', label: 'EMA50이탈' },
+      TRAIL: { cls: 'bdg-purple', label: '트레일링청산' },
+      TIME: { cls: 'bdg-amber', label: '시간청산' },
+    }[row.reason] || { cls: 'bdg-gray', label: row.reason };
+  }
+  const subBadges = row.tpTaken ? '<span class="badge bdg-sky">TP</span>' : '';
+  let note = '';
+  if (row.status === 'OPEN') {
+    note = row.tpTaken
+      ? '<span style="color:var(--txt3);font-size:12.5px">(1차익절완료(잔량50%))</span>'
+      : '<span style="color:var(--txt3);font-size:12.5px">(익절대기(보유100%))</span>';
+  }
+  const day = row.day;
+  return { primary, subBadges, note, day };
+}
+
+function tableRowHtml(row, seq) {
+  const s = statusInfo(row);
+  const statusCell = `<span class="badge ${s.primary.cls}">${s.primary.label}</span>${s.subBadges ? ' ' + s.subBadges.trim() : ''}`;
+  const noteCell = s.note ? s.note.trim() : '<span class="t-flat">&mdash;</span>';
+  const curClose = seq[seq.length - 1].close;
+  return `          <tr><td class="l">${row.date}</td><td class="l">${esc(row.name)}</td><td>${fmtV(curClose)}</td><td>${fmtV(row.entryClose)}</td><td class="l">${statusCell}</td><td class="c">D+${s.day}</td><td class="${retClass(row.ret)}">${fmt(row.ret)}</td><td class="l">${noteCell}</td></tr>`;
+}
+
+function buildChartSvg(rows, markers) {
+  const x0 = 6, x1 = 474, yTop = 12, yBot = 208;
+  const n = rows.length;
+  const xAt = i => x0 + (x1 - x0) * i / (n - 1);
+  const allVals = [];
+  rows.forEach(r => allVals.push(r.close, r.maShort, r.maLong));
+  const lo = Math.min(...allVals), hi = Math.max(...allVals);
+  const pad = (hi - lo) * 0.05 || hi * 0.02;
+  const yLo = lo - pad, yHi = hi + pad;
+  const yAt = v => yBot - (yBot - yTop) * (v - yLo) / (yHi - yLo);
+  const poly = (key, color, dash, width) => `<polyline points="${rows.map((r, i) => `${xAt(i).toFixed(1)},${yAt(r[key]).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--${color})" stroke-width="${width}"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
+  let svg = poly('maLong', 'amber', '6,3', 1.8) + poly('maShort', 'sky', '2,2', 1.8) + poly('close', 'txt', null, 1.7);
+  if (markers?.entryIdx != null && markers.entryIdx >= 0) {
+    const ei = markers.entryIdx;
+    svg += `<line x1="${xAt(ei).toFixed(1)}" y1="${yTop}" x2="${xAt(ei).toFixed(1)}" y2="${yBot}" stroke="var(--txt2)" stroke-width="1" stroke-dasharray="2,3"/>`;
+    svg += `<circle cx="${xAt(ei).toFixed(1)}" cy="${yAt(rows[ei].close).toFixed(1)}" r="4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1.2"/>`;
+  }
+  svg += `<circle cx="${xAt(n - 1).toFixed(1)}" cy="${yAt(rows[n - 1].close).toFixed(1)}" r="4.5" fill="var(--red)" stroke="var(--card)" stroke-width="1.3"/>`;
+  svg += `<text x="${x0}" y="214" font-size="13.5" fill="var(--txt)">${rows[0].date}</text><text x="${x1}" y="214" font-size="13.5" fill="var(--txt)" text-anchor="end">${rows[n - 1].date}</text>`;
+  return `<svg viewBox="0 0 480 220" width="100%" height="220" style="display:block;max-width:100%">\n    ${svg}\n  </svg>`;
+}
+
+function chartCardHtml(row, seq, entryIdx) {
+  const CHART_LEAD_DAYS = 60;
+  const windowStart = Math.max(0, entryIdx - CHART_LEAD_DAYS);
+  const chartRows = seq.slice(windowStart, seq.length);
+  const localEntryIdx = entryIdx - windowStart;
+  const svg = buildChartSvg(chartRows, { entryIdx: localEntryIdx });
+  const s = statusInfo(row);
+  const cur = seq[seq.length - 1];
+  return `      <div class="chart-card">
+        <div class="chart-card-head"><span class="chart-card-name">${esc(row.name)}</span><span class="badge ${s.primary.cls}">${s.primary.label}</span>${s.subBadges.trim()}</div>
+        ${svg}
+        <div class="chart-card-stats">
+          <span>진입일 ${row.date} <span class="sep">|</span> 진입가 <span>${fmtV(row.entryClose)}</span> <span class="sep">|</span> 현재가 <span>${fmtV(cur.close)}</span></span>
+        </div>
+        <div class="chart-card-stats">
+          <span>D+${s.day} <span class="sep">|</span> 수익률 <span class="${retClass(row.ret)}">${fmt(row.ret)}</span></span>
+        </div>
+        <div class="chart-card-legend"><span><i style="background:var(--sky600)"></i>진입시점</span><span><i style="background:var(--${s.primary.cls === 'bdg-red' ? 'red' : s.primary.cls === 'bdg-purple' ? 'purple' : s.primary.cls === 'bdg-teal' ? 'teal' : s.primary.cls === 'bdg-amber' ? 'amber' : 'gray600'})"></i>상태 <span>${s.primary.label}</span></span></div>
+      </div>`;
+}
+
 async function main() {
   const opts = parseArgs();
   const calendarDays = CALENDAR_DAYS;
@@ -276,19 +356,31 @@ async function main() {
   const cutoffDate = new Date(cutoffMs).toISOString().slice(0, 10);
 
   const rows = [];
+  const rowMeta = [];
   for (const r of valid) {
     for (const e of r.entries) {
       if (e.date < cutoffDate) continue;
       const status = simulateLiveStatus(r.seq, e.i, r.seq[e.i].close, SL, TRAIL, MAX_HOLD, TP_PCT, TP_FRAC);
       if (!status) continue;
       rows.push({ date: e.date, name: r.name, code: r.code, entryClose: r.seq[e.i].close, ...status });
+      rowMeta.push({ seq: r.seq, entryIdx: e.i });
     }
   }
-  rows.sort((a, b) => a.date < b.date ? 1 : a.date > b.date ? -1 : 0);
+  const order = rows.map((_, i) => i).sort((a, b) => rows[a].date < rows[b].date ? 1 : rows[a].date > rows[b].date ? -1 : 0);
+  const sortedRows = order.map(i => rows[i]);
+  const sortedMeta = order.map(i => rowMeta[i]);
+  rows.length = 0; rows.push(...sortedRows);
 
   const closed = rows.filter(x => x.status === 'CLOSED');
   const open = rows.filter(x => x.status === 'OPEN');
   const wins = closed.filter(x => x.ret > 0).length;
+
+  const tableHtml = rows.map((row, i) => tableRowHtml(row, sortedMeta[i].seq)).join('\n');
+  const chartCardsHtml = rows.map((row, i) => chartCardHtml(row, sortedMeta[i].seq, sortedMeta[i].entryIdx)).join('\n');
+  const fs = await import('fs');
+  fs.writeFileSync('pullback_signals_table.html', tableHtml, 'utf-8');
+  fs.writeFileSync('pullback_signals_charts.html', chartCardsHtml, 'utf-8');
+  console.error(`[산출완료] table→pullback_signals_table.html, charts→pullback_signals_charts.html`);
 
   const out = {
     generatedAt: new Date().toISOString(),

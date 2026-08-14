@@ -261,9 +261,12 @@ function statusInfo(row) {
   return { primary, subBadges, note, day };
 }
 
-function tableRowHtml(row) {
+function tableRowHtml(row, seq) {
   const s = statusInfo(row);
-  return `          <tr><td class="l">${row.date}</td><td class="l">${esc(row.name)}</td><td>${fmtV(row.entryClose)}</td><td class="l"><span class="badge ${s.primary.cls}">${s.primary.label}</span> D+${s.day}, <span class="${retClass(row.ret)}">${fmt(row.ret)}</span> ${(s.subBadges + s.note).trim()}</td></tr>`;
+  const statusCell = `<span class="badge ${s.primary.cls}">${s.primary.label}</span>${s.subBadges ? ' ' + s.subBadges.trim() : ''}`;
+  const noteCell = s.note ? s.note.trim() : '<span class="t-flat">&mdash;</span>';
+  const curClose = seq[seq.length - 1].close;
+  return `          <tr><td class="l">${row.date}</td><td class="l">${esc(row.name)}</td><td>${fmtV(curClose)}</td><td>${fmtV(row.entryClose)}</td><td class="l">${statusCell}</td><td class="c">D+${s.day}</td><td class="${retClass(row.ret)}">${fmt(row.ret)}</td><td class="l">${noteCell}</td></tr>`;
 }
 
 function buildChartSvg(rows) {
@@ -339,7 +342,7 @@ async function main() {
   const open = rows.filter(x => x.status === 'OPEN');
   const wins = closed.filter(x => x.ret > 0).length;
 
-  const tableHtml = rows.map(tableRowHtml).join('\n');
+  const tableHtml = rows.map((row, i) => tableRowHtml(row, sortedMeta[i].seq)).join('\n');
   const chartCardsHtml = rows.map((row, i) => chartCardHtml(row, sortedMeta[i].seq, sortedMeta[i].entryIdx)).join('\n');
   const fs = await import('fs');
   fs.writeFileSync('recent_signals_table.html', tableHtml, 'utf-8');
