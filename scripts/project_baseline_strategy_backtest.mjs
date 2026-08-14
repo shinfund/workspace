@@ -6,20 +6,25 @@
 //       상향/하향 교차를 "파동"(상승1파→2파→3파...)으로 카운트하며, 눌림목(5EMA 하향이탈)마다
 //       매도하지 않고 계속 보유한다 — 매도는 오직 기준선(EMA200) 재하향돌파 시점에만 전량 실행한다.
 //
-// 진입 (2026-08-13 분할매수로 확정 — 사용자 요청 + Claude 추천 반영):
+// 진입 (2026-08-13 분할매수로 확정, 2026-08-14 반등신호 조건 vlow로 전환 — 사용자 요청 + Claude 추천 반영):
 //   ① 종가가 EMA200 아래로 연속 `--min-streak`(기본20)거래일 이상 머문 상태(기준선 하향돌파 후 경과)
 //   ② 그 상태에서 EMA200 대비 괴리율(dev200)의 롤링(250거래일) Z-score <= `--z`(기본-1) — "괴리율" 조건
-//   ③ 종가가 EMA5를 상향 돌파(전일 종가<EMA5, 당일 종가>=EMA5)한 날 — "기타 등등"의 핵심 트리거
+//   ③ 반등 신호(2026-08-14 확정, `--rebound-mode vlow` 기본값): 기준선 아래 구간에서 종가가 "새로운
+//   최저점"을 갱신한 뒤, 그 이후 첫 EMA5 상향돌파(전일 종가<EMA5, 당일 종가>=EMA5)만 신호로 인정.
+//   최저점을 다시 갱신하기 전까지는 같은 구간 내 잦은 휩쏘(등락)로 재신호가 나지 않음 — 기존 방식
+//   (`--rebound-mode cross`, EMA5 상향돌파가 재발생할 때마다 매번 신호)은 잦은 매수신호를 유발해
+//   폐기하고 vlow로 전환(사용자 확인, 2026-08-14). buildVLowSignal() 참조.
 //   ①②③ 동시 충족일 최초 매수(1/`--max-buy-legs`, 기본2분의1=50%). "회복"(EMA200 재상향돌파) 전까지는
 //   ①이 유지되는 동안 ②③이 다시 충족되면(최대 `--max-buy-legs`회, 기본2회까지) 나머지 50% 추가매수.
 //   Claude 추천: 매 분할매수마다 Z조건을 동일하게 재확인 — 반등이 진행될수록 EMA200과의 괴리가 좁혀져
 //   Z-score가 자연히 완화되므로, 별도 규칙 없이도 "쌀 때 많이, 비쌀수록 적게" 매수하는 효과가 생김.
 //   회복 이후에는 추가 매수를 하지 않고(진입 전 구간에만 적용, 사용자 확인), 실제 누적 매수분(평단가
 //   기준)에 대해 아래 파동별 분할매도 로직을 그대로 적용.
-//   ※ 분할횟수 확정(2026-08-13): 종목별 고정배정(자금 미리 쪼개서 배치) 스타일에서는 미체결 잔여자금이
-//   0%수익으로 노는 비용까지 반영한 "배치율×가중평균수익률=실질기대수익률" 기준으로 legs를 늘릴수록
-//   오히려 하락(1회6.49%→2회6.27%→4회5.23%→6회4.14%) — 무분할(1회) 대비 승률·최악값 개선 효과는
-//   최소한으로 살리면서 배치율 손실을 줄인 2회로 확정(자본배치율 84%).
+//   ※ 분할횟수 확정(2026-08-13, vlow 전환 후 2026-08-14 재검증에서도 동일 결론): 종목별 고정배정(자금
+//   미리 쪼개서 배치) 스타일에서는 미체결 잔여자금이 0%수익으로 노는 비용까지 반영한
+//   "배치율×가중평균수익률=실질기대수익률" 기준으로 legs를 늘릴수록 오히려 하락 — 무분할(1회) 대비
+//   승률·최악값 개선 효과는 최소한으로 살리면서 배치율 손실을 줄인 2회로 확정
+//   (vlow 기준: 1회+5.87%/배치율100% → 2회+7.57%(실질+5.75%)/배치율76% → 3회부터 실질기대수익률 하락폭 확대).
 //
 // 청산 (먼저 오는 조건, 사용자 지시 + Claude 추천 안전장치 — 2026-08-13 파동별 분할매도로 확정):
 //   ※ 손절은 자동 규칙에 포함하지 않음(사용자 지시: "-15% 일률 손절이 아닌 본인 판단하의 수동 손절").
@@ -122,7 +127,7 @@ function parseArgs() {
   // 손실을 최소화하는 2회를 최종 채택(3회 대비 배치율+13%p, 리스크지표는 3회가 근소 우위인 절충).
   // "잔여매수를 회복시점에 캐치업" 방식도 검토했으나 회복일은 이미 저점대비 많이 오른 시점이라 캐치업
   // 매수가 평단가를 크게 악화시켜(가중평균 +9.20%→+2.01%) 폐기.
-  const o = { stocks: DEFAULT_STOCKS, minStreak: 20, z: -1.5, maxHold: 180, calendarDays: 2555, maxBuyLegs: 2, recoverTimeout: 120, postRecoverHold: 60, baselineConfirm: 1, baselineBuffer: 0, baselinePartialPct: 100, catchUpBuy: false };
+  const o = { stocks: DEFAULT_STOCKS, minStreak: 20, z: -1.25, maxHold: 180, calendarDays: 2555, maxBuyLegs: 2, recoverTimeout: 120, postRecoverHold: 60, baselineConfirm: 1, baselineBuffer: 0, baselinePartialPct: 100, catchUpBuy: false, reboundMode: 'vlow' };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--calendar-days') o.calendarDays = parseInt(argv[++i]);
     if (argv[i] === '--min-streak') o.minStreak = parseInt(argv[++i]);
@@ -135,6 +140,7 @@ function parseArgs() {
     if (argv[i] === '--baseline-buffer') o.baselineBuffer = parseFloat(argv[++i]);
     if (argv[i] === '--baseline-partial-pct') o.baselinePartialPct = parseFloat(argv[++i]);
     if (argv[i] === '--catch-up-buy') o.catchUpBuy = true;
+    if (argv[i] === '--rebound-mode') o.reboundMode = argv[++i]; // 'cross'(기존, EMA5 상향돌파마다) | 'vlow'(최저점 갱신 후 첫 상향돌파만)
     if (argv[i] === '--stocks') {
       o.stocks = argv[++i].split(',').map(s => {
         const [code, name, market] = s.split(':');
@@ -229,6 +235,43 @@ async function batchAll(items, fn, concurrency = 5, delay = 150) {
   return results;
 }
 
+// 반등신호(condition③) 계산 — 두 모드
+// 'cross': 기존 확정 로직. EMA5 상향돌파(전일<EMA5, 당일>=EMA5)가 일어날 때마다 신호(재충족마다 매번 신호).
+// 'vlow' : 2026-08-14 검토 변형. 기준선(EMA200) 아래 구간에서 종가가 "새로운 최저점"을 갱신할 때마다
+//          다음 EMA5 상향돌파 1회만 신호로 인정(최저점을 다시 갱신하기 전까지는 재신호 없음) — 노이즈성
+//          잦은 휩쏘 대신 "매번 더 깊이 눌린 뒤의 첫 반등"만 추가매수 트리거로 인정.
+function buildCrossSignal(seq) {
+  const sig = new Array(seq.length).fill(false);
+  for (let i = 1; i < seq.length; i++) {
+    sig[i] = seq[i - 1].close < seq[i - 1].ema5 && seq[i].close >= seq[i].ema5;
+  }
+  return sig;
+}
+// streak/minStreak: 2026-08-14 2차 수정 — 스트릭이 아직 --min-streak(①조건) 미달인 구간에서 소진된
+// 반등은 무효 취급하지 않도록, 스트릭이 minStreak에 처음 도달하는 날 최저점 추적을 리셋한다(그 이전
+// 구간의 반등 이력은 버림). 리셋 이후에는 평소대로 새 최저점 갱신 때마다 대기상태를 이어간다.
+function buildVLowSignal(seq, streak, minStreak) {
+  const sig = new Array(seq.length).fill(false);
+  let runningLow = null;
+  let awaitingBounce = false;
+  for (let i = 0; i < seq.length; i++) {
+    const belowBase = seq[i].close < seq[i].ema200;
+    if (!belowBase) { runningLow = null; awaitingBounce = false; continue; }
+    const justEligible = streak[i] === minStreak && (i === 0 || streak[i - 1] === minStreak - 1);
+    if (justEligible) { runningLow = null; awaitingBounce = false; }
+    if (runningLow === null || seq[i].close < runningLow) {
+      runningLow = seq[i].close;
+      awaitingBounce = true;
+    }
+    const crossUp5 = i > 0 && seq[i - 1].close < seq[i - 1].ema5 && seq[i].close >= seq[i].ema5;
+    if (crossUp5 && awaitingBounce) {
+      sig[i] = true;
+      awaitingBounce = false;
+    }
+  }
+  return sig;
+}
+
 // dev200 기준 롤링 Z-score (위치%ile은 스킬 결론(Z-score 단독으로 충분)에 따라 생략)
 function rollingZ(seq, j) {
   const win = seq.slice(j - ROLL + 1, j + 1).map(r => r.dev200);
@@ -254,6 +297,7 @@ function simulateTrade(seq, i0, opts) {
   let belowBaselineStreak = 0; // 회복 후 기준선(버퍼 적용) 아래 연속일수 — 확인일수(baselineConfirm) 카운트용
   const legs = [];
   const buyLog = [{ day: 0, price: seq[i0].close }];
+  const signalLog = [{ day: 0, price: seq[i0].close }]; // 2026-08-14: max-buy-legs 상한과 무관하게 조건①②③ 충족일 전부 기록(참고용)
 
   for (let d = 1; d <= opts.maxHold; d++) {
     const j = i0 + d;
@@ -263,14 +307,13 @@ function simulateTrade(seq, i0, opts) {
     const ema200 = seq[j].ema200;
 
     if (!recovered) {
+      const conditionMet = seq[j].bounce && rollingZ(seq, j) <= opts.z;
+      if (conditionMet) signalLog.push({ day: d, price: close });
       // 분할매수: 회복 전 구간에서만 5EMA 상향돌파 + Z조건 재충족마다 추가매수(최대 maxBuyLegs회)
-      if (buyCount < opts.maxBuyLegs) {
-        const crossUp5 = seq[j - 1].close < seq[j - 1].ema5 && close >= ema5;
-        if (crossUp5 && rollingZ(seq, j) <= opts.z) {
-          buyCount += 1;
-          costSum += close;
-          buyLog.push({ day: d, price: close });
-        }
+      if (buyCount < opts.maxBuyLegs && conditionMet) {
+        buyCount += 1;
+        costSum += close;
+        buyLog.push({ day: d, price: close });
       }
     }
 
@@ -365,7 +408,7 @@ function simulateTrade(seq, i0, opts) {
 
   const weightedRet = legs.reduce((a, l) => a + l.weight * l.ret, 0);
   const finalDay = legs[legs.length - 1].day;
-  return { legs, weightedRet, finalDay, entryDate: seq[i0].date, recovered, maxWaveReached: waveCount, minRet, buyCount, buyLog, recoverDay };
+  return { legs, weightedRet, finalDay, entryDate: seq[i0].date, recovered, maxWaveReached: waveCount, minRet, buyCount, buyLog, signalLog, recoverDay };
 }
 
 async function backtestStock(stock, opts) {
@@ -391,19 +434,21 @@ async function backtestStock(stock, opts) {
   }
   if (seq.length < ROLL + opts.minStreak + opts.maxHold + 1) return { ...stock, error: '데이터 부족' };
 
-  // 기준선(EMA200) 연속 하향 스트릭 계산
+  // 기준선(EMA200) 연속 하향 스트릭 계산 (반등신호 리셋 기준점 산출을 위해 bounce보다 먼저 계산)
   const streak = new Array(seq.length).fill(0);
   for (let i = 0; i < seq.length; i++) {
     streak[i] = seq[i].close < seq[i].ema200 ? (i > 0 ? streak[i - 1] + 1 : 1) : 0;
   }
 
+  const bounceSig = opts.reboundMode === 'vlow' ? buildVLowSignal(seq, streak, opts.minStreak) : buildCrossSignal(seq);
+  for (let i = 0; i < seq.length; i++) seq[i].bounce = bounceSig[i];
+
   const flags = new Array(seq.length).fill(false);
   for (let i = ROLL - 1; i < seq.length; i++) {
     if (i === 0) continue;
     const streakOk = streak[i] >= opts.minStreak;
-    const crossUp5 = seq[i - 1].close < seq[i - 1].ema5 && seq[i].close >= seq[i].ema5;
     const z = rollingZ(seq, i);
-    flags[i] = streakOk && crossUp5 && z <= opts.z;
+    flags[i] = streakOk && seq[i].bounce && z <= opts.z;
   }
   const events = [];
   for (let i = ROLL - 1; i < seq.length; i++) {
@@ -482,12 +527,18 @@ function summarizeTrades(trades) {
     high: highConv.length ? { n: highConv.length, avg: mean(highConv.map(t => t.weightedRet)), win: highConv.filter(t => t.weightedRet > 0).length / highConv.length * 100 } : null,
     normal: normalConv.length ? { n: normalConv.length, avg: mean(normalConv.map(t => t.weightedRet)), win: normalConv.filter(t => t.weightedRet > 0).length / normalConv.length * 100 } : null,
   };
+  // 2026-08-14: 분할매수 상한(max-buy-legs)을 초과해 조건①②③이 추가로 충족된 트레이드 진단(사용자 요청)
+  // — signalLog(상한 무관 전체 신호)가 buyCount(실제 체결, 상한 적용)보다 많은 경우만 추림
+  const excessSignalTrades = trades
+    .filter(t => (t.signalLog?.length || 0) > t.buyCount)
+    .map(t => ({ name: t.name, entryDate: t.entryDate, buyCount: t.buyCount, signalCount: t.signalLog.length, signalLog: t.signalLog, weightedRet: t.weightedRet }))
+    .sort((a, b) => b.signalCount - a.signalCount);
   return {
     n: rets.length, avg: mean(rets), med: median(rets), win, avgBuyCount, buyBuckets,
     best: Math.max(...rets), worst: Math.min(...rets), avgDays,
     reasonCount, reasonWeight, recoveredCount, waveBuckets, waveAvgRet,
     avgMinRet: mean(minRets), worstMinRet: Math.min(...minRets), dd15, dd20, dd30,
-    legLossStats, convSplit, recoverDayStats, postRecoverStats,
+    legLossStats, convSplit, recoverDayStats, postRecoverStats, excessSignalTrades,
   };
 }
 
@@ -504,7 +555,8 @@ function byStockSummary(results) {
 async function main() {
   const opts = parseArgs();
   console.error(`[EMA200 기준선 파동 전략 백테스트] ${opts.stocks.length}종목, 최소스트릭${opts.minStreak}거래일/Z<=${opts.z}/회복전타임아웃${opts.recoverTimeout}일/회복후보유${opts.postRecoverHold}일/분할매수최대${opts.maxBuyLegs}회 (손절은 수동판단 영역이라 자동규칙 제외)`);
-  console.error(`진입: 종가<EMA200 연속${opts.minStreak}거래일↑ 구간에서 (dev200 롤링Z<=${opts.z} AND 종가 EMA5 상향돌파) 재충족마다 ${(100 / opts.maxBuyLegs).toFixed(0)}%씩 최대${opts.maxBuyLegs}회 분할매수(회복 전까지만)`);
+  const reboundDesc = opts.reboundMode === 'vlow' ? '최저점갱신 후 첫 EMA5 상향돌파' : 'EMA5 상향돌파 재충족마다';
+  console.error(`진입: 종가<EMA200 연속${opts.minStreak}거래일↑ 구간에서 (dev200 롤링Z<=${opts.z} AND ${reboundDesc}) 충족마다 ${(100 / opts.maxBuyLegs).toFixed(0)}%씩 최대${opts.maxBuyLegs}회 분할매수(회복 전까지만)`);
   console.error(`청산: ①회복전${opts.recoverTimeout}거래일 내 미회복시 조기청산(RECOVER_TIMEOUT) ②기준선재하향돌파시 잔량전량(BASELINE_BREAK) ③1파하향돌파 50%매도→④2파하향돌파 잔량50%(전체25%)매도→⑤3파하향돌파 잔량전량매도 ⑥회복후${opts.postRecoverHold}거래일 시간청산(TIME)`);
 
   const results = await batchAll(opts.stocks, s => backtestStock(s, opts));
@@ -568,6 +620,20 @@ async function main() {
     const cnt = s.waveBuckets[key];
     const avgR = s.waveAvgRet[key];
     console.log(`  ${waveLabel[key].padEnd(18)}: ${cnt}건 (${(cnt / s.n * 100).toFixed(0)}%)  가중평균수익률 ${avgR >= 0 ? '+' : ''}${avgR.toFixed(2)}%`);
+  }
+
+  console.log(`\n[분할매수 상한(${opts.maxBuyLegs}회) 초과 신호 진단 — 상한만 없었다면 추가매수가 더 있었을 트레이드]`);
+  if (!s.excessSignalTrades.length) {
+    console.log(`  해당 없음(모든 트레이드가 상한 이내에서 신호 종료)`);
+  } else {
+    const excessNames = new Set(s.excessSignalTrades.map(t => t.name));
+    const excessRets = pooled.filter(t => excessNames.has(t.name) && s.excessSignalTrades.some(e => e.name === t.name && e.entryDate === t.entryDate)).map(t => t.weightedRet);
+    const nonExcessRets = pooled.filter(t => !s.excessSignalTrades.some(e => e.name === t.name && e.entryDate === t.entryDate)).map(t => t.weightedRet);
+    console.log(`  ${s.excessSignalTrades.length}건 (전체의 ${(s.excessSignalTrades.length / s.n * 100).toFixed(0)}%)  초과신호그룹 가중평균 ${mean(excessRets) >= 0 ? '+' : ''}${mean(excessRets).toFixed(2)}%  vs  비초과그룹 가중평균 ${mean(nonExcessRets) >= 0 ? '+' : ''}${mean(nonExcessRets).toFixed(2)}%`);
+    for (const t of s.excessSignalTrades) {
+      const sig = t.signalLog.map((b, i) => `${i + 1}차 D+${b.day}(${Math.round(b.price).toLocaleString('ko-KR')})`).join(' → ');
+      console.log(`    ${t.name.padEnd(12)} 진입${t.entryDate}  실제매수${t.buyCount}회/신호${t.signalCount}회  가중평균 ${t.weightedRet >= 0 ? '+' : ''}${t.weightedRet.toFixed(2)}%  [${sig}]`);
+    }
   }
 
   console.log(`\n━━━ 종목별 신호수 ━━━`);

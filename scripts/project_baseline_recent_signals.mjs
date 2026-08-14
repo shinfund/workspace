@@ -40,7 +40,7 @@ const DEFAULT_STOCKS = [
   { code: '086280', name: '현대글로비스' }, { code: '010950', name: 'S-Oil' },
 ];
 
-const ROLL = 250, MIN_STREAK = 20, Z_THRESHOLD = -1.5;
+const ROLL = 250, MIN_STREAK = 20, Z_THRESHOLD = -1.25;
 const FAST_PERIOD = 5, BASE_PERIOD = 200;
 const MAX_BUY_LEGS = 2, RECOVER_TIMEOUT = 120, POST_RECOVER_HOLD = 60;
 const CALENDAR_DAYS = 2555; // ROLL(250) 워밍업 + minStreak + 7년치 확보(백테스트와 동일)
@@ -117,6 +117,30 @@ function buildEma(closes, period) {
 function mean(arr) { return arr.reduce((a, b) => a + b, 0) / arr.length; }
 function stdev(arr, m) { return Math.sqrt(arr.reduce((a, b) => a + (b - m) ** 2, 0) / (arr.length - 1)); }
 
+// 반등신호(2026-08-14 vlow로 전환, 2026-08-14 2차수정: 스트릭 minStreak 도달 시점에 최저점 추적 리셋
+// — 스트릭 미달 구간에서 소진된 반등을 무효 취급하지 않도록) — backtest 스크립트와 동일 로직
+function buildVLowSignal(seq, streak, minStreak) {
+  const sig = new Array(seq.length).fill(false);
+  let runningLow = null;
+  let awaitingBounce = false;
+  for (let i = 0; i < seq.length; i++) {
+    const belowBase = seq[i].close < seq[i].ema200;
+    if (!belowBase) { runningLow = null; awaitingBounce = false; continue; }
+    const justEligible = streak[i] === minStreak && (i === 0 || streak[i - 1] === minStreak - 1);
+    if (justEligible) { runningLow = null; awaitingBounce = false; }
+    if (runningLow === null || seq[i].close < runningLow) {
+      runningLow = seq[i].close;
+      awaitingBounce = true;
+    }
+    const crossUp5 = i > 0 && seq[i - 1].close < seq[i - 1].ema5 && seq[i].close >= seq[i].ema5;
+    if (crossUp5 && awaitingBounce) {
+      sig[i] = true;
+      awaitingBounce = false;
+    }
+  }
+  return sig;
+}
+
 async function batchAll(items, fn, concurrency = 5, delay = 150) {
   const results = new Array(items.length).fill(null);
   let idx = 0;
@@ -151,6 +175,7 @@ function simulateLiveStatus(seq, i0) {
   let recoverDay = null;
   const legs = [];
   const buyLog = [{ day: 0, price: seq[i0].close }];
+  const signalLog = [{ day: 0, price: seq[i0].close }]; // 2026-08-14: max-buy-legs 상한 무관, 조건①②③ 충족일 전부 기록
   const lastIdx = seq.length - 1;
 
   for (let d = 1; ; d++) {
@@ -162,7 +187,7 @@ function simulateLiveStatus(seq, i0) {
       const closedWeighted = legs.reduce((a, l) => a + l.weight * l.ret, 0);
       const weightedSoFar = closedWeighted + openWeight * curRet;
       return {
-        status: 'OPEN', day: lastIdx - i0, ret: weightedSoFar, legs, buyCount, buyLog,
+        status: 'OPEN', day: lastIdx - i0, ret: weightedSoFar, legs, buyCount, buyLog, signalLog,
         recovered, waveCount, inWaveUp, minRet, recoverDay, avgCost, curClose: cur.close,
       };
     }
@@ -170,9 +195,10 @@ function simulateLiveStatus(seq, i0) {
     const ema5 = seq[j].ema5;
     const ema200 = seq[j].ema200;
 
-    if (!recovered && buyCount < MAX_BUY_LEGS) {
-      const crossUp5 = seq[j - 1].close < seq[j - 1].ema5 && close >= ema5;
-      if (crossUp5 && rollingZStats(seq, j).z <= Z_THRESHOLD) {
+    if (!recovered) {
+      const conditionMet = seq[j].bounce && rollingZStats(seq, j).z <= Z_THRESHOLD;
+      if (conditionMet) signalLog.push({ day: d, price: close });
+      if (buyCount < MAX_BUY_LEGS && conditionMet) {
         buyCount += 1;
         costSum += close;
         buyLog.push({ day: d, price: close });
@@ -192,13 +218,13 @@ function simulateLiveStatus(seq, i0) {
       } else if (d >= RECOVER_TIMEOUT) {
         legs.push({ weight: openWeight, ret, reason: 'RECOVER_TIMEOUT', day: d, date: seq[j].date });
         openWeight = 0;
-        return { status: 'CLOSED', ret: legs.reduce((a, l) => a + l.weight * l.ret, 0), legs, finalDay: d, finalReason: 'RECOVER_TIMEOUT', buyCount, buyLog, recovered, waveCount, minRet, recoverDay, entryDate: seq[i0].date };
+        return { status: 'CLOSED', ret: legs.reduce((a, l) => a + l.weight * l.ret, 0), legs, finalDay: d, finalReason: 'RECOVER_TIMEOUT', buyCount, buyLog, signalLog, recovered, waveCount, minRet, recoverDay, entryDate: seq[i0].date };
       }
     } else {
       if (close < ema200) {
         legs.push({ weight: openWeight, ret, reason: 'BASELINE_BREAK', day: d, date: seq[j].date });
         openWeight = 0;
-        return { status: 'CLOSED', ret: legs.reduce((a, l) => a + l.weight * l.ret, 0), legs, finalDay: d, finalReason: 'BASELINE_BREAK', buyCount, buyLog, recovered, waveCount, minRet, recoverDay, entryDate: seq[i0].date };
+        return { status: 'CLOSED', ret: legs.reduce((a, l) => a + l.weight * l.ret, 0), legs, finalDay: d, finalReason: 'BASELINE_BREAK', buyCount, buyLog, signalLog, recovered, waveCount, minRet, recoverDay, entryDate: seq[i0].date };
       }
       if (inWaveUp && close < ema5) {
         inWaveUp = false;
@@ -213,7 +239,7 @@ function simulateLiveStatus(seq, i0) {
         } else {
           legs.push({ weight: openWeight, ret, reason: 'WAVE3', day: d, date: seq[j].date });
           openWeight = 0;
-          return { status: 'CLOSED', ret: legs.reduce((a, l) => a + l.weight * l.ret, 0), legs, finalDay: d, finalReason: 'WAVE3', buyCount, buyLog, recovered, waveCount, minRet, recoverDay, entryDate: seq[i0].date };
+          return { status: 'CLOSED', ret: legs.reduce((a, l) => a + l.weight * l.ret, 0), legs, finalDay: d, finalReason: 'WAVE3', buyCount, buyLog, signalLog, recovered, waveCount, minRet, recoverDay, entryDate: seq[i0].date };
         }
       } else if (!inWaveUp && close >= ema5) {
         inWaveUp = true;
@@ -222,7 +248,7 @@ function simulateLiveStatus(seq, i0) {
       if (openWeight > 1e-9 && d - recoverDay >= POST_RECOVER_HOLD) {
         legs.push({ weight: openWeight, ret, reason: 'TIME', day: d, date: seq[j].date });
         openWeight = 0;
-        return { status: 'CLOSED', ret: legs.reduce((a, l) => a + l.weight * l.ret, 0), legs, finalDay: d, finalReason: 'TIME', buyCount, buyLog, recovered, waveCount, minRet, recoverDay, entryDate: seq[i0].date };
+        return { status: 'CLOSED', ret: legs.reduce((a, l) => a + l.weight * l.ret, 0), legs, finalDay: d, finalReason: 'TIME', buyCount, buyLog, signalLog, recovered, waveCount, minRet, recoverDay, entryDate: seq[i0].date };
       }
     }
   }
@@ -256,13 +282,15 @@ async function loadStock(stock) {
     streak[i] = seq[i].close < seq[i].ema200 ? (i > 0 ? streak[i - 1] + 1 : 1) : 0;
   }
 
+  const bounceSig = buildVLowSignal(seq, streak, MIN_STREAK);
+  for (let i = 0; i < seq.length; i++) seq[i].bounce = bounceSig[i];
+
   const flags = new Array(seq.length).fill(false);
   for (let i = ROLL - 1; i < seq.length; i++) {
     if (i === 0) continue;
     const streakOk = streak[i] >= MIN_STREAK;
-    const crossUp5 = seq[i - 1].close < seq[i - 1].ema5 && seq[i].close >= seq[i].ema5;
     const z = rollingZStats(seq, i).z;
-    flags[i] = streakOk && crossUp5 && z <= Z_THRESHOLD;
+    flags[i] = streakOk && seq[i].bounce && z <= Z_THRESHOLD;
   }
   const entries = [];
   for (let i = ROLL - 1; i < seq.length; i++) {
@@ -305,9 +333,27 @@ function statusInfo(row) {
   return { primary, subBadges, note, day };
 }
 
+// 2026-08-14: max-buy-legs(2회) 상한과 무관하게 조건①②③ 충족일 전체를 표시 — 실제 체결된 건(굵게)과
+// 상한 초과로 신호만 발생하고 체결되지 않은 건(연하게 "신호만")을 구분 표기
+function signalDatesLabel(signalDates) {
+  if (!signalDates || signalDates.length < 1) return '';
+  const legLabel = { 1: '1차', 2: '2차', 3: '3차', 4: '4차', 5: '5차', 6: '6차' };
+  const parts = signalDates.map(b => {
+    const tag = legLabel[b.leg] || `${b.leg}차`;
+    return b.executed
+      ? `${tag} ${b.date}(${fmtV(b.price)})`
+      : `<span style="opacity:.65">${tag}(신호만) ${b.date}(${fmtV(b.price)})</span>`;
+  });
+  return `<div style="color:var(--txt3);font-size:12.5px;margin-top:3px">신호: ${parts.join(' &middot; ')}</div>`;
+}
+
+// 2026-08-14: "진행상황" 단일 컬럼에 상태·경과일·수익률·매수현황·신호일자가 다 뭉쳐 있어 컬럼 분리(사용자 요청)
 function tableRowHtml(row) {
   const s = statusInfo(row);
-  return `          <tr><td class="l">${row.date}</td><td class="l">${esc(row.name)}</td><td>${fmtV(row.entryClose)}</td><td class="l"><span class="badge ${s.primary.cls}">${s.primary.label}</span> D+${s.day}, <span class="${retClass(row.ret)}">${fmt(row.ret)}</span> ${(s.subBadges + s.note).trim()}</td></tr>`;
+  const statusCell = `<span class="badge ${s.primary.cls}">${s.primary.label}</span>${s.subBadges ? ' ' + s.subBadges.trim() : ''}`;
+  const noteCell = s.note ? s.note.replace(/^<span/, '<span').trim() : '<span class="t-flat">&mdash;</span>';
+  const signalCell = row.signalDates && row.signalDates.length ? signalDatesLabel(row.signalDates).replace(/^<div[^>]*>|<\/div>$/g, '') : '<span class="t-flat">&mdash;</span>';
+  return `          <tr><td class="l">${row.date}</td><td class="l">${esc(row.name)}</td><td>${fmtV(row.entryClose)}</td><td class="l">${statusCell}</td><td class="c">D+${s.day}</td><td class="${retClass(row.ret)}">${fmt(row.ret)}</td><td class="l">${noteCell}</td><td class="l">${signalCell}</td></tr>`;
 }
 
 function buildChartSvg(rows, markers) {
@@ -359,8 +405,21 @@ function signalChartCardHtml(row, seq, entryIdx) {
         <div class="chart-card-stats">
           <span>${recovLabel}</span>
         </div>
+        <div class="chart-card-stats">
+          <span>신호일 ${(row.signalDates || []).map(b => b.executed ? `${b.leg}차 ${b.date}(${fmtV(b.price)})` : `<span style="opacity:.65">${b.leg}차(신호만) ${b.date}(${fmtV(b.price)})</span>`).join(' <span class="sep">|</span> ')}</span>
+        </div>
         <div class="chart-card-legend"><span><i style="background:var(--sky600)"></i>진입/추가매수</span><span><i style="background:var(--${s.primary.cls === 'bdg-red' ? 'red' : s.primary.cls === 'bdg-purple' ? 'purple' : s.primary.cls === 'bdg-teal' ? 'teal' : 'gray600'})"></i>상태 <span>${s.primary.label}</span></span></div>
       </div>`;
+}
+
+function watchRowHtml(r) {
+  const seq = r.seq;
+  const last = seq.length - 1;
+  const cur = seq[last];
+  const zs = rollingZStats(seq, last);
+  const zHit = zs.z <= Z_THRESHOLD;
+  const badge = zHit ? '<span class="badge bdg-amber">Z충족&middot;돌파대기</span>' : '<span class="badge bdg-gray">관찰</span>';
+  return `          <tr><td class="l">${esc(r.name)}</td><td>${fmtV(cur.close)}</td><td>${fmtV(cur.ema200)}</td><td class="${retClass(cur.dev200)}">${fmt(cur.dev200)}</td><td>${zs.z.toFixed(2)}</td><td class="c">${r.curStreak}일</td><td class="c">${badge}</td></tr>`;
 }
 
 function watchChartCardHtml(r) {
@@ -426,7 +485,10 @@ async function main() {
     const primary = primaryEntriesForStock(r.seq, r.entries);
     for (const e of primary) {
       if (e.date < cutoffDate) continue;
-      rows.push({ date: e.date, name: r.name, code: r.code, entryClose: r.seq[e.i].close, ...e.status });
+      const buyDays = new Set(e.status.buyLog.map(b => b.day));
+      const signalDates = (e.status.signalLog || e.status.buyLog).map((b, idx) => ({ leg: idx + 1, date: r.seq[e.i + b.day].date, price: b.price, executed: buyDays.has(b.day) }));
+      const buyDates = e.status.buyLog.map((b, idx) => ({ leg: idx + 1, date: r.seq[e.i + b.day].date, price: b.price }));
+      rows.push({ date: e.date, name: r.name, code: r.code, entryClose: r.seq[e.i].close, buyDates, signalDates, ...e.status });
       rowMeta.push({ seq: r.seq, entryIdx: e.i });
     }
   }
@@ -460,13 +522,15 @@ async function main() {
   watchCandidates.sort((a, b) => a.curZ - b.curZ);
   const watchTop = watchCandidates.slice(0, opts.watchCap);
   const watchChartsHtml = watchTop.map(watchChartCardHtml).join('\n');
+  const watchTableHtml = watchTop.map(watchRowHtml).join('\n');
   const watchZHitCount = watchCandidates.filter(r => r.curZ <= Z_THRESHOLD).length;
 
   const fs2 = fs;
   fs2.writeFileSync('baseline_signals_table.html', tableHtml, 'utf-8');
   fs2.writeFileSync('baseline_signals_charts.html', chartCardsHtml, 'utf-8');
   fs2.writeFileSync('baseline_watch_charts.html', watchChartsHtml, 'utf-8');
-  console.error(`[산출완료] table→baseline_signals_table.html, charts→baseline_signals_charts.html, watch→baseline_watch_charts.html`);
+  fs2.writeFileSync('baseline_watch_table.html', watchTableHtml, 'utf-8');
+  console.error(`[산출완료] table→baseline_signals_table.html, charts→baseline_signals_charts.html, watch→baseline_watch_charts.html, watchTable→baseline_watch_table.html`);
 
   console.log(JSON.stringify({
     generatedAt: new Date().toISOString(), cutoffDate,
