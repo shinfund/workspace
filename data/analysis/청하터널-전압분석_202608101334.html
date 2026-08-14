@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<title>청하터널 한전 인입전압 분석 — 2025-12-12 ~ 2026-08-09</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Noto Sans KR',-apple-system,sans-serif;font-size:14.5px;background:var(--bg);color:var(--txt);word-break:keep-all}
+:root{
+  --sky:#0366D6;--sky50:#E9F1FE;--sky100:#C7DCF6;--sky600:#005CC5;--sky800:#032F62;
+  --teal:#1D9E75;--teal50:#E1F5EE;--teal100:#9FE1CB;--teal600:#0F6E56;
+  --coral:#D85A30;--coral50:#FAECE7;--coral100:#F5C4B3;
+  --amber:#BA7517;--amber50:#FAEEDA;--amber100:#FAC775;
+  --purple:#534AB7;--purple50:#EEEDFE;--purple100:#CECBF6;
+  --gray50:#F1EFE8;--gray100:#D3D1C7;--gray600:#5F5E5A;
+  --bg:#FFFFFF;--card:#FFFFFF;--border:#E1E4E8;--border2:#F6F8FA;
+  --txt:#24292E;--txt2:#3A4453;--txt3:#6A737D;
+  --chart-ref:rgba(36,41,46,.35);
+  --red:var(--coral);--red50:var(--coral50);--blue:var(--sky);--blue50:var(--sky50);
+  --hdrbg:#0C447C;--hdr-text:#fff;--hdr-text-dim:rgba(255,255,255,.85);
+  --hdr-btn-bg:rgba(255,255,255,.15);--hdr-btn-border:rgba(255,255,255,.35);
+  --hdr-btn-hover-bg:rgba(255,255,255,.25);--hdr-btn-text:#fff;
+  --hdr-shadow:0 2px 8px rgba(12,68,124,.3);
+  --r6:6px;--r8:8px;--r10:10px;--r12:12px;--r14:14px;--r16:16px;--r20:20px;
+  --shadow:none;--shadow-h:0 20px 60px rgba(0,0,0,.2);
+}
+html[data-theme="light"]{--hdrbg:#FFFFFF;--hdr-text:#032F62;--hdr-text-dim:#355E82;--hdr-btn-bg:#E6F1FB;--hdr-btn-border:#B7CEE8;--hdr-btn-hover-bg:#D3E7FA;--hdr-btn-text:#005CC5;--hdr-shadow:0 2px 8px rgba(12,68,124,.12);}
+html[data-theme="dark"]{
+  --bg:#24292E;--card:#1C2024;--border:rgba(255,255,255,.13);--border2:rgba(255,255,255,.09);
+  --txt:rgba(255,255,255,.92);--txt2:rgba(255,255,255,.75);--txt3:rgba(255,255,255,.5);
+  --chart-ref:rgba(255,255,255,.32);
+  --shadow:none;--shadow-h:0 20px 60px rgba(0,0,0,.5);--hdrbg:#24292E;--hdr-shadow:0 2px 10px rgba(0,0,0,.4);
+  --sky:#2E8FFF;--sky50:rgba(46,143,255,.16);--sky100:rgba(46,143,255,.32);--sky600:#79B8FF;--sky800:#C8E1FF;
+  --teal:#4FD8AC;--teal50:rgba(29,158,117,.16);--teal100:rgba(29,158,117,.32);--teal600:#4FD8AC;
+  --coral:#F2896A;--coral50:rgba(216,90,48,.16);--coral100:rgba(216,90,48,.32);
+  --red:var(--coral);--red50:var(--coral50);--blue:var(--sky);--blue50:var(--sky50);
+  --amber:#E8A93D;--amber50:rgba(186,117,23,.22);--amber100:rgba(186,117,23,.38);
+  --purple:#B4A6FF;--purple50:rgba(83,74,183,.26);--purple100:rgba(83,74,183,.4);
+  --gray50:rgba(255,255,255,.10);--gray600:#C9C7BF;
+}
+/* 가독성 개선(괴리율 리포트 기준 정렬): 테이블 헤더 굵기 보통화 + 다크모드 저채도 텍스트 흰색화 */
+thead th{font-weight:400}
+html[data-theme="dark"] thead th{color:#fff}
+tbody td.t-pos,tbody td.t-neg,tbody td.t-neg-hi,tbody td.t-flat{font-weight:400}
+html[data-theme="dark"]{--txt2:#fff;--txt3:rgba(255,255,255,.92)}
+html[data-theme="dark"] .tab-btn.on{color:#fff}
+.hdr-wrap{position:fixed;top:0;left:0;right:0;z-index:50;box-shadow:var(--hdr-shadow)}
+.header{background:var(--hdrbg);padding:max(12px,env(safe-area-inset-top)) 16px 12px;display:flex;align-items:center;justify-content:space-between;max-width:1100px;margin:0 auto;transition:background .18s ease}
+.top-nav{background:var(--card);border-bottom:1.5px solid var(--border);display:flex;padding:0 4px;max-width:1100px;margin:0 auto;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;overscroll-behavior-x:contain}
+.top-nav::-webkit-scrollbar{display:none}
+.tab-btn{flex:1;flex-shrink:0;min-width:64px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;color:var(--txt);font-size:13.5px;font-weight:700;font-family:inherit;cursor:pointer;padding:13px 6px;touch-action:manipulation;transition:color .15s;position:relative;white-space:nowrap}
+.tab-btn.on{color:var(--sky600)}
+.tab-btn.on::after{content:'';position:absolute;bottom:0;left:8%;right:8%;height:2.5px;background:var(--sky);border-radius:2px 2px 0 0}
+.nav-spacer{height:calc(104px + env(safe-area-inset-top,0px))}
+.header-left{display:flex;align-items:center;gap:10px;flex:1;min-width:0;overflow:hidden}
+.logo-mark{width:34px;height:34px;background:linear-gradient(155deg,#7FB4FF 0%,#0366D6 55%,#032F62 100%);border-radius:var(--r8);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 2px 6px rgba(3,102,214,.35)}
+.logo-info{display:flex;flex-direction:column;gap:1px;min-width:0;overflow:hidden}
+.logo-title{font-size:17px;font-weight:800;color:var(--hdr-text);letter-spacing:-.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:color .18s ease}
+.logo-sub{font-size:13px;color:var(--hdr-text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:color .18s ease}
+.header-right{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0;margin-left:10px}
+.hdr-date{font-size:13.5px;font-weight:700;color:var(--hdr-text);white-space:nowrap}
+.hdr-meta{font-size:12.5px;color:var(--hdr-text-dim);white-space:nowrap}
+.hdr-btn{background:var(--hdr-btn-bg);border:1px solid var(--hdr-btn-border);color:var(--hdr-btn-text);font-size:13px;font-weight:700;padding:6px 12px;border-radius:16px;cursor:pointer;white-space:nowrap;font-family:inherit;transition:background .12s}
+.hdr-btn:hover{background:var(--hdr-btn-hover-bg)}
+.wrap{max-width:1100px;margin:0 auto}
+.main{padding:0 20px max(20px,env(safe-area-inset-bottom))}
+.panel{display:none}
+.panel.on{display:block;animation:fade .22s}
+@keyframes fade{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+.kpi-row{display:flex;gap:9px;margin-bottom:14px;padding-top:10px;flex-wrap:wrap}
+.kpi-card{flex:1;min-width:110px;background:var(--card);border:1px solid var(--border);border-radius:var(--r12);padding:12px 10px;text-align:center;box-shadow:var(--shadow)}
+.kpi-card .num{font-size:20px;font-weight:800;line-height:1.1}
+.kpi-card .lbl{font-size:13.5px;margin-top:4px;font-weight:700;color:var(--txt)}
+.kpi-sky .num,.kpi-sky .lbl{color:var(--sky600)}
+.kpi-red .num,.kpi-red .lbl{color:var(--red)}
+.kpi-teal .num,.kpi-teal .lbl{color:var(--teal600)}
+.kpi-coral .num,.kpi-coral .lbl{color:var(--coral)}
+.kpi-amber .num,.kpi-amber .lbl{color:var(--amber)}
+.kpi-purple .num,.kpi-purple .lbl{color:var(--purple)}
+.sc{background:var(--card);border-radius:var(--r12);border:1px solid var(--border);padding:16px 18px;margin-bottom:14px;box-shadow:var(--shadow)}
+.sc-title{font-size:14.5px;font-weight:800;color:var(--txt);margin-bottom:12px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.sc-title .sub{font-size:13.5px;font-weight:600;color:var(--txt2)}
+.sc-note{font-size:14px;color:var(--txt2);margin-bottom:0;line-height:1.6;padding:8px 10px;background:var(--bg);border-radius:var(--r8);margin-top:12px}
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:var(--r8);overscroll-behavior-x:contain}
+table{min-width:100%;border-collapse:collapse;font-size:13.5px}
+thead th{background:var(--sky50);color:var(--sky800);font-size:13.5px;padding:9px 8px;text-align:right;white-space:nowrap}
+thead th.l{text-align:left} thead th.c{text-align:center}
+tbody td{padding:9px 8px;border-bottom:1px solid var(--border2);text-align:right;white-space:nowrap;color:var(--txt)}
+tbody td.l{text-align:left} tbody td.c{text-align:center}
+tbody tr:hover{background:var(--sky50)}
+.stock-cards{display:none}
+.stock-cards-target{display:block}
+.stock-card{background:var(--bg);border:1px solid var(--border);border-radius:var(--r12);padding:13px 14px;margin-bottom:10px}
+.sc-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.sc-name{font-size:15px;font-weight:800;color:var(--txt)}
+.sc-ratio{font-size:16px;font-weight:900}
+.sc-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px 12px}
+.sc-item{display:flex;flex-direction:column;gap:1px}
+.sc-item-l{font-size:13px;color:var(--txt2);font-weight:700}
+.sc-item-v{font-size:14.5px;font-weight:700;color:var(--txt)}
+.t-neg-hi{color:var(--red);font-weight:800}
+.t-neg{color:var(--red);font-weight:700}
+.t-pos{color:var(--teal600);font-weight:800}
+.t-flat{color:var(--txt2);font-weight:600}
+.badge{font-size:12.5px;font-weight:700;padding:2px 9px;border-radius:10px;white-space:nowrap;display:inline-block}
+.bdg-red{background:var(--red50);color:var(--red)}
+.bdg-sky{background:var(--sky50);color:var(--sky600)}
+.bdg-teal{background:var(--teal50);color:var(--teal600)}
+.bdg-amber{background:var(--amber50);color:var(--amber)}
+.bdg-coral{background:var(--coral50);color:var(--coral)}
+.bdg-gray{background:var(--gray50);color:var(--gray600)}
+.ai-sc{background:linear-gradient(135deg,var(--sky50) 0%,var(--card) 100%);border:1px solid var(--sky100);border-left:4px solid var(--sky);border-radius:var(--r12);padding:16px 18px;margin-bottom:14px;box-shadow:var(--shadow)}
+.ai-title{font-size:14.5px;font-weight:800;color:var(--sky800);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.ai-badge{margin-left:auto}
+.ai-list{display:flex;flex-direction:column;gap:9px}
+.ai-item{display:flex;gap:8px;align-items:flex-start;font-size:14px;color:var(--txt);line-height:1.6}
+.ai-dot{flex-shrink:0;width:6px;height:6px;border-radius:50%;margin-top:8px}
+.ai-dot-red{background:var(--red)} .ai-dot-teal{background:var(--teal)} .ai-dot-sky{background:var(--sky)} .ai-dot-amber{background:var(--amber)} .ai-dot-purple{background:var(--purple)}
+.lc-wrap{width:100%}
+.lc-wrap svg{display:block}
+.lc-legend{display:flex;gap:16px;margin-top:2px;font-size:13px;color:var(--txt2);flex-wrap:wrap}
+.lc-lg{display:flex;align-items:center;gap:5px}
+.lc-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+#settingsModal{display:none;position:fixed;inset:0;z-index:100}
+#settingsModal.modal-open{display:block}
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:20px}
+.modal-box{background:var(--card);border-radius:var(--r16);padding:20px;max-width:340px;width:100%;box-shadow:var(--shadow-h)}
+.modal-title{font-size:16px;font-weight:800;color:var(--txt);margin-bottom:14px}
+.modal-section{font-size:13.5px;font-weight:700;color:var(--txt2);margin-bottom:8px}
+.theme-opts{display:flex;gap:10px}
+.theme-opt{flex:1;cursor:pointer;border-radius:var(--r12);border:2px solid var(--border);padding:8px;text-align:center;transition:border-color .12s}
+.theme-opt.on{border-color:var(--sky)}
+.theme-swatch{height:44px;border-radius:var(--r8);margin-bottom:6px;position:relative;overflow:hidden}
+.theme-swatch-dark{background:#1C2024}
+.theme-swatch-light{background:#F6F8FA}
+.ts-side{position:absolute;left:0;top:0;bottom:0;width:30%}
+.theme-swatch-dark .ts-side{background:#24292E}
+.theme-swatch-light .ts-side{background:#FFFFFF;border-right:1px solid #E1E4E8}
+.theme-opt-label{font-size:13.5px;font-weight:700;color:var(--txt)}
+@media(max-width:374px){.logo-sub{display:none} .tab-btn{font-size:13px;padding:11px 2px;min-width:52px} .kpi-card .num{font-size:16px} .kpi-card .lbl{font-size:12px}}
+@media(max-width:600px){
+  .nav-spacer{height:calc(108px + env(safe-area-inset-top,0px))}
+  .main{padding:0 10px max(20px,env(safe-area-inset-bottom))}
+  .sc{padding:12px 12px} .tab-btn{font-size:13.5px;padding:12px 4px}
+  .kpi-card .num{font-size:18px} .kpi-card .lbl{font-size:13px}
+  table{font-size:13px} thead th,tbody td{padding:8px 5px}
+  .stock-cards{display:block} .stock-cards-target{display:none}
+  .hdr-date{display:none}
+}
+@media(min-width:769px){
+  .nav-spacer{height:calc(106px + env(safe-area-inset-top,0px))}
+  .main{padding:0 20px max(20px,env(safe-area-inset-bottom))}
+  .sc{padding:18px 20px} .sc-title{font-size:15px}
+  .kpi-card .num{font-size:22px} .kpi-card .lbl{font-size:14px}
+  table{font-size:14px} thead th,tbody td{padding:10px 9px}
+}
+@media(min-width:1024px){.kpi-row{gap:12px} .kpi-card .num{font-size:24px}}
+</style>
+</head>
+<body>
+<div id="settingsModal">
+  <div class="modal-backdrop" onclick="closeSettingsModal()">
+    <div class="modal-box" onclick="event.stopPropagation()">
+      <div class="modal-title">설정</div>
+      <div class="modal-section">화면모드</div>
+      <div class="theme-opts">
+        <div class="theme-opt" id="theme-opt-dark" onclick="setTheme('dark')">
+          <div class="theme-swatch theme-swatch-dark"><span class="ts-side"></span></div>
+          <div class="theme-opt-label">다크</div>
+        </div>
+        <div class="theme-opt" id="theme-opt-light" onclick="setTheme('light')">
+          <div class="theme-swatch theme-swatch-light"><span class="ts-side"></span></div>
+          <div class="theme-opt-label">라이트</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="hdr-wrap"><div class="wrap">
+  <div class="header">
+    <div class="header-left">
+      <div class="logo-mark"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg></div>
+      <div class="logo-info">
+        <div class="logo-title">청하터널 한전 인입전압 분석</div>
+        <div class="logo-sub">특고압 HV-104/204 · 저압 LV-101/201</div>
+      </div>
+    </div>
+    <div class="header-right" style="flex-direction:row;align-items:center;gap:8px">
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+        <div class="hdr-date">2025-12-12 ~ 2026-08-09</div>
+        <div class="hdr-meta">전력데이터 일보 241건 + 기상 데이터</div>
+      </div>
+      <button class="hdr-btn" onclick="openSettingsModal()" aria-label="설정">⚙ 설정</button>
+    </div>
+  </div>
+  <nav class="top-nav">
+    <button class="tab-btn on" data-tab="0">요약</button>
+    <button class="tab-btn" data-tab="1">일별</button>
+    <button class="tab-btn" data-tab="2">시간대별</button>
+    <button class="tab-btn" data-tab="3">월별</button>
+    <button class="tab-btn" data-tab="4">저압분석</button>
+    <button class="tab-btn" data-tab="5">기상상관관계</button>
+    <button class="tab-btn" data-tab="6">설비영향</button>
+  </nav>
+</div></div>
+<div class="nav-spacer"></div>
+<div class="wrap"><div class="main">
+  <div class="panel on" id="p0">
+    
+<div class="kpi-row">
+  <div class="kpi-card kpi-sky"><div class="num">241</div><div class="lbl">분석 일수</div></div>
+  <div class="kpi-card kpi-sky"><div class="num">23,136</div><div class="lbl">전압 관측치(특고압+저압)</div></div>
+  <div class="kpi-card kpi-coral"><div class="num">10</div><div class="lbl">경보(-5%↓) 이벤트</div></div>
+  <div class="kpi-card kpi-teal"><div class="num">0</div><div class="lbl">위험(-10%↓) 이벤트</div></div>
+  <div class="kpi-card kpi-amber"><div class="num">2026-07</div><div class="lbl">전압강하 본격화 시점</div></div>
+</div>
+    
+<div class="sc">
+  <div class="sc-title">특고압(HV) 인입전압 비교 <span class="sub">기간 평균값, 22.9kV 기준(선간전압 3상 평균)</span></div>
+  <div class="tbl-wrap stock-cards-target">
+    <table>
+      <thead><tr><th class="l">구분</th><th>평균전압</th><th>최저전압</th><th>최고전압</th><th title="표준편차 σ = √(Σ(Vᵢ-V̄)²/n) — 기간 중 전압이 자체 평균에서 얼마나 흔들렸는지 나타내는 변동폭 지표">표준편차</th><th>경보(-5%↓)</th></tr></thead>
+      <tbody>
+        <tr><td class="l">주전기실 (HV-104)</td><td>22,626V</td><td class="t-neg">21,570V</td><td>23,489V</td><td>251V</td><td class="t-neg-hi">10건</td></tr>
+        <tr><td class="l">부전기실 (HV-204)</td><td>22,874V</td><td class="t-neg">22,296V</td><td>23,340V</td><td>171V</td><td class="t-flat">0건</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="stock-cards">
+    <div class="stock-card"><div class="sc-head"><span class="sc-name">주전기실 (HV-104)</span><span class="sc-ratio t-neg-hi">10건</span></div>
+      <div class="sc-grid">
+        <div class="sc-item"><span class="sc-item-l">평균전압</span><span class="sc-item-v">22,626V</span></div>
+        <div class="sc-item"><span class="sc-item-l">최저전압</span><span class="sc-item-v">21,570V</span></div>
+        <div class="sc-item"><span class="sc-item-l">최고전압</span><span class="sc-item-v">23,489V</span></div>
+        <div class="sc-item"><span class="sc-item-l">표준편차</span><span class="sc-item-v">251V</span></div>
+      </div></div><div class="stock-card"><div class="sc-head"><span class="sc-name">부전기실 (HV-204)</span><span class="sc-ratio t-flat">0건</span></div>
+      <div class="sc-grid">
+        <div class="sc-item"><span class="sc-item-l">평균전압</span><span class="sc-item-v">22,874V</span></div>
+        <div class="sc-item"><span class="sc-item-l">최저전압</span><span class="sc-item-v">22,296V</span></div>
+        <div class="sc-item"><span class="sc-item-l">최고전압</span><span class="sc-item-v">23,340V</span></div>
+        <div class="sc-item"><span class="sc-item-l">표준편차</span><span class="sc-item-v">171V</span></div>
+      </div></div>
+  </div>
+  <div class="sc-note"><b>주전기실과 부전기실은 한전으로부터 각각 별도로 수전</b>하는 독립 계통입니다(사용자 확인). 경보(-5%↓) 이벤트 10건은 전부 <b>주전기실(HV-104) 계통</b>에서만 발생했으며 부전기실(HV-204) 계통에서는 한 건도 발생하지 않았습니다. 두 인입점이 물리적으로 별개 선로이므로, 이는 지역 전체에 걸친 광역 전압강하라기보다 <b>주전기실 쪽 한전 배전선로(피더) 또는 그 선로에 물린 다른 수용가·부하 특성에 기인한 국지적 현상</b>일 가능성이 높습니다. 한전 민원 접수 시 "주전기실 인입선로"를 특정해 문의하시면 원인 파악에 도움이 됩니다.</div>
+</div>
+<div class="sc">
+  <div class="sc-title">저압(LV) 전압 비교 <span class="sub">기간 평균값, 380V 기준(선간전압 3상 평균) · 상세는 [저압분석] 탭 참조</span></div>
+  <div class="tbl-wrap stock-cards-target">
+    <table>
+      <thead><tr><th class="l">구분</th><th>평균전압</th><th>최저전압</th><th>최고전압</th><th title="표준편차 σ = √(Σ(Vᵢ-V̄)²/n) — 기간 중 전압이 자체 평균에서 얼마나 흔들렸는지 나타내는 변동폭 지표">표준편차</th><th>경보(-5%↓)</th></tr></thead>
+      <tbody>
+        <tr><td class="l">주전기실 (LV-101)</td><td>375.4V</td><td class="t-neg">358.0V</td><td>390.5V</td><td>4.2V</td><td class="t-neg-hi">10건</td></tr>
+        <tr><td class="l">부전기실 (LV-201)</td><td>379.9V</td><td class="t-neg">370.7V</td><td>387.5V</td><td>2.9V</td><td class="t-flat">0건</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="sc-note">저압측(LV-101)도 특고압측(HV-104)과 거의 동일하게 10건의 경보 이벤트가 발생했습니다 — 변압기를 통해 <b>특고압 편차가 거의 그대로(1:1 비율로) 저압단까지 전달</b>되기 때문입니다. 자세한 분석은 [저압분석] 탭을 참조하세요.</div>
+</div>
+    <div class="ai-sc">
+<div class="ai-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg> 종합 진단<span class="badge bdg-sky ai-badge" style="font-size:11px">AI 분석</span></div>
+<div class="ai-list">
+<div class="ai-item"><div class="ai-dot ai-dot-amber"></div><div><b>전압강하는 2026년 7월부터 본격 시작</b> — 12월~6월(7개월)은 경보 이벤트가 0건이었으나, 7월 6건·8월(9일까지) 4건이 집중 발생했습니다. 무더위로 지역 전력수요가 급증하는 여름철 패턴과 정확히 일치합니다.</div></div><div class="ai-item"><div class="ai-dot ai-dot-red"></div><div><b>발생 지점은 주전기실 계통(HV-104·LV-101)에 국한</b> — 주전기실과 부전기실은 한전으로부터 각각 별도로 수전하는 독립 계통인데, 부전기실(HV-204·LV-201)은 동일 기간 경보 이벤트가 0건입니다. 두 계통이 물리적으로 분리돼 있으므로 광역 전압강하보다는 <b>주전기실 쪽 한전 배전선로(피더) 고유의 특성</b>일 가능성이 높습니다.</div></div><div class="ai-item"><div class="ai-dot ai-dot-sky"></div><div><b>특고압 편차는 저압측까지 거의 그대로(1:1) 전달</b> — 같은 시각 HV-104와 LV-101의 편차 차이는 평균 -0.01%p(표준편차 0.08%p)로 사실상 0에 수렴합니다. 저압측 자체의 별도 문제가 추가되는 것이 아니라, 변압기를 통해 특고압 쪽 편차가 그대로 전달되는 구조입니다.</div></div><div class="ai-item"><div class="ai-dot ai-dot-sky"></div><div><b>강하 폭은 경미한 수준</b> — 8개월간 특고압 11,568건 중 -5% 이하 10건(0.09%)뿐이며 -10%(위험 기준) 이하 사례는 전무합니다. 최저치도 특고압 21,570V(-5.81%)·저압 358V(-5.79%)로 순간적 편차이며 지속적 저전압 상태는 관측되지 않았습니다.</div></div><div class="ai-item"><div class="ai-dot ai-dot-purple"></div><div><b>흐린 날 자체보다 '더위(전력수요)'가 핵심 변수</b> — 전 기간 데이터에는 구름량-전압 상관관계(r≈-0.19)가 나타나지만, 여름철(6~8월)만 따로 보면 이 상관관계는 사실상 사라지고(r≈+0.03) 대신 기온-전압 상관관계가 뚜렷해집니다(r≈-0.51). 흐린 날 자가 태양광 미발전보다는, 무더위로 인한 지역 전체 냉방부하 증가가 더 직접적 원인으로 판단됩니다. 자세한 내용은 [기상 상관관계] 탭 참조.</div></div>
+</div>
+</div>
+    <div class="sc">
+      <div class="sc-title">분석 방법 안내</div>
+      <div class="sc-note">
+        · 데이터: 전력데이터_청하터널(주) 일보 241건(2025-12-12~2026-08-09, 매시 1회 특고압 22.9kV·저압 380V 선간전압 3상 평균)<br>
+        · 기상 데이터: 청하면(포항) 인근 좌표 기준 Open-Meteo 과거 기상 아카이브(구름량·기온, 시간단위)<br>
+        · 공칭전압: 특고압 22,900V / 저압 380V, 경보기준 ±5%, 위험기준 ±10%(업계 참고치, §설비영향 탭 참조)<br>
+        · 고속도로 개통일(2025-11-07) 직후~초기 구간은 부하 안정화 전이라 절대치보다 추세 해석 위주로 활용 권장(사용자 확인사항)<br>
+        · <b>표준편차 계산식</b>: σ = √( Σ(Vᵢ − V̄)² ÷ n ) — Vᵢ=매 시간 실측전압, V̄=기간 평균전압, n=관측치 수(모집단 표준편차). 정격전압과의 괴리가 아니라 <b>전압 자체가 기간 내내 얼마나 흔들렸는지(변동성)</b>를 나타내는 지표이며, 값이 클수록 전압이 불안정하다는 의미입니다.
+      </div>
+    </div>
+  </div>
+  <div class="panel" id="p1">
+<div class="sc">
+  <div class="sc-title">일별 경보·위험 상세 <span class="sub">경보(-5%↓) 발생 6일 전체 목록, 주전기실(HV-104) 기준</span></div>
+  <div class="tbl-wrap stock-cards-target">
+    <table>
+      <thead><tr><th class="l">날짜</th><th class="c">경보(-5%↓) 횟수</th><th class="c">위험(-10%↓) 횟수</th><th class="l">경보 발생 시각</th><th>당일 최저전압(특고압)</th><th>최저편차</th><th>당일 최저전압(저압)</th><th>당시 기온</th><th>당시 구름량</th></tr></thead>
+      <tbody>
+        <tr><td class="l">2026-07-07 (화)</td><td class="c t-neg-hi">1</td><td class="c t-flat">0</td><td class="l">08시</td><td>21,716V</td><td class="t-neg-hi">-5.17%</td><td>360V</td><td>26.0℃</td><td>85%</td></tr><tr><td class="l">2026-07-28 (화)</td><td class="c t-neg-hi">3</td><td class="c t-flat">0</td><td class="l">10시, 11시, 13시</td><td>21,606V</td><td class="t-neg-hi">-5.65%</td><td>359V</td><td>29.4℃</td><td>73%</td></tr><tr><td class="l">2026-07-29 (수)</td><td class="c t-neg-hi">1</td><td class="c t-flat">0</td><td class="l">08시</td><td>21,690V</td><td class="t-neg-hi">-5.28%</td><td>360V</td><td>31.5℃</td><td>69%</td></tr><tr><td class="l">2026-07-31 (금)</td><td class="c t-neg-hi">1</td><td class="c t-flat">0</td><td class="l">18시</td><td>21,710V</td><td class="t-neg-hi">-5.20%</td><td>360V</td><td>31.6℃</td><td>40%</td></tr><tr><td class="l">2026-08-04 (화)</td><td class="c t-neg-hi">3</td><td class="c t-flat">0</td><td class="l">08시, 09시, 10시</td><td>21,570V</td><td class="t-neg-hi">-5.81%</td><td>358V</td><td>27.9℃</td><td>33%</td></tr><tr><td class="l">2026-08-08 (토)</td><td class="c t-neg-hi">1</td><td class="c t-flat">0</td><td class="l">13시</td><td>21,741V</td><td class="t-neg-hi">-5.06%</td><td>360V</td><td>26.2℃</td><td>93%</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="stock-cards">
+    <div class="stock-card"><div class="sc-head"><span class="sc-name">2026-07-07 (화)</span><span class="sc-ratio t-neg-hi">-5.17%</span></div>
+    <div class="sc-grid">
+      <div class="sc-item"><span class="sc-item-l">경보 횟수</span><span class="sc-item-v">1회</span></div>
+      <div class="sc-item"><span class="sc-item-l">위험 횟수</span><span class="sc-item-v">0회</span></div>
+      <div class="sc-item"><span class="sc-item-l">발생 시각</span><span class="sc-item-v">08시</span></div>
+      <div class="sc-item"><span class="sc-item-l">최저전압(특고압/저압)</span><span class="sc-item-v">21,716V / 360V</span></div>
+      <div class="sc-item"><span class="sc-item-l">당시 기온</span><span class="sc-item-v">26.0℃</span></div>
+      <div class="sc-item"><span class="sc-item-l">당시 구름량</span><span class="sc-item-v">85%</span></div>
+    </div></div><div class="stock-card"><div class="sc-head"><span class="sc-name">2026-07-28 (화)</span><span class="sc-ratio t-neg-hi">-5.65%</span></div>
+    <div class="sc-grid">
+      <div class="sc-item"><span class="sc-item-l">경보 횟수</span><span class="sc-item-v">3회</span></div>
+      <div class="sc-item"><span class="sc-item-l">위험 횟수</span><span class="sc-item-v">0회</span></div>
+      <div class="sc-item"><span class="sc-item-l">발생 시각</span><span class="sc-item-v">10시, 11시, 13시</span></div>
+      <div class="sc-item"><span class="sc-item-l">최저전압(특고압/저압)</span><span class="sc-item-v">21,606V / 359V</span></div>
+      <div class="sc-item"><span class="sc-item-l">당시 기온</span><span class="sc-item-v">29.4℃</span></div>
+      <div class="sc-item"><span class="sc-item-l">당시 구름량</span><span class="sc-item-v">73%</span></div>
+    </div></div><div class="stock-card"><div class="sc-head"><span class="sc-name">2026-07-29 (수)</span><span class="sc-ratio t-neg-hi">-5.28%</span></div>
+    <div class="sc-grid">
+      <div class="sc-item"><span class="sc-item-l">경보 횟수</span><span class="sc-item-v">1회</span></div>
+      <div class="sc-item"><span class="sc-item-l">위험 횟수</span><span class="sc-item-v">0회</span></div>
+      <div class="sc-item"><span class="sc-item-l">발생 시각</span><span class="sc-item-v">08시</span></div>
+      <div class="sc-item"><span class="sc-item-l">최저전압(특고압/저압)</span><span class="sc-item-v">21,690V / 360V</span></div>
+      <div class="sc-item"><span class="sc-item-l">당시 기온</span><span class="sc-item-v">31.5℃</span></div>
+      <div class="sc-item"><span class="sc-item-l">당시 구름량</span><span class="sc-item-v">69%</span></div>
+    </div></div><div class="stock-card"><div class="sc-head"><span class="sc-name">2026-07-31 (금)</span><span class="sc-ratio t-neg-hi">-5.20%</span></div>
+    <div class="sc-grid">
+      <div class="sc-item"><span class="sc-item-l">경보 횟수</span><span class="sc-item-v">1회</span></div>
+      <div class="sc-item"><span class="sc-item-l">위험 횟수</span><span class="sc-item-v">0회</span></div>
+      <div class="sc-item"><span class="sc-item-l">발생 시각</span><span class="sc-item-v">18시</span></div>
+      <div class="sc-item"><span class="sc-item-l">최저전압(특고압/저압)</span><span class="sc-item-v">21,710V / 360V</span></div>
+      <div class="sc-item"><span class="sc-item-l">당시 기온</span><span class="sc-item-v">31.6℃</span></div>
+      <div class="sc-item"><span class="sc-item-l">당시 구름량</span><span class="sc-item-v">40%</span></div>
+    </div></div><div class="stock-card"><div class="sc-head"><span class="sc-name">2026-08-04 (화)</span><span class="sc-ratio t-neg-hi">-5.81%</span></div>
+    <div class="sc-grid">
+      <div class="sc-item"><span class="sc-item-l">경보 횟수</span><span class="sc-item-v">3회</span></div>
+      <div class="sc-item"><span class="sc-item-l">위험 횟수</span><span class="sc-item-v">0회</span></div>
+      <div class="sc-item"><span class="sc-item-l">발생 시각</span><span class="sc-item-v">08시, 09시, 10시</span></div>
+      <div class="sc-item"><span class="sc-item-l">최저전압(특고압/저압)</span><span class="sc-item-v">21,570V / 358V</span></div>
+      <div class="sc-item"><span class="sc-item-l">당시 기온</span><span class="sc-item-v">27.9℃</span></div>
+      <div class="sc-item"><span class="sc-item-l">당시 구름량</span><span class="sc-item-v">33%</span></div>
+    </div></div><div class="stock-card"><div class="sc-head"><span class="sc-name">2026-08-08 (토)</span><span class="sc-ratio t-neg-hi">-5.06%</span></div>
+    <div class="sc-grid">
+      <div class="sc-item"><span class="sc-item-l">경보 횟수</span><span class="sc-item-v">1회</span></div>
+      <div class="sc-item"><span class="sc-item-l">위험 횟수</span><span class="sc-item-v">0회</span></div>
+      <div class="sc-item"><span class="sc-item-l">발생 시각</span><span class="sc-item-v">13시</span></div>
+      <div class="sc-item"><span class="sc-item-l">최저전압(특고압/저압)</span><span class="sc-item-v">21,741V / 360V</span></div>
+      <div class="sc-item"><span class="sc-item-l">당시 기온</span><span class="sc-item-v">26.2℃</span></div>
+      <div class="sc-item"><span class="sc-item-l">당시 구름량</span><span class="sc-item-v">93%</span></div>
+    </div></div>
+  </div>
+  <div class="sc-note">위험(-10%↓) 기준을 넘은 날은 0일입니다. 경보 발생일 6일 모두 최고기온이 높았던 날과 겹치는지 이 표의 "당시 기온" 열로 직접 확인하실 수 있습니다.</div>
+</div>
+<div class="sc">
+  <div class="sc-title">요일별 패턴 (주전기실 vs 부전기실)</div>
+  <div class="tbl-wrap stock-cards-target">
+    <table>
+      <thead><tr><th class="c">요일</th><th>주전기실 평균편차</th><th>주전기실 경보</th><th>부전기실 평균편차</th><th>부전기실 경보</th></tr></thead>
+      <tbody>
+        <tr><td class="c">일</td><td class="t-neg">-0.60%</td><td class="c ">0</td><td class="t-flat">+0.08%</td><td class="c ">0</td></tr><tr><td class="c">월</td><td class="t-neg">-1.27%</td><td class="c ">0</td><td class="t-neg">-0.22%</td><td class="c ">0</td></tr><tr><td class="c">화</td><td class="t-neg">-1.34%</td><td class="c t-neg-hi">7</td><td class="t-neg">-0.21%</td><td class="c ">0</td></tr><tr><td class="c">수</td><td class="t-neg">-1.36%</td><td class="c t-neg-hi">1</td><td class="t-neg">-0.27%</td><td class="c ">0</td></tr><tr><td class="c">목</td><td class="t-neg">-1.38%</td><td class="c ">0</td><td class="t-neg">-0.13%</td><td class="c ">0</td></tr><tr><td class="c">금</td><td class="t-neg">-1.37%</td><td class="c t-neg-hi">1</td><td class="t-neg">-0.12%</td><td class="c ">0</td></tr><tr><td class="c">토</td><td class="t-neg">-1.07%</td><td class="c t-neg-hi">1</td><td class="t-flat">+0.05%</td><td class="c ">0</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="sc-note">주전기실은 평일(화·수·목·금)이 주말(토·일)보다 대체로 편차가 더 크게 나타나 산업/상업 부하 영향을 시사합니다. 부전기실은 요일 관계없이 편차가 전반적으로 작습니다. 다만 표본이 8개월 분량이라 통계적으로 확정하기보다는 참고 지표로 활용하시기 바랍니다.</div>
+</div>
+<div class="sc">
+  <div class="sc-title">저전압 이벤트 상위 15건 (특고압 편차가 가장 큰 순, 저압 동반값 포함)</div>
+  <div class="tbl-wrap stock-cards-target">
+    <table>
+      <thead><tr><th class="l">날짜</th><th class="c">시각</th><th class="l">인입점</th><th>특고압 전압</th><th>특고압 편차</th><th>저압 전압</th><th>저압 편차</th><th>당시 구름량</th></tr></thead>
+      <tbody>
+        <tr><td class="l">2026-08-04 (화)</td><td class="c">10시</td><td class="l">주전기실</td><td>21,570V</td><td class="t-neg-hi">-5.81%</td><td>358V</td><td class="t-neg-hi">-5.79%</td><td>20%</td></tr><tr><td class="l">2026-07-28 (화)</td><td class="c">10시</td><td class="l">주전기실</td><td>21,606V</td><td class="t-neg-hi">-5.65%</td><td>359V</td><td class="t-neg-hi">-5.65%</td><td>97%</td></tr><tr><td class="l">2026-07-28 (화)</td><td class="c">13시</td><td class="l">주전기실</td><td>21,609V</td><td class="t-neg-hi">-5.64%</td><td>359V</td><td class="t-neg-hi">-5.64%</td><td>94%</td></tr><tr><td class="l">2026-07-28 (화)</td><td class="c">11시</td><td class="l">주전기실</td><td>21,646V</td><td class="t-neg-hi">-5.48%</td><td>359V</td><td class="t-neg-hi">-5.47%</td><td>99%</td></tr><tr><td class="l">2026-08-04 (화)</td><td class="c">09시</td><td class="l">주전기실</td><td>21,662V</td><td class="t-neg-hi">-5.40%</td><td>360V</td><td class="t-neg-hi">-5.38%</td><td>44%</td></tr><tr><td class="l">2026-07-29 (수)</td><td class="c">08시</td><td class="l">주전기실</td><td>21,690V</td><td class="t-neg-hi">-5.28%</td><td>360V</td><td class="t-neg-hi">-5.27%</td><td>51%</td></tr><tr><td class="l">2026-08-04 (화)</td><td class="c">08시</td><td class="l">주전기실</td><td>21,696V</td><td class="t-neg-hi">-5.26%</td><td>360V</td><td class="t-neg-hi">-5.24%</td><td>42%</td></tr><tr><td class="l">2026-07-31 (금)</td><td class="c">18시</td><td class="l">주전기실</td><td>21,710V</td><td class="t-neg-hi">-5.20%</td><td>360V</td><td class="t-neg-hi">-5.21%</td><td>77%</td></tr><tr><td class="l">2026-07-07 (화)</td><td class="c">08시</td><td class="l">주전기실</td><td>21,716V</td><td class="t-neg-hi">-5.17%</td><td>360V</td><td class="t-neg-hi">-5.26%</td><td>100%</td></tr><tr><td class="l">2026-08-08 (토)</td><td class="c">13시</td><td class="l">주전기실</td><td>21,741V</td><td class="t-neg-hi">-5.06%</td><td>360V</td><td class="t-neg-hi">-5.17%</td><td>100%</td></tr><tr><td class="l">2026-08-08 (토)</td><td class="c">10시</td><td class="l">주전기실</td><td>21,775V</td><td class="t-neg-hi">-4.91%</td><td>361V</td><td class="t-neg-hi">-4.89%</td><td>97%</td></tr><tr><td class="l">2026-07-31 (금)</td><td class="c">19시</td><td class="l">주전기실</td><td>21,783V</td><td class="t-neg-hi">-4.88%</td><td>361V</td><td class="t-neg-hi">-4.95%</td><td>97%</td></tr><tr><td class="l">2026-07-15 (수)</td><td class="c">10시</td><td class="l">주전기실</td><td>21,786V</td><td class="t-neg-hi">-4.86%</td><td>362V</td><td class="t-neg-hi">-4.86%</td><td>97%</td></tr><tr><td class="l">2026-08-01 (토)</td><td class="c">19시</td><td class="l">주전기실</td><td>21,814V</td><td class="t-neg-hi">-4.74%</td><td>362V</td><td class="t-neg-hi">-4.82%</td><td>26%</td></tr><tr><td class="l">2026-08-04 (화)</td><td class="c">11시</td><td class="l">주전기실</td><td>21,820V</td><td class="t-neg-hi">-4.72%</td><td>362V</td><td class="t-neg-hi">-4.70%</td><td>18%</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="stock-cards">
+    <div class="stock-card"><div class="sc-head"><span class="sc-name">2026-08-04 10시</span><span class="sc-ratio t-neg-hi">-5.81%</span></div>
+    <div class="sc-grid">
+      <div class="sc-item"><span class="sc-item-l">인입점</span><span class="sc-item-v">주전기실</span></div>
+      <div class="sc-item"><span class="sc-item-l">특고압 전압</span><span class="sc-item-v">21,570V</span></div>
+      <div class="sc-item"><span class="sc-item-l">저압 전압</span><span class="sc-item-v">358V (-5.79%)</span></div>
+      <div class="sc-item"><span class="sc-item-l">당시 구름량</span><span class="sc-item-v">20%</span></div>
+    </div></div><div class="stock-card"><div class="sc-head"><span class="sc-name">2026-07-28 10시</span><span class="sc-ratio t-neg-hi">-5.65%</span></div>
+    <div class="sc-grid">
+      <div class="sc-item"><span class="sc-item-l">인입점</span><span class="sc-item-v">주전기실</span></div>
+      <div class="sc-item"><span class="sc-item-l">특고압 전압</span><span class="sc-item-v">21,606V</span></div>
+      <div class="sc-item"><span class="sc-item-l">저압 전압</span><span class="sc-item-v">359V (-5.65%)</span></div>
+      <div class="sc-item"><span class="sc-item-l">당시 구름량</span><span class="sc-item-v">97%</span></div>
+    </div></div><div class="stock-card"><div class="sc-head"><span class="sc-name">2026-07-28 13시</span><span class="sc-ratio t-neg-hi">-5.64%</span></div>
+    <div class="sc-grid">
+      <div class="sc-item"><span class="sc-item-l">인입점</span><span class="sc-item-v">주전기실</span></div>
+      <div class="sc-item"><span class="sc-item-l">특고압 전압</span><span class="sc-item-v">21,609V</span></div>
+      <div class="sc-item"><span class="sc-item-l">저압 전압</span><span class="sc-item-v">359V (-5.64%)</span></div>
+      <div class="sc-item"><span class="sc-item-l">당시 구름량</span><span class="sc-item-v">94%</span></div>
+    </div></div><div class="stock-card"><div class="sc-head"><span class="sc-name">2026-07-28 11시</span><span class="sc-ratio t-neg-hi">-5.48%</span></div>
+    <div class="sc-grid">
+      <div class="sc-item"><span class="sc-item-l">인입점</span><span class="sc-item-v">주전기실</span></div>
+      <div class="sc-item"><span class="sc-item-l">특고압 전압</span><span class="sc-item-v">21,646V</span></div>
+      <div class="sc-item"><span class="sc-item-l">저압 전압</span><span class="sc-item-v">359V (-5.47%)</span></div>
+      <div class="sc-item"><span class="sc-item-l">당시 구름량</span><span class="sc-item-v">99%</span></div>
+    </div></div><div class="stock-card"><div class="sc-head"><span class="sc-name">2026-08-04 09시</span><span class="sc-ratio t-neg-hi">-5.40%</span></div>
+    <div class="sc-grid">
+      <div class="sc-item"><span class="sc-item-l">인입점</span><span class="sc-item-v">주전기실</span></div>
+      <div class="sc-item"><span class="sc-item-l">특고압 전압</span><span class="sc-item-v">21,662V</span></div>
+      <div class="sc-item"><span class="sc-item-l">저압 전압</span><span class="sc-item-v">360V (-5.38%)</span></div>
+      <div class="sc-item"><span class="sc-item-l">당시 구름량</span><span class="sc-item-v">44%</span></div>
+    </div></div><div class="stock-card"><div class="sc-head"><span class="sc-name">2026-07-29 08시</span><span class="sc-ratio t-neg-hi">-5.28%</span></div>
+    <div class="sc-grid">
+      <div class="sc-item"><span class="sc-item-l">인입점</span><span class="sc-item-v">주전기실</span></div>
+      <div class="sc-item"><span class="sc-item-l">특고압 전압</span><span class="sc-item-v">21,690V</span></div>
+      <div class="sc-item"><span class="sc-item-l">저압 전압</span><span class="sc-item-v">360V (-5.27%)</span></div>
+      <div class="sc-item"><span class="sc-item-l">당시 구름량</span><span class="sc-item-v">51%</span></div>
+    </div></div><div class="stock-card"><div class="sc-head"><span class="sc-name">2026-08-04 08시</span><span class="sc-ratio t-neg-hi">-5.26%</span></div>
+    <div class="sc-grid">
+      <div class="sc-item"><span class="sc-item-l">인입점</span><span class="sc-item-v">주전기실</span></div>
+      <div class="sc-item"><span class="sc-item-l">특고압 전압</span><span class="sc-item-v">21,696V</span></div>
+      <div class="sc-item"><span class="sc-item-l">저압 전압</span><span class="sc-item-v">360V (-5.24%)</span></div>
+      <div class="sc-item"><span class="sc-item-l">당시 구름량</span><span class="sc-item-v">42%</span></div>
+    </div></div><div class="stock-card"><div class="sc-head"><span class="sc-name">2026-07-31 18시</span><span class="sc-ratio t-neg-hi">-5.20%</span></div>
+    <div class="sc-grid">
+      <div class="sc-item"><span class="sc-item-l">인입점</span><span class="sc-item-v">주전기실</span></div>
+      <div class="sc-item"><span class="sc-item-l">특고압 전압</span><span class="sc-item-v">21,710V</span></div>
+      <div class="sc-item"><span class="sc-item-l">저압 전압</span><span class="sc-item-v">360V (-5.21%)</span></div>
+      <div class="sc-item"><span class="sc-item-l">당시 구름량</span><span class="sc-item-v">77%</span></div>
+    </div></div><div class="stock-card"><div class="sc-head"><span class="sc-name">2026-07-07 08시</span><span class="sc-ratio t-neg-hi">-5.17%</span></div>
+    <div class="sc-grid">
+      <div class="sc-item"><span class="sc-item-l">인입점</span><span class="sc-item-v">주전기실</span></div>
+      <div class="sc-item"><span class="sc-item-l">특고압 전압</span><span class="sc-item-v">21,716V</span></div>
+      <div class="sc-item"><span class="sc-item-l">저압 전압</span><span class="sc-item-v">360V (-5.26%)</span></div>
+      <div class="sc-item"><span class="sc-item-l">당시 구름량</span><span class="sc-item-v">100%</span></div>
+    </div></div><div class="stock-card"><div class="sc-head"><span class="sc-name">2026-08-08 13시</span><span class="sc-ratio t-neg-hi">-5.06%</span></div>
+    <div class="sc-grid">
+      <div class="sc-item"><span class="sc-item-l">인입점</span><span class="sc-item-v">주전기실</span></div>
+      <div class="sc-item"><span class="sc-item-l">특고압 전압</span><span class="sc-item-v">21,741V</span></div>
+      <div class="sc-item"><span class="sc-item-l">저압 전압</span><span class="sc-item-v">360V (-5.17%)</span></div>
+      <div class="sc-item"><span class="sc-item-l">당시 구름량</span><span class="sc-item-v">100%</span></div>
+    </div></div><div class="stock-card"><div class="sc-head"><span class="sc-name">2026-08-08 10시</span><span class="sc-ratio t-neg-hi">-4.91%</span></div>
+    <div class="sc-grid">
+      <div class="sc-item"><span class="sc-item-l">인입점</span><span class="sc-item-v">주전기실</span></div>
+      <div class="sc-item"><span class="sc-item-l">특고압 전압</span><span class="sc-item-v">21,775V</span></div>
+      <div class="sc-item"><span class="sc-item-l">저압 전압</span><span class="sc-item-v">361V (-4.89%)</span></div>
+      <div class="sc-item"><span class="sc-item-l">당시 구름량</span><span class="sc-item-v">97%</span></div>
+    </div></div><div class="stock-card"><div class="sc-head"><span class="sc-name">2026-07-31 19시</span><span class="sc-ratio t-neg-hi">-4.88%</span></div>
+    <div class="sc-grid">
+      <div class="sc-item"><span class="sc-item-l">인입점</span><span class="sc-item-v">주전기실</span></div>
+      <div class="sc-item"><span class="sc-item-l">특고압 전압</span><span class="sc-item-v">21,783V</span></div>
+      <div class="sc-item"><span class="sc-item-l">저압 전압</span><span class="sc-item-v">361V (-4.95%)</span></div>
+      <div class="sc-item"><span class="sc-item-l">당시 구름량</span><span class="sc-item-v">97%</span></div>
+    </div></div><div class="stock-card"><div class="sc-head"><span class="sc-name">2026-07-15 10시</span><span class="sc-ratio t-neg-hi">-4.86%</span></div>
+    <div class="sc-grid">
+      <div class="sc-item"><span class="sc-item-l">인입점</span><span class="sc-item-v">주전기실</span></div>
+      <div class="sc-item"><span class="sc-item-l">특고압 전압</span><span class="sc-item-v">21,786V</span></div>
+      <div class="sc-item"><span class="sc-item-l">저압 전압</span><span class="sc-item-v">362V (-4.86%)</span></div>
+      <div class="sc-item"><span class="sc-item-l">당시 구름량</span><span class="sc-item-v">97%</span></div>
+    </div></div><div class="stock-card"><div class="sc-head"><span class="sc-name">2026-08-01 19시</span><span class="sc-ratio t-neg-hi">-4.74%</span></div>
+    <div class="sc-grid">
+      <div class="sc-item"><span class="sc-item-l">인입점</span><span class="sc-item-v">주전기실</span></div>
+      <div class="sc-item"><span class="sc-item-l">특고압 전압</span><span class="sc-item-v">21,814V</span></div>
+      <div class="sc-item"><span class="sc-item-l">저압 전압</span><span class="sc-item-v">362V (-4.82%)</span></div>
+      <div class="sc-item"><span class="sc-item-l">당시 구름량</span><span class="sc-item-v">26%</span></div>
+    </div></div><div class="stock-card"><div class="sc-head"><span class="sc-name">2026-08-04 11시</span><span class="sc-ratio t-neg-hi">-4.72%</span></div>
+    <div class="sc-grid">
+      <div class="sc-item"><span class="sc-item-l">인입점</span><span class="sc-item-v">주전기실</span></div>
+      <div class="sc-item"><span class="sc-item-l">특고압 전압</span><span class="sc-item-v">21,820V</span></div>
+      <div class="sc-item"><span class="sc-item-l">저압 전압</span><span class="sc-item-v">362V (-4.70%)</span></div>
+      <div class="sc-item"><span class="sc-item-l">당시 구름량</span><span class="sc-item-v">18%</span></div>
+    </div></div>
+  </div>
+  <div class="sc-note">경보(-5%↓) 발생일: 2026-07-07, 2026-07-28, 2026-07-29, 2026-07-31, 2026-08-04, 2026-08-08 — 총 6일, 모두 2026년 7~8월에 집중됐습니다. 표에서 보듯 저압측 편차는 특고압측과 거의 동일한 크기로 함께 나타납니다.</div>
+</div></div>
+  <div class="panel" id="p2">
+<div class="sc">
+  <div class="sc-title">시간대별 전압편차 패턴 (전체기간) <span class="sub">선그래프: 시간대 평균 전압편차(%), 점선=정격전압 · 주전기실(HV-104) vs 부전기실(HV-204)</span></div>
+  <div class="lc-wrap">
+  <svg viewBox="0 0 780 190" width="100%" height="190" preserveAspectRatio="none">
+    <line x1="36" x2="768" y1="51.0" y2="51.0" stroke="var(--chart-ref)" stroke-width="1.3" stroke-dasharray="4,4"/>
+    <polyline points="36.0,85.2 67.8,84.1 99.7,81.2 131.5,79.9 163.3,79.7 195.1,89.3 227.0,104.6 258.8,111.6 290.6,132.0 322.4,105.0 354.3,94.3 386.1,64.0 417.9,32.0 449.7,88.4 481.6,79.9 513.4,81.6 545.2,84.1 577.0,77.7 608.9,103.6 640.7,105.2 672.5,97.0 704.3,91.3 736.2,115.7 768.0,110.9" fill="none" stroke="var(--coral)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="36.0" cy="85.2" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 0: -1.03%</title></circle><circle cx="67.8" cy="84.1" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 1: -1.00%</title></circle><circle cx="99.7" cy="81.2" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 2: -0.91%</title></circle><circle cx="131.5" cy="79.9" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 3: -0.87%</title></circle><circle cx="163.3" cy="79.7" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 4: -0.87%</title></circle><circle cx="195.1" cy="89.3" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 5: -1.15%</title></circle><circle cx="227.0" cy="104.6" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 6: -1.61%</title></circle><circle cx="258.8" cy="111.6" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 7: -1.82%</title></circle><circle cx="290.6" cy="132.0" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 8: -2.44%</title></circle><circle cx="322.4" cy="105.0" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 9: -1.62%</title></circle><circle cx="354.3" cy="94.3" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 10: -1.30%</title></circle><circle cx="386.1" cy="64.0" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 11: -0.39%</title></circle><circle cx="417.9" cy="32.0" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 12: +0.57%</title></circle><circle cx="449.7" cy="88.4" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 13: -1.13%</title></circle><circle cx="481.6" cy="79.9" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 14: -0.87%</title></circle><circle cx="513.4" cy="81.6" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 15: -0.92%</title></circle><circle cx="545.2" cy="84.1" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 16: -1.00%</title></circle><circle cx="577.0" cy="77.7" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 17: -0.81%</title></circle><circle cx="608.9" cy="103.6" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 18: -1.58%</title></circle><circle cx="640.7" cy="105.2" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 19: -1.63%</title></circle><circle cx="672.5" cy="97.0" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 20: -1.38%</title></circle><circle cx="704.3" cy="91.3" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 21: -1.21%</title></circle><circle cx="736.2" cy="115.7" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 22: -1.95%</title></circle><circle cx="768.0" cy="110.9" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 23: -1.80%</title></circle><polyline points="36.0,42.1 67.8,43.1 99.7,42.5 131.5,43.0 163.3,43.8 195.1,45.7 227.0,59.0 258.8,61.6 290.6,75.2 322.4,62.2 354.3,67.3 386.1,43.6 417.9,46.1 449.7,72.8 481.6,56.1 513.4,40.0 545.2,48.9 577.0,58.8 608.9,73.5 640.7,63.9 672.5,48.4 704.3,48.0 736.2,67.3 768.0,61.1" fill="none" stroke="var(--sky600)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="36.0" cy="42.1" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 0: +0.27%</title></circle><circle cx="67.8" cy="43.1" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 1: +0.24%</title></circle><circle cx="99.7" cy="42.5" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 2: +0.26%</title></circle><circle cx="131.5" cy="43.0" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 3: +0.24%</title></circle><circle cx="163.3" cy="43.8" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 4: +0.22%</title></circle><circle cx="195.1" cy="45.7" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 5: +0.16%</title></circle><circle cx="227.0" cy="59.0" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 6: -0.24%</title></circle><circle cx="258.8" cy="61.6" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 7: -0.32%</title></circle><circle cx="290.6" cy="75.2" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 8: -0.73%</title></circle><circle cx="322.4" cy="62.2" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 9: -0.34%</title></circle><circle cx="354.3" cy="67.3" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 10: -0.49%</title></circle><circle cx="386.1" cy="43.6" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 11: +0.22%</title></circle><circle cx="417.9" cy="46.1" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 12: +0.15%</title></circle><circle cx="449.7" cy="72.8" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 13: -0.66%</title></circle><circle cx="481.6" cy="56.1" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 14: -0.15%</title></circle><circle cx="513.4" cy="40.0" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 15: +0.33%</title></circle><circle cx="545.2" cy="48.9" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 16: +0.06%</title></circle><circle cx="577.0" cy="58.8" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 17: -0.24%</title></circle><circle cx="608.9" cy="73.5" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 18: -0.68%</title></circle><circle cx="640.7" cy="63.9" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 19: -0.39%</title></circle><circle cx="672.5" cy="48.4" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 20: +0.08%</title></circle><circle cx="704.3" cy="48.0" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 21: +0.09%</title></circle><circle cx="736.2" cy="67.3" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 22: -0.49%</title></circle><circle cx="768.0" cy="61.1" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 23: -0.31%</title></circle>
+    <text x="36.0" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">0</text><text x="99.7" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">2</text><text x="163.3" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">4</text><text x="227.0" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">6</text><text x="290.6" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">8</text><text x="354.3" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">10</text><text x="417.9" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">12</text><text x="481.6" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">14</text><text x="545.2" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">16</text><text x="608.9" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">18</text><text x="672.5" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">20</text><text x="736.2" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">22</text><text x="768.0" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">23</text>
+  </svg>
+  <div class="lc-legend"><span class="lc-lg"><span class="lc-dash"></span>정격전압(0%)</span><span class="lc-lg"><span class="lc-dot" style="background:var(--coral)"></span>주전기실(HV-104)</span><span class="lc-lg"><span class="lc-dot" style="background:var(--sky600)"></span>부전기실(HV-204)</span></div>
+</div>
+</div>
+<div class="sc">
+  <div class="sc-title">시간대별 전압편차 패턴 (여름철 6~8월만)</div>
+  <div class="lc-wrap">
+  <svg viewBox="0 0 780 190" width="100%" height="190" preserveAspectRatio="none">
+    <line x1="36" x2="768" y1="36.9" y2="36.9" stroke="var(--chart-ref)" stroke-width="1.3" stroke-dasharray="4,4"/>
+    <polyline points="36.0,76.5 67.8,77.7 99.7,75.6 131.5,74.7 163.3,72.6 195.1,79.4 227.0,93.5 258.8,104.3 290.6,132.0 322.4,111.8 354.3,107.2 386.1,77.3 417.9,44.5 449.7,99.1 481.6,89.1 513.4,86.4 545.2,83.4 577.0,78.9 608.9,107.5 640.7,110.8 672.5,100.2 704.3,89.2 736.2,105.7 768.0,97.2" fill="none" stroke="var(--coral)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="36.0" cy="76.5" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 0: -1.22%</title></circle><circle cx="67.8" cy="77.7" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 1: -1.26%</title></circle><circle cx="99.7" cy="75.6" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 2: -1.19%</title></circle><circle cx="131.5" cy="74.7" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 3: -1.16%</title></circle><circle cx="163.3" cy="72.6" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 4: -1.10%</title></circle><circle cx="195.1" cy="79.4" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 5: -1.31%</title></circle><circle cx="227.0" cy="93.5" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 6: -1.75%</title></circle><circle cx="258.8" cy="104.3" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 7: -2.08%</title></circle><circle cx="290.6" cy="132.0" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 8: -2.93%</title></circle><circle cx="322.4" cy="111.8" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 9: -2.31%</title></circle><circle cx="354.3" cy="107.2" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 10: -2.17%</title></circle><circle cx="386.1" cy="77.3" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 11: -1.25%</title></circle><circle cx="417.9" cy="44.5" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 12: -0.23%</title></circle><circle cx="449.7" cy="99.1" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 13: -1.92%</title></circle><circle cx="481.6" cy="89.1" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 14: -1.61%</title></circle><circle cx="513.4" cy="86.4" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 15: -1.53%</title></circle><circle cx="545.2" cy="83.4" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 16: -1.43%</title></circle><circle cx="577.0" cy="78.9" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 17: -1.29%</title></circle><circle cx="608.9" cy="107.5" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 18: -2.18%</title></circle><circle cx="640.7" cy="110.8" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 19: -2.28%</title></circle><circle cx="672.5" cy="100.2" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 20: -1.95%</title></circle><circle cx="704.3" cy="89.2" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 21: -1.61%</title></circle><circle cx="736.2" cy="105.7" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 22: -2.12%</title></circle><circle cx="768.0" cy="97.2" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 23: -1.86%</title></circle><polyline points="36.0,32.0 67.8,34.7 99.7,34.8 131.5,34.8 163.3,33.0 195.1,33.5 227.0,42.9 258.8,45.6 290.6,70.2 322.4,65.5 354.3,71.3 386.1,41.2 417.9,42.3 449.7,66.9 481.6,50.8 513.4,32.2 545.2,39.9 577.0,46.8 608.9,63.1 640.7,54.1 672.5,39.0 704.3,35.8 736.2,48.8 768.0,40.9" fill="none" stroke="var(--sky600)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="36.0" cy="32.0" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 0: +0.15%</title></circle><circle cx="67.8" cy="34.7" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 1: +0.07%</title></circle><circle cx="99.7" cy="34.8" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 2: +0.06%</title></circle><circle cx="131.5" cy="34.8" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 3: +0.06%</title></circle><circle cx="163.3" cy="33.0" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 4: +0.12%</title></circle><circle cx="195.1" cy="33.5" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 5: +0.10%</title></circle><circle cx="227.0" cy="42.9" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 6: -0.19%</title></circle><circle cx="258.8" cy="45.6" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 7: -0.27%</title></circle><circle cx="290.6" cy="70.2" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 8: -1.03%</title></circle><circle cx="322.4" cy="65.5" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 9: -0.88%</title></circle><circle cx="354.3" cy="71.3" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 10: -1.06%</title></circle><circle cx="386.1" cy="41.2" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 11: -0.13%</title></circle><circle cx="417.9" cy="42.3" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 12: -0.17%</title></circle><circle cx="449.7" cy="66.9" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 13: -0.93%</title></circle><circle cx="481.6" cy="50.8" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 14: -0.43%</title></circle><circle cx="513.4" cy="32.2" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 15: +0.14%</title></circle><circle cx="545.2" cy="39.9" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 16: -0.09%</title></circle><circle cx="577.0" cy="46.8" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 17: -0.31%</title></circle><circle cx="608.9" cy="63.1" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 18: -0.81%</title></circle><circle cx="640.7" cy="54.1" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 19: -0.53%</title></circle><circle cx="672.5" cy="39.0" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 20: -0.06%</title></circle><circle cx="704.3" cy="35.8" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 21: +0.03%</title></circle><circle cx="736.2" cy="48.8" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 22: -0.37%</title></circle><circle cx="768.0" cy="40.9" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 23: -0.12%</title></circle>
+    <text x="36.0" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">0</text><text x="99.7" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">2</text><text x="163.3" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">4</text><text x="227.0" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">6</text><text x="290.6" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">8</text><text x="354.3" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">10</text><text x="417.9" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">12</text><text x="481.6" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">14</text><text x="545.2" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">16</text><text x="608.9" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">18</text><text x="672.5" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">20</text><text x="736.2" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">22</text><text x="768.0" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">23</text>
+  </svg>
+  <div class="lc-legend"><span class="lc-lg"><span class="lc-dash"></span>정격전압(0%)</span><span class="lc-lg"><span class="lc-dot" style="background:var(--coral)"></span>주전기실(HV-104)</span><span class="lc-lg"><span class="lc-dot" style="background:var(--sky600)"></span>부전기실(HV-204)</span></div>
+</div>
+</div>
+<div class="sc">
+  <div class="sc-title">시간대별 상세 수치 (전체기간, 주전기실 vs 부전기실)</div>
+  <div class="tbl-wrap stock-cards-target">
+    <table>
+      <thead><tr><th class="c">시간</th><th>주전기실 평균편차</th><th>주전기실 경보</th><th>부전기실 평균편차</th><th>부전기실 경보</th></tr></thead>
+      <tbody>
+        <tr><td class="c">00시</td><td class="t-neg">-1.03%</td><td class="c ">0</td><td class="t-flat">+0.27%</td><td class="c ">0</td></tr><tr><td class="c">01시</td><td class="t-neg">-1.00%</td><td class="c ">0</td><td class="t-flat">+0.24%</td><td class="c ">0</td></tr><tr><td class="c">02시</td><td class="t-neg">-0.91%</td><td class="c ">0</td><td class="t-flat">+0.26%</td><td class="c ">0</td></tr><tr><td class="c">03시</td><td class="t-neg">-0.87%</td><td class="c ">0</td><td class="t-flat">+0.24%</td><td class="c ">0</td></tr><tr><td class="c">04시</td><td class="t-neg">-0.87%</td><td class="c ">0</td><td class="t-flat">+0.22%</td><td class="c ">0</td></tr><tr><td class="c">05시</td><td class="t-neg">-1.15%</td><td class="c ">0</td><td class="t-flat">+0.16%</td><td class="c ">0</td></tr><tr><td class="c">06시</td><td class="t-neg">-1.61%</td><td class="c ">0</td><td class="t-neg">-0.24%</td><td class="c ">0</td></tr><tr><td class="c">07시</td><td class="t-neg">-1.82%</td><td class="c ">0</td><td class="t-neg">-0.32%</td><td class="c ">0</td></tr><tr><td class="c">08시</td><td class="t-neg">-2.44%</td><td class="c t-neg-hi">3</td><td class="t-neg">-0.73%</td><td class="c ">0</td></tr><tr><td class="c">09시</td><td class="t-neg">-1.62%</td><td class="c t-neg-hi">1</td><td class="t-neg">-0.34%</td><td class="c ">0</td></tr><tr><td class="c">10시</td><td class="t-neg">-1.30%</td><td class="c t-neg-hi">2</td><td class="t-neg">-0.49%</td><td class="c ">0</td></tr><tr><td class="c">11시</td><td class="t-neg">-0.39%</td><td class="c t-neg-hi">1</td><td class="t-flat">+0.22%</td><td class="c ">0</td></tr><tr><td class="c">12시</td><td class="t-pos">+0.57%</td><td class="c ">0</td><td class="t-flat">+0.15%</td><td class="c ">0</td></tr><tr><td class="c">13시</td><td class="t-neg">-1.13%</td><td class="c t-neg-hi">2</td><td class="t-neg">-0.66%</td><td class="c ">0</td></tr><tr><td class="c">14시</td><td class="t-neg">-0.87%</td><td class="c ">0</td><td class="t-neg">-0.15%</td><td class="c ">0</td></tr><tr><td class="c">15시</td><td class="t-neg">-0.92%</td><td class="c ">0</td><td class="t-pos">+0.33%</td><td class="c ">0</td></tr><tr><td class="c">16시</td><td class="t-neg">-1.00%</td><td class="c ">0</td><td class="t-flat">+0.06%</td><td class="c ">0</td></tr><tr><td class="c">17시</td><td class="t-neg">-0.81%</td><td class="c ">0</td><td class="t-neg">-0.24%</td><td class="c ">0</td></tr><tr><td class="c">18시</td><td class="t-neg">-1.58%</td><td class="c t-neg-hi">1</td><td class="t-neg">-0.68%</td><td class="c ">0</td></tr><tr><td class="c">19시</td><td class="t-neg">-1.63%</td><td class="c ">0</td><td class="t-neg">-0.39%</td><td class="c ">0</td></tr><tr><td class="c">20시</td><td class="t-neg">-1.38%</td><td class="c ">0</td><td class="t-flat">+0.08%</td><td class="c ">0</td></tr><tr><td class="c">21시</td><td class="t-neg">-1.21%</td><td class="c ">0</td><td class="t-flat">+0.09%</td><td class="c ">0</td></tr><tr><td class="c">22시</td><td class="t-neg">-1.95%</td><td class="c ">0</td><td class="t-neg">-0.49%</td><td class="c ">0</td></tr><tr><td class="c">23시</td><td class="t-neg">-1.80%</td><td class="c ">0</td><td class="t-neg">-0.31%</td><td class="c ">0</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+<div class="ai-sc">
+<div class="ai-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg> 시간대 패턴 분석<span class="badge bdg-sky ai-badge" style="font-size:11px">AI 분석</span></div>
+<div class="ai-list">
+<div class="ai-item"><div class="ai-dot ai-dot-red"></div><div><b>주전기실(HV-104)</b>만 놓고 보면 가장 취약한 시간대는 <b>08시(출근·설비 기동 시간대, 평균 -2.44%)</b>와 <b>18~19시(저녁 피크, 평균 -1.58~-1.63%)</b>입니다. 반면 <b>부전기실(HV-204)</b>은 같은 시간대에도 -0.7~-0.8% 수준으로 훨씬 완만해, 취약한 시간대 패턴 자체가 주전기실에서 뚜렷하게 두드러집니다.</div></div><div class="ai-item"><div class="ai-dot ai-dot-sky"></div><div><b>정오(12시) 전후</b>는 주전기실도 오히려 평균편차가 +0.57%(플러스)로 하루 중 가장 안정적입니다. 만약 흐린 날 태양광 미발전이 핵심 원인이라면 일사량이 가장 강한 정오 전후에 강하가 집중돼야 하는데, 실제로는 정반대 패턴입니다 — 이는 원인이 태양광보다 '아침·저녁 부하 피크'에 가깝다는 근거입니다.</div></div><div class="ai-item"><div class="ai-dot ai-dot-amber"></div><div>22~23시(심야)에도 주전기실 편차가 소폭 확대되는데, 이는 여름철 심야 냉방 가동(열대야) 영향으로 추정됩니다.</div></div>
+</div>
+</div></div>
+  <div class="panel" id="p3">
+<div class="sc">
+  <div class="sc-title">월별 전압편차 추이 <span class="sub">2025-12 ~ 2026-08, 주전기실(HV-104) vs 부전기실(HV-204)</span></div>
+  <div class="lc-wrap">
+  <svg viewBox="0 0 780 190" width="100%" height="190" preserveAspectRatio="none">
+    <line x1="36" x2="768" y1="38.5" y2="38.5" stroke="var(--chart-ref)" stroke-width="1.3" stroke-dasharray="4,4"/>
+    <polyline points="36.0,84.2 127.5,82.7 219.0,77.6 310.5,73.0 402.0,73.5 493.5,71.6 585.0,76.5 676.5,115.9 768.0,132.0" fill="none" stroke="var(--coral)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="36.0" cy="84.2" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 12월: -1.21%</title></circle><circle cx="127.5" cy="82.7" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 01월: -1.17%</title></circle><circle cx="219.0" cy="77.6" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 02월: -1.03%</title></circle><circle cx="310.5" cy="73.0" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 03월: -0.91%</title></circle><circle cx="402.0" cy="73.5" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 04월: -0.93%</title></circle><circle cx="493.5" cy="71.6" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 05월: -0.88%</title></circle><circle cx="585.0" cy="76.5" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 06월: -1.01%</title></circle><circle cx="676.5" cy="115.9" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 07월: -2.05%</title></circle><circle cx="768.0" cy="132.0" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(HV-104) 08월: -2.48%</title></circle><polyline points="36.0,39.7 127.5,40.6 219.0,32.0 310.5,40.5 402.0,44.9 493.5,43.3 585.0,47.4 676.5,51.3 768.0,46.1" fill="none" stroke="var(--sky600)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="36.0" cy="39.7" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 12월: -0.03%</title></circle><circle cx="127.5" cy="40.6" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 01월: -0.05%</title></circle><circle cx="219.0" cy="32.0" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 02월: +0.17%</title></circle><circle cx="310.5" cy="40.5" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 03월: -0.05%</title></circle><circle cx="402.0" cy="44.9" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 04월: -0.17%</title></circle><circle cx="493.5" cy="43.3" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 05월: -0.13%</title></circle><circle cx="585.0" cy="47.4" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 06월: -0.24%</title></circle><circle cx="676.5" cy="51.3" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 07월: -0.34%</title></circle><circle cx="768.0" cy="46.1" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(HV-204) 08월: -0.20%</title></circle>
+    <text x="36.0" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">12월</text><text x="127.5" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">01월</text><text x="219.0" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">02월</text><text x="310.5" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">03월</text><text x="402.0" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">04월</text><text x="493.5" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">05월</text><text x="585.0" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">06월</text><text x="676.5" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">07월</text><text x="768.0" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">08월</text>
+  </svg>
+  <div class="lc-legend"><span class="lc-lg"><span class="lc-dash"></span>정격전압(0%)</span><span class="lc-lg"><span class="lc-dot" style="background:var(--coral)"></span>주전기실(HV-104)</span><span class="lc-lg"><span class="lc-dot" style="background:var(--sky600)"></span>부전기실(HV-204)</span></div>
+</div>
+</div>
+<div class="sc">
+  <div class="sc-title">월별 상세 수치 (주전기실 vs 부전기실)</div>
+  <div class="tbl-wrap stock-cards-target">
+    <table>
+      <thead><tr><th class="l">월</th><th>주전기실 평균편차</th><th>주전기실 경보</th><th>부전기실 평균편차</th><th>부전기실 경보</th></tr></thead>
+      <tbody>
+        <tr><td class="l">2025-12</td><td class="t-neg">-1.21%</td><td class="c ">0</td><td class="t-neg">-0.03%</td><td class="c ">0</td></tr><tr><td class="l">2026-01</td><td class="t-neg">-1.17%</td><td class="c ">0</td><td class="t-neg">-0.05%</td><td class="c ">0</td></tr><tr><td class="l">2026-02</td><td class="t-neg">-1.03%</td><td class="c ">0</td><td class="t-flat">+0.17%</td><td class="c ">0</td></tr><tr><td class="l">2026-03</td><td class="t-neg">-0.91%</td><td class="c ">0</td><td class="t-neg">-0.05%</td><td class="c ">0</td></tr><tr><td class="l">2026-04</td><td class="t-neg">-0.93%</td><td class="c ">0</td><td class="t-neg">-0.17%</td><td class="c ">0</td></tr><tr><td class="l">2026-05</td><td class="t-neg">-0.88%</td><td class="c ">0</td><td class="t-neg">-0.13%</td><td class="c ">0</td></tr><tr><td class="l">2026-06</td><td class="t-neg">-1.01%</td><td class="c ">0</td><td class="t-neg">-0.24%</td><td class="c ">0</td></tr><tr><td class="l">2026-07</td><td class="t-neg">-2.05%</td><td class="c t-neg-hi">6</td><td class="t-neg">-0.34%</td><td class="c ">0</td></tr><tr><td class="l">2026-08</td><td class="t-neg">-2.48%</td><td class="c t-neg-hi">4</td><td class="t-neg">-0.20%</td><td class="c ">0</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="sc-note">⚠️ 참고: 고속도로 개통일(2025-11-07) 직후~초기 안정화 구간(2025-12월경)은 부하 패턴이 아직 정상 가동 상태와 다를 수 있어 절대비교보다는 <b>2026년 이후의 월별 우상향(악화) 추세</b>를 중심으로 해석하는 것을 권장합니다.</div>
+</div>
+<div class="ai-sc">
+<div class="ai-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg> 월별 추이 분석<span class="badge bdg-sky ai-badge" style="font-size:11px">AI 분석</span></div>
+<div class="ai-list">
+<div class="ai-item"><div class="ai-dot ai-dot-amber"></div><div><b>주전기실(HV-104)</b>은 2025-12 ~ 2026-06(7개월)에 월평균편차가 안정적이었으나, 2026-07 → 2026-08로 두 달 연속 뚜렷하게 악화되고 있습니다. 경보 이벤트도 이 두 달·이 계통에만 100% 집중됐습니다.</div></div><div class="ai-item"><div class="ai-dot ai-dot-sky"></div><div>같은 기간 <b>부전기실(HV-204)</b>은 월평균편차가 뚜렷한 악화 추세 없이 훨씬 좁은 범위에서 유지되고 있습니다 — 두 계통을 나란히 보면 문제가 주전기실 쪽에 국한된다는 점이 더 명확해집니다.</div></div><div class="ai-item"><div class="ai-dot ai-dot-purple"></div><div>주전기실의 7~8월 악화 시점은 정확히 전국적 폭염·장마 시즌과 겹칩니다. 계통 전체의 냉방부하 급증이 그 배전선로 말단(청하터널 주전기실 수전점)까지 전압강하로 나타난 것으로 해석하는 것이 가장 합리적입니다.</div></div><div class="ai-item"><div class="ai-dot ai-dot-red"></div><div>9월 이후에도 무더위가 이어질 경우 유사하거나 더 심한 강하가 재발할 가능성이 있으므로, 8~9월 데이터를 지속 모니터링하는 것을 권장합니다.</div></div>
+</div>
+</div></div>
+  <div class="panel" id="p4">
+<div class="sc">
+  <div class="sc-title">저압(LV) 인입전압 비교 <span class="sub">기간 평균값, 380V 기준(선간전압 3상 평균)</span></div>
+  <div class="tbl-wrap stock-cards-target">
+    <table>
+      <thead><tr><th class="l">구분</th><th>평균전압</th><th>최저전압</th><th>최고전압</th><th title="표준편차 σ = √(Σ(Vᵢ-V̄)²/n) — 기간 중 전압이 자체 평균에서 얼마나 흔들렸는지 나타내는 변동폭 지표">표준편차</th><th>경보(-5%↓)</th></tr></thead>
+      <tbody>
+        <tr><td class="l">주전기실 (LV-101)</td><td>375.4V</td><td class="t-neg">358.0V</td><td>390.5V</td><td>4.2V</td><td class="t-neg-hi">10건</td></tr>
+        <tr><td class="l">부전기실 (LV-201)</td><td>379.9V</td><td class="t-neg">370.7V</td><td>387.5V</td><td>2.9V</td><td class="t-flat">0건</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="stock-cards">
+    <div class="stock-card"><div class="sc-head"><span class="sc-name">주전기실 (LV-101)</span><span class="sc-ratio t-neg-hi">10건</span></div>
+      <div class="sc-grid">
+        <div class="sc-item"><span class="sc-item-l">평균전압</span><span class="sc-item-v">375.4V</span></div>
+        <div class="sc-item"><span class="sc-item-l">최저전압</span><span class="sc-item-v">358.0V</span></div>
+        <div class="sc-item"><span class="sc-item-l">최고전압</span><span class="sc-item-v">390.5V</span></div>
+        <div class="sc-item"><span class="sc-item-l">표준편차</span><span class="sc-item-v">4.2V</span></div>
+      </div></div><div class="stock-card"><div class="sc-head"><span class="sc-name">부전기실 (LV-201)</span><span class="sc-ratio t-flat">0건</span></div>
+      <div class="sc-grid">
+        <div class="sc-item"><span class="sc-item-l">평균전압</span><span class="sc-item-v">379.9V</span></div>
+        <div class="sc-item"><span class="sc-item-l">최저전압</span><span class="sc-item-v">370.7V</span></div>
+        <div class="sc-item"><span class="sc-item-l">최고전압</span><span class="sc-item-v">387.5V</span></div>
+        <div class="sc-item"><span class="sc-item-l">표준편차</span><span class="sc-item-v">2.9V</span></div>
+      </div></div>
+  </div>
+</div>
+<div class="sc">
+  <div class="sc-title">특고압(HV) → 저압(LV) 추적 관계 <span class="sub">주전기실 HV-104 vs LV-101, 동일 시각 기준</span></div>
+  <div class="kpi-row">
+    <div class="kpi-card kpi-sky"><div class="num">-0.01%p</div><div class="lbl">평균 차이(LV편차-HV편차)</div></div>
+    <div class="kpi-card kpi-sky"><div class="num">0.08%p</div><div class="lbl">차이의 표준편차</div></div>
+    <div class="kpi-card kpi-teal"><div class="num">0.998</div><div class="lbl">HV·LV 편차 상관계수</div></div>
+  </div>
+  <div class="sc-note">특고압(HV-104) 편차와 저압(LV-101) 편차의 차이는 평균 -0.01%p, 표준편차 0.08%p로 <b>거의 0에 수렴</b>하며, 상관계수도 0.998로 사실상 1:1입니다. 즉 <b>저압측에서 별도로 추가되는 전압강하는 관측되지 않았고</b>, 변압기(특고압→저압 강압)를 거치며 상류(한전 인입) 쪽 편차가 비율 그대로 하류(저압반) 설비까지 전달되는 구조입니다. 실제 모터·조명·UPS 등 대부분의 설비는 저압단(220V/380V)에 연결되므로, [설비영향] 탭의 위험도 평가는 이 저압 실측치를 기준으로 봐도 무방합니다.</div>
+</div>
+<div class="sc">
+  <div class="sc-title">저압 시간대별 전압편차 패턴 (전체기간) <span class="sub">주전기실(LV-101) vs 부전기실(LV-201)</span></div>
+  <div class="lc-wrap">
+  <svg viewBox="0 0 780 190" width="100%" height="190" preserveAspectRatio="none">
+    <line x1="36" x2="768" y1="52.2" y2="52.2" stroke="var(--chart-ref)" stroke-width="1.3" stroke-dasharray="4,4"/>
+    <polyline points="36.0,87.4 67.8,86.4 99.7,83.4 131.5,82.2 163.3,82.0 195.1,91.3 227.0,105.5 258.8,112.0 290.6,132.0 322.4,104.9 354.3,94.4 386.1,64.1 417.9,32.0 449.7,88.9 481.6,80.6 513.4,82.6 545.2,84.8 577.0,78.6 608.9,105.2 640.7,107.5 672.5,99.5 704.3,93.8 736.2,118.1 768.0,113.3" fill="none" stroke="var(--coral)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="36.0" cy="87.4" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 0: -1.06%</title></circle><circle cx="67.8" cy="86.4" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 1: -1.03%</title></circle><circle cx="99.7" cy="83.4" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 2: -0.94%</title></circle><circle cx="131.5" cy="82.2" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 3: -0.91%</title></circle><circle cx="163.3" cy="82.0" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 4: -0.90%</title></circle><circle cx="195.1" cy="91.3" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 5: -1.18%</title></circle><circle cx="227.0" cy="105.5" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 6: -1.61%</title></circle><circle cx="258.8" cy="112.0" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 7: -1.81%</title></circle><circle cx="290.6" cy="132.0" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 8: -2.41%</title></circle><circle cx="322.4" cy="104.9" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 9: -1.59%</title></circle><circle cx="354.3" cy="94.4" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 10: -1.28%</title></circle><circle cx="386.1" cy="64.1" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 11: -0.36%</title></circle><circle cx="417.9" cy="32.0" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 12: +0.61%</title></circle><circle cx="449.7" cy="88.9" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 13: -1.11%</title></circle><circle cx="481.6" cy="80.6" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 14: -0.86%</title></circle><circle cx="513.4" cy="82.6" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 15: -0.92%</title></circle><circle cx="545.2" cy="84.8" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 16: -0.99%</title></circle><circle cx="577.0" cy="78.6" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 17: -0.80%</title></circle><circle cx="608.9" cy="105.2" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 18: -1.60%</title></circle><circle cx="640.7" cy="107.5" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 19: -1.67%</title></circle><circle cx="672.5" cy="99.5" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 20: -1.43%</title></circle><circle cx="704.3" cy="93.8" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 21: -1.26%</title></circle><circle cx="736.2" cy="118.1" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 22: -1.99%</title></circle><circle cx="768.0" cy="113.3" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 23: -1.85%</title></circle><polyline points="36.0,40.2 67.8,41.2 99.7,40.5 131.5,41.1 163.3,41.9 195.1,44.2 227.0,56.0 258.8,58.2 290.6,71.9 322.4,61.7 354.3,68.3 386.1,44.9 417.9,47.7 449.7,74.5 481.6,56.9 513.4,39.3 545.2,46.1 577.0,56.1 608.9,71.5 640.7,63.0 672.5,46.8 704.3,46.3 736.2,65.6 768.0,59.4" fill="none" stroke="var(--sky600)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="36.0" cy="40.2" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 0: +0.36%</title></circle><circle cx="67.8" cy="41.2" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 1: +0.33%</title></circle><circle cx="99.7" cy="40.5" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 2: +0.35%</title></circle><circle cx="131.5" cy="41.1" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 3: +0.34%</title></circle><circle cx="163.3" cy="41.9" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 4: +0.31%</title></circle><circle cx="195.1" cy="44.2" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 5: +0.24%</title></circle><circle cx="227.0" cy="56.0" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 6: -0.12%</title></circle><circle cx="258.8" cy="58.2" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 7: -0.18%</title></circle><circle cx="290.6" cy="71.9" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 8: -0.60%</title></circle><circle cx="322.4" cy="61.7" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 9: -0.29%</title></circle><circle cx="354.3" cy="68.3" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 10: -0.49%</title></circle><circle cx="386.1" cy="44.9" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 11: +0.22%</title></circle><circle cx="417.9" cy="47.7" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 12: +0.13%</title></circle><circle cx="449.7" cy="74.5" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 13: -0.67%</title></circle><circle cx="481.6" cy="56.9" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 14: -0.14%</title></circle><circle cx="513.4" cy="39.3" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 15: +0.39%</title></circle><circle cx="545.2" cy="46.1" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 16: +0.18%</title></circle><circle cx="577.0" cy="56.1" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 17: -0.12%</title></circle><circle cx="608.9" cy="71.5" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 18: -0.58%</title></circle><circle cx="640.7" cy="63.0" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 19: -0.33%</title></circle><circle cx="672.5" cy="46.8" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 20: +0.16%</title></circle><circle cx="704.3" cy="46.3" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 21: +0.18%</title></circle><circle cx="736.2" cy="65.6" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 22: -0.41%</title></circle><circle cx="768.0" cy="59.4" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 23: -0.22%</title></circle>
+    <text x="36.0" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">0</text><text x="99.7" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">2</text><text x="163.3" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">4</text><text x="227.0" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">6</text><text x="290.6" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">8</text><text x="354.3" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">10</text><text x="417.9" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">12</text><text x="481.6" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">14</text><text x="545.2" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">16</text><text x="608.9" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">18</text><text x="672.5" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">20</text><text x="736.2" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">22</text><text x="768.0" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">23</text>
+  </svg>
+  <div class="lc-legend"><span class="lc-lg"><span class="lc-dash"></span>정격전압(0%)</span><span class="lc-lg"><span class="lc-dot" style="background:var(--coral)"></span>주전기실(LV-101)</span><span class="lc-lg"><span class="lc-dot" style="background:var(--sky600)"></span>부전기실(LV-201)</span></div>
+</div>
+</div>
+<div class="sc">
+  <div class="sc-title">저압 월별 전압편차 추이</div>
+  <div class="lc-wrap">
+  <svg viewBox="0 0 780 190" width="100%" height="190" preserveAspectRatio="none">
+    <line x1="36" x2="768" y1="42.5" y2="42.5" stroke="var(--chart-ref)" stroke-width="1.3" stroke-dasharray="4,4"/>
+    <polyline points="36.0,86.5 127.5,84.5 219.0,79.5 310.5,75.7 402.0,76.9 493.5,75.9 585.0,79.1 676.5,116.4 768.0,132.0" fill="none" stroke="var(--coral)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="36.0" cy="86.5" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 12월: -1.22%</title></circle><circle cx="127.5" cy="84.5" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 01월: -1.16%</title></circle><circle cx="219.0" cy="79.5" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 02월: -1.02%</title></circle><circle cx="310.5" cy="75.7" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 03월: -0.92%</title></circle><circle cx="402.0" cy="76.9" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 04월: -0.95%</title></circle><circle cx="493.5" cy="75.9" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 05월: -0.92%</title></circle><circle cx="585.0" cy="79.1" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 06월: -1.01%</title></circle><circle cx="676.5" cy="116.4" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 07월: -2.05%</title></circle><circle cx="768.0" cy="132.0" r="2.4" fill="var(--coral)" stroke="var(--card)" stroke-width="1"><title>주전기실(LV-101) 08월: -2.48%</title></circle><polyline points="36.0,39.3 127.5,40.1 219.0,32.0 310.5,41.5 402.0,47.3 493.5,46.4 585.0,48.9 676.5,52.4 768.0,47.5" fill="none" stroke="var(--sky600)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="36.0" cy="39.3" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 12월: +0.09%</title></circle><circle cx="127.5" cy="40.1" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 01월: +0.07%</title></circle><circle cx="219.0" cy="32.0" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 02월: +0.29%</title></circle><circle cx="310.5" cy="41.5" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 03월: +0.03%</title></circle><circle cx="402.0" cy="47.3" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 04월: -0.13%</title></circle><circle cx="493.5" cy="46.4" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 05월: -0.11%</title></circle><circle cx="585.0" cy="48.9" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 06월: -0.18%</title></circle><circle cx="676.5" cy="52.4" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 07월: -0.27%</title></circle><circle cx="768.0" cy="47.5" r="2.4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1"><title>부전기실(LV-201) 08월: -0.14%</title></circle>
+    <text x="36.0" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">12월</text><text x="127.5" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">01월</text><text x="219.0" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">02월</text><text x="310.5" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">03월</text><text x="402.0" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">04월</text><text x="493.5" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">05월</text><text x="585.0" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">06월</text><text x="676.5" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">07월</text><text x="768.0" y="166" font-size="12" text-anchor="middle" fill="var(--txt3)">08월</text>
+  </svg>
+  <div class="lc-legend"><span class="lc-lg"><span class="lc-dash"></span>정격전압(0%)</span><span class="lc-lg"><span class="lc-dot" style="background:var(--coral)"></span>주전기실(LV-101)</span><span class="lc-lg"><span class="lc-dot" style="background:var(--sky600)"></span>부전기실(LV-201)</span></div>
+</div>
+  <div class="sc-note">경보(-5%↓) 발생일(저압 LV-101 기준): 2026-07-07, 2026-07-28, 2026-07-29, 2026-07-31, 2026-08-04, 2026-08-08 — 특고압(HV-104) 발생일과 정확히 동일합니다. 부전기실(LV-201)은 전 기간 경보 이벤트 0건입니다.</div>
+</div>
+<div class="ai-sc">
+<div class="ai-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg> 저압(LV) 분석 인사이트<span class="badge bdg-sky ai-badge" style="font-size:11px">AI 분석</span></div>
+<div class="ai-list">
+<div class="ai-item"><div class="ai-dot ai-dot-sky"></div><div>저압측(LV-101)도 특고압측(HV-104)과 <b>동일한 10건</b>의 경보 이벤트, <b>동일한 날짜</b>에서 발생했습니다 — 별도의 저압 고유 문제가 아니라 상류 특고압 편차가 그대로 전달된 결과입니다.</div></div><div class="ai-item"><div class="ai-dot ai-dot-teal"></div><div>부전기실 저압(LV-201)도 부전기실 특고압(HV-204)과 마찬가지로 경보 이벤트 0건으로, 안정적인 상태를 유지하고 있습니다.</div></div><div class="ai-item"><div class="ai-dot ai-dot-amber"></div><div>저압단 실측 최저전압은 358V(정격 380V 대비 -5.79%)로, 220V 단상 환산 시에도 유사한 비율의 편차가 예상됩니다. 저압 분전반에 연결된 개별 설비(조명·소형 모터 등) 점검 시 참고하시기 바랍니다.</div></div>
+</div>
+</div></div>
+  <div class="panel" id="p5">
+<div class="sc">
+  <div class="sc-title">상관관계 요약 <span class="sub">피어슨 상관계수, 주전기실(HV-104) 기준, 구름량은 낮 시간대(9~16시)</span></div>
+  <div class="tbl-wrap stock-cards-target">
+    <table>
+      <thead><tr><th class="l">비교 변수</th><th class="l">분석 구간</th><th>상관계수(r)</th><th class="l">해석</th></tr></thead>
+      <tbody>
+        <tr><td class="l">구름량 ↔ 전압편차</td><td class="l">전체기간(12~8월)</td><td class="t-neg">-0.22</td><td class="l">약한 음의 상관 (흐릴수록 소폭 저전압)</td></tr>
+        <tr><td class="l">구름량 ↔ 전압편차</td><td class="l">여름철만(6~8월)</td><td class="t-flat">0.03</td><td class="l">상관관계 거의 없음</td></tr>
+        <tr><td class="l">기온 ↔ 전압편차</td><td class="l">전체기간(12~8월)</td><td class="t-neg">-0.22</td><td class="l">약한 음의 상관</td></tr>
+        <tr><td class="l">기온 ↔ 전압편차</td><td class="l">여름철만(6~8월)</td><td class="t-neg-hi">-0.51</td><td class="l"><b>뚜렷한 음의 상관 (더울수록 저전압)</b></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="sc-note">전체기간으로 보면 "흐린 날=저전압"처럼 보이지만, 이는 흐린 날이 여름철(장마·태풍)에 몰려있어 생기는 <b>계절 착시(교란변수)</b>입니다. 여름철만 따로 떼어 놓고 보면 구름량과 전압편차는 사실상 무관(r=0.03)해지고, 대신 기온과의 관계(r=-0.51)가 뚜렷해집니다.</div>
+</div>
+<div class="sc">
+  <div class="sc-title">구름량 구간별 전압편차 (낮 9~16시)</div>
+  <div class="tbl-wrap stock-cards-target">
+    <table>
+      <thead><tr><th class="l">구간</th><th class="l">분석범위</th><th>평균편차</th><th>경보발생률</th></tr></thead>
+      <tbody>
+        <tr><td class="l">맑음(구름량 0~30%)</td><td class="l">전체기간</td><td class="t-neg">-0.52%</td><td>0.13%</td></tr><tr><td class="l">부분흐림(30~70%)</td><td class="l">전체기간</td><td class="t-neg">-0.85%</td><td>0.40%</td></tr><tr><td class="l">흐림(70~100%)</td><td class="l">전체기간</td><td class="t-neg">-1.12%</td><td>0.45%</td></tr>
+        <tr><td class="l">맑음(구름량 0~30%)</td><td class="l">여름철만</td><td class="t-neg">-1.65%</td><td>0.65%</td></tr><tr><td class="l">부분흐림(30~70%)</td><td class="l">여름철만</td><td class="t-neg">-1.50%</td><td>0.97%</td></tr><tr><td class="l">흐림(70~100%)</td><td class="l">여름철만</td><td class="t-neg">-1.52%</td><td>1.32%</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+<div class="sc">
+  <div class="sc-title">저압측(LV) 동반 변화 — "태양광 상쇄" 가설 검증</div>
+  <div class="tbl-wrap stock-cards-target">
+    <table>
+      <thead><tr><th class="l">구간</th><th>맑은날 HV 최저편차</th><th>흐린날 HV 최저편차</th><th>맑은날 LV 최저편차</th><th>흐린날 LV 최저편차</th></tr></thead>
+      <tbody>
+        <tr><td class="l">전체기간 (맑음 77일 / 흐림 85일)</td><td class="t-neg">-2.81%</td><td class="t-neg">-3.00%</td><td class="t-neg">-2.81%</td><td class="t-neg">-2.99%</td></tr>
+        <tr><td class="l">여름철만 (맑음 13일 / 흐림 30일)</td><td class="t-neg">-3.43%</td><td class="t-neg">-3.17%</td><td class="t-neg">-3.48%</td><td class="t-neg">-3.16%</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="sc-note">⚠️ <b>자가 태양광 발전량 데이터 확인 불가</b> — 전기실 계측 데이터의 태양광 접속반(GCP-101/102A/102B/102C, GCP-201/202A~202C) 기록을 확인한 결과, 분석기간(8개월) 내내 값이 전혀 변동 없이 고정되어 있었습니다. 즉 태양광 설비가 발전 중이더라도 <b>이 계측 시스템에는 발전량이 전혀 반영되지 않고 있습니다</b>. 이 때문에 "맑은 날 자가발전으로 저압측 전압이 상쇄되는지"는 이번 데이터만으로는 직접 검증할 수 없었습니다. 대신 저압측(LV) 전압은 맑은날/흐린날 관계없이 고압측(HV)과 거의 동일한 비율로 움직였습니다([저압분석] 탭 참조) — 이는 승압/강압 변압기를 통한 단순 비례 관계로, 자가 태양광에 의한 뚜렷한 상쇄 효과는 이번 데이터에서는 관측되지 않았습니다. <b>태양광 발전 감시 계측이 실제로 살아있는지 현장에서 별도 점검을 권장합니다.</b></div>
+</div>
+<div class="ai-sc">
+<div class="ai-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg> 기상 상관관계 인사이트<span class="badge bdg-sky ai-badge" style="font-size:11px">AI 분석</span></div>
+<div class="ai-list">
+<div class="ai-item"><div class="ai-dot ai-dot-purple"></div><div>사용자께서 관찰하신 "흐린 날 전압강하 심화" 현상은 실제로 데이터에 나타나지만(r=-0.22), 그 실제 원인은 흐림 자체가 아니라 <b>흐린 날이 대부분 무더운 장마철에 집중된 계절적 우연</b>일 가능성이 높습니다.</div></div><div class="ai-item"><div class="ai-dot ai-dot-sky"></div><div>여름철(6~8월)만 놓고 보면 구름량과는 무관(r=0.03)하지만 기온과는 뚜렷한 상관(r=-0.51)을 보입니다 — 결국 <b>"흐려서"가 아니라 "더워서(냉방부하 증가)"</b>가 더 정확한 설명입니다.</div></div><div class="ai-item"><div class="ai-dot ai-dot-amber"></div><div>자가 태양광 발전량이 계측되지 않고 있어 "맑은 날 상쇄 효과"는 이번 데이터로 확정할 수 없습니다. 태양광 발전 감시 시스템 정상 작동 여부를 현장에서 확인하시면 더 정밀한 분석이 가능합니다.</div></div>
+</div>
+</div></div>
+  <div class="panel" id="p6">
+<div class="sc">
+  <div class="sc-title">이번 데이터 기준 심각도 판단</div>
+  <div class="sc-note">
+    국내에는 22.9kV 특고압 수전점의 소비자단 전압 허용오차를 명시한 법정 기준(전기사업법 시행규칙 별표3)이 저압(110/220/380V)처럼 별도로 존재하지 않습니다. 다만 업계에서는 IEC 60038 등 국제 규격과 한전 배전 운영관행을 참고해 통상 <b>공칭전압 대비 ±10%</b>를 설비 설계·보호계전기 정정의 기준선으로 삼는 경우가 많습니다. 이 리포트의 "경보(-5%)"·"위험(-10%)" 기준선도 이를 참고해 보수적으로 설정한 것이며, 법적 기준이 아닌 공학적 참고치임을 밝혀둡니다. 실제 설비는 대부분 저압단(220V/380V)에 연결되는데, [저압분석] 탭에서 확인했듯 저압측 편차도 특고압측과 거의 동일한 비율(1:1)로 나타나므로 아래 판단은 저압단 기준으로도 유효합니다.
+  </div>
+  <div class="kpi-row">
+    <div class="kpi-card kpi-teal"><div class="num">0건</div><div class="lbl">-10%(위험) 이상 사례</div></div>
+    <div class="kpi-card kpi-amber"><div class="num">10건</div><div class="lbl">-5%(경보) 순간 사례 / 11,568건 중</div></div>
+    <div class="kpi-card kpi-sky"><div class="num">-5.81%</div><div class="lbl">특고압 최대 강하폭(순간)</div></div>
+    <div class="kpi-card kpi-sky"><div class="num">-5.79%</div><div class="lbl">저압(LV-101) 최대 강하폭(순간)</div></div>
+  </div>
+</div>
+<div class="sc">
+  <div class="sc-title">저전압이 설비·장비에 미치는 영향 (일반 공학 기준)</div>
+  <div class="tbl-wrap stock-cards-target">
+    <table>
+      <thead><tr><th class="l">설비</th><th class="l">저전압 시 예상 영향</th><th class="l">현재 데이터 기준 위험도</th></tr></thead>
+      <tbody>
+        <tr><td class="l">3상 유도전동기<br><span style="color:var(--txt3);font-size:12px">(배기팬·양수펌프 등)</span></td><td class="l">동일 부하 유지 시 전류 증가(발열↑) · 토크는 전압 제곱에 비례해 감소 → 기동전류가 큰 순간 기동 실패 위험 커짐</td><td class="l"><span class="badge bdg-teal">낮음</span> 순간 5%대 편차로는 정상 기동토크 범위 내</td></tr>
+        <tr><td class="l">UPS / 정류기</td><td class="l">입력 저전압 시 배터리 방전(부스트) 모드 전환 빈도 증가 → 배터리 수명 단축</td><td class="l"><span class="badge bdg-amber">관찰 필요</span> 여름철 순간 이벤트가 반복되면 배터리 전환 빈도 누적 가능</td></tr>
+        <tr><td class="l">조명(LED/형광등 안정기)</td><td class="l">밝기 저하, 구형 전자식 안정기는 깜빡임·오동작 가능</td><td class="l"><span class="badge bdg-teal">낮음</span></td></tr>
+        <tr><td class="l">저전압 계전기(UVR) 탑재 보호계전 장치</td><td class="l">정정치(통상 -15~-20%) 이하로 떨어지면 트립 발생</td><td class="l"><span class="badge bdg-teal">매우 낮음</span> 관측 최대치(-5.8%대)는 일반 정정치의 1/3 수준</td></tr>
+        <tr><td class="l">변압기</td><td class="l">순간적 전압변동 자체보다는 장기 과부하·불평형이 수명에 더 큰 영향</td><td class="l"><span class="badge bdg-sky">정보</span> 이번 분석 범위 밖(부하 데이터 별도 필요)</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+<div class="ai-sc">
+<div class="ai-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg> 종합 권고<span class="badge bdg-sky ai-badge" style="font-size:11px">AI 분석</span></div>
+<div class="ai-list">
+<div class="ai-item"><div class="ai-dot ai-dot-teal"></div><div>현재까지 관측된 전압강하는 순간적·경미한 수준(특고압·저압 모두 최대 -5.8%대, 위험기준 -10% 미도달)으로 <b>즉각적인 설비 손상 가능성은 낮게 평가</b>됩니다.</div></div><div class="ai-item"><div class="ai-dot ai-dot-amber"></div><div>다만 2026년 7~8월부터 추세가 뚜렷하게 악화되고 있어, <b>9월까지 무더위가 이어질 경우 유사·심화된 이벤트가 재발할 가능성</b>이 있습니다. 08~10시·18~19시 시간대 위주로 계속 모니터링을 권장합니다.</div></div><div class="ai-item"><div class="ai-dot ai-dot-red"></div><div>경보 이벤트가 주전기실 계통(HV-104·LV-101)에만 발생한 점은 계통 전체보다 <b>해당 인입선로·수전설비의 국지적 특성</b>일 가능성을 시사하므로, 한전 및 자체 전기안전관리자 점검 시 이 부분을 함께 확인하시길 권장합니다.</div></div><div class="ai-item"><div class="ai-dot ai-dot-purple"></div><div>태양광 발전 계측값이 8개월간 전혀 갱신되지 않은 점은 전압강하와 별개로 <b>모니터링 시스템 자체의 이상 가능성</b>을 시사하므로 별도 점검이 필요합니다.</div></div>
+</div>
+</div></div>
+</div></div>
+<script>
+(function(){try{document.documentElement.setAttribute('data-theme',localStorage.getItem('theme')||'dark');}catch(e){}})();
+function openSettingsModal(){ document.getElementById('settingsModal').classList.add('modal-open'); syncThemeOptUI(); }
+function closeSettingsModal(){ document.getElementById('settingsModal').classList.remove('modal-open'); }
+function setTheme(t){ document.documentElement.setAttribute('data-theme', t); try{ localStorage.setItem('theme', t); }catch(e){} syncThemeOptUI(); }
+function syncThemeOptUI(){ const cur = document.documentElement.getAttribute('data-theme'); document.getElementById('theme-opt-dark')?.classList.toggle('on', cur === 'dark'); document.getElementById('theme-opt-light')?.classList.toggle('on', cur === 'light'); }
+syncThemeOptUI();
+function showTab(i){document.querySelectorAll('.panel').forEach((p,j)=>p.classList.toggle('on',j===i));document.querySelectorAll('.tab-btn').forEach((t,j)=>t.classList.toggle('on',j===i));}
+document.querySelectorAll('.tab-btn[data-tab]').forEach(btn=>{
+  btn.addEventListener('click',()=>showTab(parseInt(btn.dataset.tab)));
+  btn.addEventListener('touchend',e=>{e.preventDefault();showTab(parseInt(btn.dataset.tab));});
+});
+</script>
+</body>
+</html>

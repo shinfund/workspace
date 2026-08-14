@@ -1,0 +1,1707 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>주식 밸류체인</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --sky:#0366D6; --sky50:#E9F1FE; --sky100:#C7DCF6; --sky600:#005CC5; --sky800:#032F62;
+  --teal:#1D9E75; --teal50:#E1F5EE; --teal100:#9FE1CB; --teal800:#085041;
+  --coral:#D85A30; --coral50:#FAECE7; --coral100:#F5C4B3; --coral800:#712B13;
+  --amber:#BA7517; --amber50:#FAEEDA; --amber100:#FAC775; --amber800:#633806;
+  --purple:#534AB7; --purple50:#EEEDFE; --purple100:#CECBF6; --purple800:#3C3489;
+  --gray50:#F1EFE8; --gray100:#D3D1C7; --gray600:#5F5E5A;
+  --bg:#FFFFFF; --card:#FFFFFF; --border:#E1E4E8; --border2:#F6F8FA;
+  --txt:#24292E; --txt2:#3A4453; --txt3:#6A737D;
+  --hdrbg:#0C447C; --hdr-text:#fff; --hdr-text-dim:rgba(255,255,255,.85);
+  --hdr-btn-bg:rgba(255,255,255,.15); --hdr-btn-border:rgba(255,255,255,.35);
+  --hdr-btn-hover-bg:rgba(255,255,255,.25); --hdr-btn-text:#fff;
+  --hdr-shadow:0 2px 8px rgba(12,68,124,.3);
+  --r6:6px; --r8:8px; --r10:10px; --r12:12px; --r14:14px; --r16:16px; --r20:20px;
+  --shadow:none;
+  --shadow-hover:0 6px 24px rgba(3,102,214,.12);
+  --shadow-h:0 20px 60px rgba(0,0,0,.2);
+}
+html[data-theme="light"]{
+  --hdrbg:#FFFFFF; --hdr-text:#032F62; --hdr-text-dim:#355E82;
+  --hdr-btn-bg:#E6F1FB; --hdr-btn-border:#B7CEE8; --hdr-btn-hover-bg:#D3E7FA; --hdr-btn-text:#005CC5;
+  --hdr-shadow:0 2px 8px rgba(12,68,124,.12);
+}
+html[data-theme="dark"]{
+  --bg:#24292E; --card:#1C2024;
+  --border:rgba(255,255,255,.13); --border2:rgba(255,255,255,.09);
+  --txt:rgba(255,255,255,.92); --txt2:rgba(255,255,255,.75); --txt3:rgba(255,255,255,.5);
+  --shadow:none; --shadow-hover:0 6px 24px rgba(0,0,0,.4); --shadow-h:0 20px 60px rgba(0,0,0,.5);
+  --hdrbg:#24292E; --hdr-shadow:0 2px 10px rgba(0,0,0,.4);
+  --sky:#2E8FFF; --sky50:rgba(46,143,255,.16); --sky100:rgba(46,143,255,.32); --sky600:#79B8FF; --sky800:#C8E1FF;
+  --teal:#4FD8AC; --teal50:rgba(29,158,117,.16); --teal100:rgba(29,158,117,.32); --teal800:#8FE6C8;
+  --coral:#F2896A; --coral50:rgba(216,90,48,.16); --coral100:rgba(216,90,48,.32); --coral800:#FFC1AB;
+  --amber:#E8A93D; --amber50:rgba(186,117,23,.22); --amber100:rgba(186,117,23,.38); --amber800:#FFD584;
+  --purple:#B4A6FF; --purple50:rgba(83,74,183,.26); --purple100:rgba(83,74,183,.4); --purple800:#D6CFFF;
+  --gray50:rgba(255,255,255,.10); --gray100:rgba(255,255,255,.18); --gray600:#C9C7BF;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:'Noto Sans KR','Pretendard',-apple-system,BlinkMacSystemFont,sans-serif;
+  font-size:14.5px; line-height:1.7; word-break:keep-all;
+  color:var(--txt); background:var(--bg);
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1100px; margin:0; min-height:100dvh;}
+
+/* 헤더+네비 — position:fixed 로 모든 브라우저 확실 고정 */
+.hdr-wrap{
+  position:fixed; top:0; left:0; right:0; z-index:50;
+  box-shadow:var(--hdr-shadow); transition:background .18s ease;
+}
+/* ── HEADER ── */
+.header{
+  background:var(--hdrbg);
+  padding:max(12px,env(safe-area-inset-top)) 16px 12px;
+  display:flex; align-items:center; justify-content:space-between;
+  max-width:1100px; margin:0; transition:background .18s ease;
+}
+.header-left{display:flex; align-items:center; gap:10px; flex:1; min-width:0; overflow:hidden;}
+.logo-title{font-size:14.5px; font-weight:700; color:var(--hdr-text); letter-spacing:-.02em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; transition:color .18s ease;}
+
+/* ── 헤더 액션 (Update 라벨·설정) ── */
+.header-right{display:flex; align-items:center; gap:8px; flex-shrink:0; margin-left:10px;}
+.hdr-date{font-size:11px; font-weight:400; color:var(--hdr-text-dim); white-space:nowrap; transition:color .18s ease;}
+.hdr-btn{
+  background:var(--hdr-btn-bg); border:1px solid var(--hdr-btn-border);
+  color:var(--hdr-btn-text); border-radius:16px; padding:6px 12px;
+  font-size:13px; font-weight:700; font-family:inherit; cursor:pointer;
+  white-space:nowrap; transition:background .12s;
+}
+.hdr-btn:hover{background:var(--hdr-btn-hover-bg);}
+
+/* ── 설정 모달 (화면모드) ── */
+#settingsModal{display:none; position:fixed; inset:0; z-index:9000;}
+#settingsModal.modal-open{display:block;}
+.modal-backdrop{
+  position:fixed; inset:0; background:rgba(0,0,0,.45);
+  display:flex; align-items:center; justify-content:center; padding:20px;
+}
+.modal-box{
+  background:var(--card); border-radius:var(--r16); padding:20px;
+  width:100%; max-width:320px; box-shadow:var(--shadow-h);
+}
+.modal-title{font-size:16px; font-weight:800; color:var(--txt); margin-bottom:14px;}
+.modal-section{font-size:13.5px; font-weight:700; color:var(--txt2); margin-bottom:8px;}
+.theme-opts{display:flex; gap:10px;}
+.theme-opt{flex:1; cursor:pointer; text-align:center; padding:8px; border-radius:var(--r12); border:2px solid var(--border); position:relative; transition:border-color .12s;}
+.theme-opt.on{border-color:var(--sky);}
+.theme-opt.on::after{content:'✓'; position:absolute; top:5px; right:7px; width:16px; height:16px; background:var(--sky); color:#fff; border-radius:50%; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center;}
+.theme-swatch{width:100%; height:50px; border-radius:8px; border:1px solid var(--border2); margin-bottom:6px; position:relative; overflow:hidden;}
+.theme-swatch-dark{background:#24292E;}
+.theme-swatch-light{background:#FFFFFF;}
+.theme-swatch-dark .ts-side{background:#24292E; border-right:1px solid rgba(255,255,255,.08);}
+.theme-swatch-light .ts-side{background:#FFFFFF; border-right:1px solid #DCE9F7;}
+.ts-side{position:absolute; left:0; top:0; bottom:0; width:30%;}
+.theme-opt-label{font-size:13px; font-weight:700; color:var(--txt);}
+
+/* 탭 네비 래퍼 (스크롤 버튼 포함) */
+.nav-scroll-wrap{
+  display:flex; align-items:stretch; background:var(--card);
+  border-bottom:1.5px solid var(--border);
+  position:relative;
+}
+.nav-arrow{
+  flex-shrink:0; width:32px; border:none; background:var(--card);
+  color:var(--txt3); font-size:20px; font-weight:700; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  transition:color .15s, background .15s;
+  -webkit-tap-highlight-color:transparent;
+  z-index:1;
+}
+.nav-arrow:hover{color:var(--sky800); background:var(--sky50);}
+.nav-arrow:disabled{opacity:.25; cursor:default;}
+/* 탭 네비 */
+.top-nav{
+  flex:1; min-width:0;
+  background:var(--card);
+  display:flex; gap:2px; overflow-x:auto; padding:4px 4px;
+  scrollbar-width:none;
+}
+.top-nav::-webkit-scrollbar{display:none}
+.nav-tab{
+  flex-shrink:0; min-height:40px; padding:6px 12px;
+  border:none; background:transparent; cursor:pointer;
+  font-size:12.5px; font-weight:700; color:var(--txt3);
+  font-family:inherit; border-radius:var(--r12);
+  display:flex; align-items:center; gap:5px;
+  transition:all .15s; -webkit-tap-highlight-color:transparent;
+}
+.nav-tab.on{background:var(--sky50); color:var(--sky800)}
+.nav-tab:focus-visible{outline:2px solid var(--sky); outline-offset:1px}
+.nav-tab .cnt{display:none;}
+.nav-tab.fav-tab .cnt{
+  display:inline-flex; align-items:center; justify-content:center;
+  vertical-align:middle; font-size:11px; font-weight:800;
+  padding:1px 6px; border-radius:20px; line-height:1.4; min-width:18px;
+}
+
+/* 메인 — fixed 헤더 높이만큼 padding-top은 JS가 동적으로 설정 */
+.main{padding:16px 14px 60px}
+@media(min-width:769px){.main{padding:22px 20px 80px}}
+
+/* 분야 인트로 */
+.intro{
+  background:var(--card); border:1px solid var(--border);
+  border-radius:var(--r16); padding:16px 18px; margin-bottom:18px;
+  box-shadow:var(--shadow); animation:fadeIn .3s ease;
+}
+.intro h2{font-size:17px; font-weight:800; display:flex; align-items:center; gap:8px}
+.intro .desc{font-size:14px; color:var(--txt); margin-top:8px; line-height:1.75; font-weight:400; letter-spacing:-.01em}
+.intro .desc ul{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:3px;}
+.intro .desc li{display:flex; align-items:baseline; gap:6px; font-size:14px; line-height:1.7;}
+.intro .desc li::before{content:'•'; color:var(--sky600); font-size:15px; flex-shrink:0; font-weight:900; line-height:1.5;}
+.intro .strength{
+  margin-top:10px; padding:8px 12px 9px; border-radius:var(--r12);
+  font-size:12.5px; font-weight:600; display:flex; flex-direction:column; gap:5px;
+}
+.intro .strength.pos{background:var(--teal50); color:var(--teal800)}
+.intro .strength.warn{background:var(--amber50); color:var(--amber800)}
+.strength-label{font-size:12.5px; font-weight:600; letter-spacing:.01em; line-height:1.65;}
+.intro .strength ul{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:2px;}
+.intro .strength li{display:flex; align-items:baseline; gap:5px; font-size:12.5px; line-height:1.65;}
+.intro .strength li::before{content:'•'; font-size:13px; flex-shrink:0; font-weight:900; line-height:1.5; opacity:.75;}
+
+/* 밸류체인 단계 */
+.stage{margin-bottom:22px; animation:fadeIn .35s ease}
+.stage-hd{
+  display:flex; align-items:center; gap:10px; margin-bottom:11px;
+}
+.stage-num{
+  flex-shrink:0; width:30px; height:30px; border-radius:9px;
+  background:var(--sky); color:#fff; font-weight:900; font-size:14px;
+  display:flex; align-items:center; justify-content:center;
+  align-self:center;
+}
+.stage-title{font-size:15.5px; font-weight:800; line-height:1.3;}
+.stage-sub{font-size:12px; color:var(--txt2); font-weight:600; margin-top:2px; letter-spacing:-.01em;}
+/* 종목 카드 그리드 */
+.grid{display:grid; grid-template-columns:1fr; gap:9px}
+@media(min-width:560px){.grid{grid-template-columns:1fr 1fr}}
+@media(min-width:900px){.grid{grid-template-columns:1fr 1fr 1fr}}
+
+.stock{
+  background:var(--card); border:1px solid var(--border);
+  border-radius:var(--r14); padding:13px 14px;
+  box-shadow:var(--shadow); transition:transform .18s,box-shadow .18s;
+  cursor:default;
+}
+.stock:hover{transform:translateY(-2px); box-shadow:var(--shadow-hover)}
+.stock-top{display:flex; align-items:center; justify-content:space-between; gap:6px}
+.stock-name{font-size:14.5px; font-weight:800; color:var(--txt); display:flex; align-items:center; gap:5px}
+.stock-link{text-decoration:none; color:var(--txt); cursor:pointer;}
+.stock-link:hover .stock-link-icon{opacity:1;}
+.stock-link:hover{color:var(--sky600);}
+.stock-link-icon{font-size:11px; color:var(--sky600); opacity:0.45; transition:opacity .15s; flex-shrink:0;}
+.lead{
+  font-size:11px; font-weight:800; padding:2px 9px; border-radius:20px;
+  flex-shrink:0; letter-spacing:.04em;
+}
+.lead.t1{background:var(--coral); color:#fff}
+.lead.t2{background:var(--sky); color:#fff}
+.lead.t3{background:#8B96A8; color:#fff}
+.stock-desc{font-size:13.5px; color:var(--txt); margin-top:7px; line-height:1.7; font-weight:400; letter-spacing:-.01em}
+.stock-desc ul{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:2px;}
+.stock-desc li{display:flex; align-items:baseline; gap:6px; font-size:13px; line-height:1.65;}
+.stock-desc li::before{content:'•'; color:var(--sky600); font-size:14px; flex-shrink:0; font-weight:900; line-height:1.5;}
+@media(min-width:960px){.stock-desc li{font-size:13.5px;}}
+
+/* 디스클레이머 */
+.disc{
+  margin-top:20px; padding:12px 15px; border-radius:var(--r12);
+  background:var(--amber50); color:var(--amber800);
+  font-size:12px; line-height:1.65; font-weight:500;
+}
+.disc b{font-weight:800}
+
+
+/* ── 리스크 텍스트 강조 ── */
+.stock-desc .risk{
+  display:block; margin-top:5px;
+  font-size:12.5px; color:var(--amber800); font-weight:600;
+  background:var(--amber50); border-radius:6px; padding:6px 10px;
+  line-height:1.6;
+}
+.stock-desc .risk-label{font-size:12.5px; font-weight:700; display:block; margin-bottom:3px;}
+.stock-desc .risk ul{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:2px;}
+.stock-desc .risk li{display:flex; align-items:baseline; gap:6px; line-height:1.65; font-size:12.5px;}
+.stock-desc .risk li::before{content:'•'; color:var(--amber); font-size:13px; flex-shrink:0; font-weight:900; line-height:1.6;}
+
+/* ── 용어 해설 토글 ── */
+.glossary-wrap{
+  margin-top:10px; border-top:1px solid var(--border2);
+}
+.glossary-btn{
+  width:100%; border:none; background:transparent; cursor:pointer;
+  font-size:12.5px; font-weight:700; color:var(--sky600);
+  font-family:inherit; padding:8px 0 4px;
+  display:flex; align-items:center; gap:5px;
+  -webkit-tap-highlight-color:transparent; transition:color .15s;
+  text-align:left;
+}
+.glossary-btn:hover{color:var(--sky800);}
+.glossary-btn .g-arrow{font-size:10px; transition:transform .22s; display:inline-block;}
+.glossary-btn.open .g-arrow{transform:rotate(180deg);}
+.glossary-body{
+  overflow:hidden; max-height:0; transition:max-height .3s ease;
+}
+.glossary-body.open{max-height:1000px;}
+.glossary-list{
+  padding:8px 0 6px; display:flex; flex-direction:column; gap:7px;
+}
+.glossary-item{
+  display:flex; flex-direction:column; gap:3px;
+  padding:8px 11px; border-radius:var(--r8);
+  background:var(--sky50);
+}
+.glossary-term{
+  font-size:13px; font-weight:800;
+  color:var(--sky800); line-height:1.4; letter-spacing:.01em;
+}
+.glossary-def{
+  font-size:13px; color:var(--txt); font-weight:500;
+  line-height:1.7;
+}
+
+/* ── 업데이트 날짜 ── */
+.stock-date{
+  font-size:12px; color:var(--txt2); font-weight:600;
+  margin-top:6px; display:flex; align-items:center; gap:5px;
+}
+.stock-date-dot{
+  width:6px; height:6px; border-radius:50%; background:var(--teal); opacity:.8; flex-shrink:0;
+}
+.stock-date.recent .stock-date-dot{background:var(--teal); opacity:1;}
+.stock-date.old .stock-date-dot{background:var(--gray600); opacity:.6;}
+
+/* ── 이력 보기 버튼 ── */
+.hist-btn{
+  margin-left:auto; border:none; background:transparent; cursor:pointer;
+  font-size:11.5px; color:var(--sky600); font-weight:700; padding:2px 6px;
+  -webkit-tap-highlight-color:transparent; line-height:1;
+  display:flex; align-items:center; gap:3px; transition:color .15s;
+  white-space:nowrap; background:var(--sky50); border-radius:20px;
+}
+.hist-btn:hover{color:var(--sky800); background:var(--sky100);}
+.hist-btn .hist-arrow{font-size:10px; transition:transform .2s; display:inline-block;}
+.hist-btn.open .hist-arrow{transform:rotate(180deg);}
+
+/* ── 이력 드롭다운 ── */
+.hist-wrap{
+  overflow:hidden; max-height:0; transition:max-height .28s ease;
+}
+.hist-wrap.open{max-height:2000px;}
+.hist-list{
+  margin-top:7px; padding:8px 10px 6px;
+  background:var(--gray50); border-radius:var(--r8);
+  border-left:3px solid var(--border);
+}
+.hist-item{
+  display:flex; flex-direction:column; gap:4px; padding:7px 0;
+  border-bottom:1px solid var(--border2); font-size:12px;
+}
+.hist-item:last-child{border-bottom:none; padding-bottom:2px;}
+.hist-date{
+  font-weight:800; color:var(--txt2); font-size:12.5px;
+  line-height:1.4; display:flex; align-items:center; gap:5px;
+}
+.hist-date::before{content:'🕐'; font-size:11px; opacity:.7;}
+.hist-date.hl{color:var(--teal);}
+.hist-date.hl::before{color:var(--teal); opacity:1;}
+.hist-body{color:var(--txt); line-height:1.7; font-weight:500;}
+.hist-body ul{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:3px;}
+.hist-body li{display:flex; align-items:baseline; gap:5px; font-size:13px; line-height:1.7;}
+.hist-body li::before{content:'•'; color:var(--sky600); font-size:13px; flex-shrink:0; font-weight:900; line-height:1.6;}
+.hist-body .hist-risk{
+  display:block; margin-top:5px;
+  font-size:13px; color:var(--amber800); font-weight:600;
+  background:var(--amber50); border-radius:6px; padding:6px 10px;
+  line-height:1.7;
+}
+.hist-body .hist-risk ul{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:3px;}
+.hist-body .hist-risk li{display:flex; align-items:baseline; gap:5px; font-size:13px; line-height:1.7;}
+.hist-body .hist-risk li::before{content:'•'; color:var(--amber); font-size:13px; flex-shrink:0; font-weight:900; line-height:1.6;}
+
+
+/* ── 핵심 종목 뱃지 ── */
+.key-badge{
+  font-size:11px; font-weight:800; padding:2px 8px; border-radius:20px;
+  background:linear-gradient(135deg,#6B3FA0,#9B5FD0);
+  color:#fff; letter-spacing:.03em; flex-shrink:0;
+}
+.stock-key{
+  border-color:var(--coral50);
+  box-shadow:0 2px 12px rgba(216,90,48,.12);
+}
+.stock-key:hover{
+  box-shadow:0 6px 24px rgba(216,90,48,.2);
+}
+
+/* ── 즐겨찾기 버튼 (카드 우측 상단) ── */
+.fav-btn{
+  flex-shrink:0; border:none; background:transparent; cursor:pointer;
+  font-size:18px; line-height:1; padding:2px 0 2px 4px;
+  -webkit-tap-highlight-color:transparent; transition:transform .15s;
+  color:#ccc;
+}
+.fav-btn:hover{transform:scale(1.2);}
+.fav-btn.on{color:#f5a623;}
+
+/* ── 즐겨찾기 탭 패널 ── */
+#fav-panel{display:none; animation:fadeIn .2s ease;}
+#fav-panel.vis{display:block;}
+.fav-empty{
+  text-align:center; padding:50px 20px;
+  font-size:14px; color:var(--txt3); font-weight:600; line-height:2;
+}
+
+
+.fav-order-hint{
+  font-size:11.5px; color:var(--txt3); text-align:right;
+  margin-bottom:8px; font-weight:600;
+}
+.fav-move-btn{
+  border:none; background:transparent; color:var(--txt3);
+  padding:0 4px; cursor:pointer; font-size:12px; line-height:1;
+  -webkit-tap-highlight-color:transparent; transition:color .12s;
+  min-height:24px; min-width:24px; border-radius:4px;
+}
+.fav-move-btn:active{color:var(--sky);}
+.fav-move-btn:disabled{opacity:.2; cursor:default;}
+.fav-item-row{ margin-bottom:9px; }
+.fav-card-footer{
+  display:flex; justify-content:flex-end; align-items:center;
+  gap:2px; margin-top:6px; padding-top:6px;
+  border-top:1px solid var(--border2);
+}
+.fav-card-footer-label{
+  font-size:11px; color:var(--txt3); margin-right:auto; font-weight:500;
+}
+/* ── 즐겨찾기 카드 (search-result-item) ── */
+.search-result-item{
+  background:var(--card); border:1px solid var(--border);
+  border-radius:var(--r14); padding:13px 14px;
+  box-shadow:var(--shadow);
+}
+.search-result-meta{
+  display:flex; gap:6px; align-items:center; margin-bottom:8px;
+}
+.tab-badge{
+  font-size:10.5px; font-weight:800; padding:3px 9px; border-radius:20px;
+  background:linear-gradient(135deg,var(--sky600),var(--sky));
+  color:#fff; letter-spacing:.03em;
+}
+.stage-badge{
+  font-size:10.5px; font-weight:600; padding:3px 9px; border-radius:20px;
+  background:var(--sky50); color:var(--sky800); letter-spacing:.02em;
+}
+
+/* ── 즐겨찾기 탭 버튼 (네비 특별 처리) ── */
+.nav-tab.fav-tab{color:var(--amber800);}
+.nav-tab.fav-tab.on{background:var(--amber50); color:var(--amber800);}
+.nav-tab.fav-tab .cnt{background:var(--amber50); color:var(--amber800);}
+.nav-tab.fav-tab.on .cnt{background:#f5a623; color:#fff;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+.hidden{display:none}
+
+/* ══════════════════════════════
+   홈 그리드 패널
+══════════════════════════════ */
+#home-panel{animation:fadeIn .25s ease;}
+#home-panel.hidden{display:none;}
+.home-grid{
+  display:grid; grid-template-columns:1fr 1fr; gap:10px;
+  margin-top:4px;
+}
+@media(min-width:640px){.home-grid{grid-template-columns:1fr 1fr 1fr;}}
+@media(min-width:960px){.home-grid{grid-template-columns:1fr 1fr 1fr 1fr;}}
+
+.home-card{
+  background:var(--card); border:2px solid var(--border);
+  border-radius:var(--r14); padding:14px 14px 12px;
+  cursor:pointer; transition:transform .15s, box-shadow .15s, border-color .15s;
+  -webkit-tap-highlight-color:transparent;
+  display:flex; flex-direction:column; gap:5px;
+}
+.home-card:hover{transform:translateY(-2px); box-shadow:var(--shadow-hover); border-color:var(--sky100);}
+.home-card:active{transform:scale(.97);}
+.home-card:focus-visible{outline:2px solid var(--sky); outline-offset:2px;}
+
+.home-card-top{
+  display:flex; align-items:center; justify-content:space-between; gap:4px;
+  margin-bottom:2px;
+}
+.home-card-icon{font-size:22px; line-height:1;}
+.home-card-name{font-size:13.5px; font-weight:800; color:var(--txt); line-height:1.3;}
+.home-card-status{display:flex; align-items:center; gap:5px; margin-top:2px;}
+.home-card-dot{width:8px; height:8px; border-radius:50%; flex-shrink:0;}
+.home-card-dot.pos{background:var(--teal);}
+.home-card-dot.warn{background:#f5a623;}
+.home-card-label{font-size:11.5px; font-weight:600; color:var(--txt3);}
+.home-card-cnt{
+  margin-left:auto; font-size:10.5px; font-weight:700;
+  color:var(--sky600); background:var(--sky50);
+  padding:1px 7px; border-radius:20px; white-space:nowrap;
+}
+.home-key-row{
+  display:flex; flex-wrap:wrap; gap:4px; margin-top:6px;
+}
+.home-key-name{
+  font-size:10.5px; font-weight:700;
+  color:var(--coral800); background:var(--coral50);
+  padding:2px 7px; border-radius:20px; white-space:nowrap;
+}
+.home-upd{
+  font-size:10px; font-weight:600; white-space:nowrap; flex-shrink:0;
+}
+.home-upd.recent{color:var(--teal);}
+.home-upd.old{color:var(--txt3); opacity:.7;}
+
+/* 홈 탭 버튼 */
+.nav-tab.home-tab{color:var(--sky800);}
+.nav-tab.home-tab.on{background:var(--sky50); color:var(--sky800);}
+
+/* ── 홈 티어 필터 바 ── */
+.home-filter-bar{
+  display:flex; gap:7px; flex-wrap:wrap;
+  margin-bottom:14px; align-items:center;
+}
+.home-filter-label{
+  font-size:11.5px; font-weight:700; color:var(--txt3);
+  margin-right:2px; white-space:nowrap; align-self:center;
+}
+.hf-btn{
+  border:1.5px solid var(--border); background:var(--card);
+  border-radius:20px; padding:5px 13px;
+  font-size:12px; font-weight:700; cursor:pointer;
+  color:var(--txt3); font-family:inherit;
+  transition:all .15s; -webkit-tap-highlight-color:transparent;
+  display:flex; align-items:center; gap:5px; white-space:nowrap;
+}
+.hf-btn:hover{border-color:var(--sky100); color:var(--sky600);}
+.hf-btn.on{border-color:transparent; color:#fff;}
+.hf-btn.all.on{background:var(--sky); border-color:var(--sky);}
+.hf-btn.t1.on{background:var(--coral); border-color:var(--coral);}
+.hf-btn.t2.on{background:var(--sky600); border-color:var(--sky600);}
+.hf-btn.t3.on{background:#8B96A8; border-color:#8B96A8;}
+.hf-btn .hf-cnt{
+  display:inline-flex; align-items:center; justify-content:center;
+  vertical-align:middle; font-size:10.5px; font-weight:800;
+  padding:1px 6px; border-radius:10px; line-height:1.4; min-width:18px;
+  background:rgba(255,255,255,.25);
+}
+.hf-btn:not(.on) .hf-cnt{background:var(--sky50); color:var(--sky800);}
+.hf-btn.t1:not(.on) .hf-cnt{background:var(--coral50); color:var(--coral800);}
+.hf-btn.t2:not(.on) .hf-cnt{background:var(--sky50); color:var(--sky800);}
+.hf-btn.t3:not(.on) .hf-cnt{background:var(--gray50); color:var(--txt3);}
+
+/* 홈 카드 필터 숨김 */
+.home-card.hf-hidden{display:none;}
+
+/* 홈 필터 빈 상태 */
+.home-filter-empty{
+  grid-column:1/-1; text-align:center;
+  padding:40px 20px; font-size:14px; color:var(--txt3); font-weight:600;
+}
+
+/* 섹터 진입 후 뒤로가기 버튼 */
+.back-btn{
+  display:inline-flex; align-items:center; gap:6px;
+  border:none; background:transparent; cursor:pointer;
+  font-size:13px; font-weight:700; color:var(--sky600);
+  padding:0; margin-bottom:14px;
+  -webkit-tap-highlight-color:transparent; transition:color .15s;
+}
+.back-btn:hover{color:var(--sky800);}
+.back-btn-wrap{padding-top:2px;}
+
+/* ===== 반응형 최적화 패치 ===== */
+
+/* PC(≥960px): 탭 중앙 정렬, 패딩 확대 */
+@media(min-width:960px){
+  .top-nav{
+    justify-content:center;
+    overflow-x:visible;
+    padding:6px 8px;
+  }
+  .nav-arrow{width:36px; font-size:22px;}
+  .nav-tab{padding:8px 16px; font-size:13px;}
+  .intro .desc{font-size:14.5px;}
+  .stock-desc{font-size:14px;}
+}
+
+/* 태블릿(560px~959px): 탭 스크롤 유지, 폰트 소폭 조정 */
+@media(min-width:560px) and (max-width:959px){
+  .nav-tab{padding:6px 11px; font-size:12px;}
+}
+
+/* 소형 모바일(≤380px): 탭 글자 잘림 방지, 카드 패딩 축소 */
+@media(max-width:380px){
+  .nav-tab{font-size:11px; padding:6px 8px; min-height:44px; letter-spacing:-.03em;}
+  .main{padding:12px 10px 60px;}
+  .stock{padding:11px 12px;}
+  .stock-name{font-size:13.5px;}
+  .stock-desc{font-size:13px;}
+  .intro{padding:13px 14px;}
+  .intro h2{font-size:15px;}
+  .intro .desc{font-size:13px;}
+  .intro .desc li{font-size:13px;}
+}
+
+/* 모든 모바일(≤640px): 터치 타겟 44px, 인트로 desc 폰트 조정 */
+@media(max-width:640px){
+  .nav-tab{min-height:44px;}
+  .intro .desc{font-size:13.5px;}
+  .intro .desc li{font-size:13.5px;}
+}
+
+@media(max-width:600px){
+  .hdr-date{display:none;}
+}
+</style>
+</head>
+<body>
+<script>(function(){try{document.documentElement.setAttribute('data-theme',localStorage.getItem('theme')||'dark');}catch(e){}})();</script>
+<script>
+// 포털(iframe) 안에서 열렸을 때: 자체 설정 버튼은 숨기고(포털 설정이 단일 소스), 포털의 화면모드 변경을 실시간 동기화
+(function(){
+  try{
+    if (window.self !== window.top) {
+      document.addEventListener('DOMContentLoaded', function(){
+        var btn = document.getElementById('hdrSettingsBtn');
+        if (btn) btn.style.display = 'none';
+      });
+    }
+  }catch(e){}
+  window.addEventListener('storage', function(e){
+    if (e.key === 'theme' && e.newValue) {
+      document.documentElement.setAttribute('data-theme', e.newValue);
+      if (typeof syncThemeOptUI === 'function') syncThemeOptUI();
+    }
+  });
+})();
+</script>
+
+<div id="settingsModal">
+  <div class="modal-backdrop" onclick="closeSettingsModal()">
+    <div class="modal-box" onclick="event.stopPropagation()">
+      <div class="modal-title">설정</div>
+      <div class="modal-section">화면모드</div>
+      <div class="theme-opts">
+        <div class="theme-opt" id="theme-opt-dark" onclick="setTheme('dark')">
+          <div class="theme-swatch theme-swatch-dark"><span class="ts-side"></span></div>
+          <div class="theme-opt-label">다크</div>
+        </div>
+        <div class="theme-opt" id="theme-opt-light" onclick="setTheme('light')">
+          <div class="theme-swatch theme-swatch-light"><span class="ts-side"></span></div>
+          <div class="theme-opt-label">라이트</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="hdr-wrap">
+    <div class="header">
+      <div class="header-left">
+        <div class="logo-title">주식 밸류체인</div>
+      </div>
+      <div class="header-right">
+        <div class="hdr-date" id="hdrDate">Update 08.11 12:35</div>
+        <button class="hdr-btn" id="hdrSettingsBtn" onclick="openSettingsModal()">⚙ 설정</button>
+      </div>
+    </div>
+    <div class="nav-scroll-wrap">
+      <button class="nav-arrow" id="nav-prev" onclick="navScroll(-1)" aria-label="이전 탭">‹</button>
+      <div class="top-nav" id="nav" role="tablist" aria-label="미래 성장동력 분야"></div>
+      <button class="nav-arrow" id="nav-next" onclick="navScroll(1)" aria-label="다음 탭">›</button>
+    </div>
+  </div>
+  <div class="main">
+    <div id="home-panel"></div>
+    <div id="fav-panel"></div>
+    <div id="content">
+    </div>
+  </div>
+</div>
+
+<script>
+// ── 밸류체인 섹터·종목 데이터 (정적 — Claude 분석 기반, 정기 갱신) ──
+let DATA = [];
+const REPORT_DATA = [
+  {
+    key:'ai', name:'AI 반도체', icon:'🤖',
+    desc:'HBM4·CoWoS·AI 추론칩을 중심으로 반도체 공급망 전체가 실적으로 증명되는 국면에 진입했다. SK하이닉스·삼성전자가 2026년 2분기 나란히 사상 최대 실적을 기록했고, TC본더 등 후공정 장비 업체까지 수주 훈풍이 확산되고 있다.',
+    strength:{ type:'pos', txt:'SK하이닉스 2Q26 영업이익 60조5,426억원(영업이익률 76%, 분기 사상 최대)·삼성전자 2Q26 영업이익 89.5조원으로 HBM 슈퍼사이클이 실적으로 확인된 단계.' },
+    glossary:[
+      {t:'HBM4', d:'6세대 고대역폭메모리 — AI 가속기(GPU)에 탑재되는 초고속 D램, 2026년부터 SK하이닉스·삼성전자 양산 본격화'},
+      {t:'TC본더', d:'칩과 칩을 열압착으로 접합하는 HBM 후공정 핵심 장비 — 한미반도체가 주력 공급'},
+    ],
+    stages:[
+      { t:'메모리 핵심', s:'HBM·D램',
+        stocks:[
+          { n:'SK하이닉스', code:'000660', tier:1, update:'2026-07-29',
+            d:'2026년 2분기 매출 79조3,187억원, 영업이익 60조5,426억원(영업이익률 76%)으로 분기 사상 최대 실적을 기록했으나 시장 기대치는 소폭 하회했다. 3분기부터 HBM4 양산이 본격화되며 상반기 누적 매출은 처음으로 100조원을 돌파했다. 목표주가 한국투자증권 470만원. ⚠️리스크: 실적 기대치 하회에 따른 단기 변동성, 메모리 가격 사이클 반전 가능성' }
+        ]
+      },
+      { t:'종합반도체', s:'메모리+파운드리',
+        stocks:[
+          { n:'삼성전자', code:'005930', tier:1, update:'2026-08-04',
+            d:'2026년 2분기 매출 171.5조원, 영업이익 89.5조원으로 역대 최대 분기 실적을 기록했다. 2월 세계 최초로 HBM4를 양산 출하한 이후 반년 만에 수율 약 80%를 확보했으나, 파운드리·시스템LSI 사업부는 여전히 적자이고 DX부문은 적자 전환했다. 목표주가 컨센서스(최고 67만원). ⚠️리스크: 파운드리 적자 장기화, HBM4 램프업 지연 가능성' }
+        ]
+      },
+      { t:'후공정 장비', s:'TC본더·패키징',
+        stocks:[
+          { n:'한미반도체', code:'042700', tier:2, update:'2026-07-14',
+            d:'2026년 2분기 매출 2,511억원(역대 최대), 영업이익 1,303억원(영업이익률 51.9%, 분기 최고)을 기록했다. SK하이닉스로부터 442억원 규모 HBM4용 TC본더를 신규 수주했으며, 하반기 SK하이닉스·삼성전자 HBM4 캐파 확대로 발주가 집중될 전망이다. 목표주가 BofA 50만원. ⚠️리스크: SK하이닉스向 매출 편중, 수주 모멘텀 둔화 시 주가 변동성 확대' }
+        ]
+      }
+    ]
+  },
+  {
+    key:'defense', name:'방산·드론', icon:'🛡️',
+    desc:'K-방산은 폴란드·중동·유럽을 축으로 한 수출 랠리가 실적에 본격 반영되는 단계로 진입했다. 한화에어로스페이스가 분기 영업이익 1조원을 처음 돌파했고, 국방부의 드론·대드론 전력 확충 정책도 병행 추진되고 있다.',
+    strength:{ type:'pos', txt:'한화에어로스페이스 2Q26 영업이익 1조3,655억원으로 창사 이후 분기 첫 1조원 돌파, 지상방산·항공우주·조선·방산전자 전 부문 동반 성장.' },
+    glossary:[
+      {t:'이행계약(EC)', d:'방산 수출 기본계약(프레임워크) 체결 후 연도별·물량별 구체 조건을 확정하는 실행 단계 계약, 폴란드 K2전차 등에 적용'},
+    ],
+    stages:[
+      { t:'지상·항공 방산', s:'K9·천무·L-SAM',
+        stocks:[
+          { n:'한화에어로스페이스', code:'012450', tier:1, update:'2026-08-05',
+            d:'2026년 2분기 매출 9조2,929억원, 영업이익 1조3,655억원으로 분기 기준 최초로 영업이익 1조원을 돌파했다(전년비 59%↑). 노르웨이 천무(1.3조원), 사우디 빅딜(타이곤·K9·천무·L-SAM), 폴란드 K9 2차 수출 계약 등 수주 랠리가 이어지고 있다. 목표주가 미래에셋증권 165만원. ⚠️리스크: 증권사 간 목표주가 편차 확대(140만~214만원), 대형 수주 지연 가능성' }
+        ]
+      },
+      { t:'지상장비', s:'K2전차·철도',
+        stocks:[
+          { n:'현대로템', code:'064350', tier:2, update:'2026-07-09',
+            d:'창원공장 K2전차 생산능력을 연 144대에서 180대로 약 25% 증강했다. 폴란드 K2전차 3차 이행계약(총 210대, 이 중 120대 한국 생산)이 연내 체결을 목표로 논의 중이며, 성사 시 폴란드 누적 배치량이 570대로 늘어난다. 목표주가 LS증권 33만원. ⚠️리스크: 폴란드 3차 계약 체결 시점 불확실성, 환율·현지 생산 비용 부담' }
+        ]
+      },
+      { t:'정밀유도무기', s:'천궁·미사일',
+        stocks:[
+          { n:'LIG넥스원', code:'079550', tier:2, update:'2026-07-31',
+            d:'수주잔고 22조9,000억원(수출 비중 50%↑)을 확보했으며, 2025년 신규수주 10조3,000억원으로 수주잔고가 전년비 31% 급증했다. UAE에 이은 사우디·이라크向 천궁-Ⅱ 매출 인식 확대로 2026년 해외매출은 전년비 27.1% 증가한 1조1,716억원이 전망된다. 목표주가 키움증권 70만원. ⚠️리스크: 자회사 고스트로보틱스 수익성 불확실, 중동 정세 변화에 따른 수주 일정 리스크' }
+        ]
+      }
+    ]
+  },
+  {
+    key:'ship', name:'조선·해양', icon:'🚢',
+    desc:'LNG선·컨테이너선 발주 호황과 미 해군 MRO(MASGA) 시장 개방이 겹치며 조선 3사가 2026년 2분기 나란히 어닝서프라이즈를 기록했다. 상선 슈퍼사이클과 함정 MRO·방산 신사업이 동시에 실적을 밀어올리는 국면이다.',
+    strength:{ type:'pos', txt:'HD현대·한화오션·삼성중공업 3사 모두 2Q26 영업이익이 전년비 59~262% 급증했고, 한화오션·HD현대중공업은 미 해군 함정 MRO 누적 4건을 확보하며 신사업 궤도에 진입.' },
+    glossary:[
+      {t:'MASGA', d:"'Make American Shipbuilding Great Again' — 한국 조선사의 미국 조선업 재건 참여 프로젝트, 2026년 3월 대미투자특별법 통과로 실행 가시성 확대"},
+      {t:'함정 MRO', d:'Maintenance, Repair, Overhaul — 군함 유지·보수·정비 사업, 미 해군이 한국 조선사에 발주를 확대 중'},
+    ],
+    stages:[
+      { t:'조선 대형사', s:'상선+함정+MRO',
+        stocks:[
+          { n:'HD현대중공업', code:'329180', tier:1, update:'2026-07-24',
+            d:'모회사 HD현대의 2026년 2분기 영업이익이 4조1,246억원(전년비 262.2%↑)을 기록한 가운데, 조선·해양부문은 매출 8조9,270억원·영업이익 1조6,451억원(전년비 72.5%↑)을 거뒀다. 대미투자특별법 통과로 MASGA 프로젝트 실행 가시성이 높아졌고, 미 해군 함정 MRO(앨런 셰퍼드함) 완료 등 MRO 사업을 확대 중이다. 목표주가 키움증권 81만원. ⚠️리스크: MASGA 프로젝트 정치적 변수, 조선 슈퍼사이클 고점 논란' },
+          { n:'한화오션', code:'042660', tier:1, update:'2026-07-23',
+            d:'2026년 2분기 매출 5조4,432억원, 영업이익 7,361억원(전년비 98%↑), 순이익 6,926억원(전년비 366.4%↑)을 기록했다. LNG운반선 건조 본격화가 실적을 견인했고, 미 해군 함정 MRO를 3건 이상 수주해 작년 연간 실적을 3개월 만에 초과했으며 영국·캐나다 해군 MRO도 신규 수주했다. 목표주가 키움증권 17만9,000원. ⚠️리스크: 캐나다 등 잠수함 수출 불확실성, 조선업 인력난·원자재비 상승' }
+        ]
+      },
+      { t:'조선 중견사', s:'LNG선·FLNG',
+        stocks:[
+          { n:'삼성중공업', code:'010140', tier:2, update:'2026-07-24',
+            d:'2026년 2분기 매출 3조2,307억원, 영업이익 3,250억원(영업이익률 10%대 진입, 전년비 59%↑)을 기록했다. LNG운반선 등 상선 부문 연간 수주목표를 7월에 조기 달성했으며, 하반기 미국 델핀 2호기·캐나다 웨스턴 프로젝트에서 FLNG 추가 수주를 추진 중이다. 목표주가 KB증권 4만3,000원. ⚠️리스크: FLNG 대형 수주 지연 시 성장 모멘텀 약화, 부유식 데이터센터 등 신사업 불확실성' }
+        ]
+      }
+    ]
+  },
+  {
+    key:'robot', name:'로봇·자동화', icon:'🦾',
+    desc:'휴머노이드·협동로봇·물류자동화 시장이 테슬라 옵티머스·피규어AI 등 글로벌 휴머노이드 양산 전환과 맞물려 국내 정밀부품·완제품 기업들의 수주가 본격화되고 있다. 삼성전자·현대차의 로봇 사업 투자 확대가 밸류체인 전반의 고성장을 견인하는 국면이다.',
+    strength:{ type:'pos', txt:'두산로보틱스 2분기 매출이 원엑시아 인수효과와 현대차向 협동로봇 공급 확대로 전년동기比 290% 급증하며 로봇 밸류체인 전반의 외형 성장을 입증.' },
+    glossary:[
+      {t:'하모닉 감속기', d:'모터의 회전력을 정밀하게 감속·전달하는 로봇 관절 핵심부품 — 일본계 소수업체 과점 시장에서 에스비비테크가 국산화 성공'},
+      {t:'휴머노이드 액추에이터', d:'모터·감속기·센서·제어기를 일체화한 로봇 관절 구동모듈 — 옵티머스·피규어AI 등 휴머노이드向 수요 급증 부품'},
+    ],
+    stages:[
+      { t:'정밀부품·감속기', s:'감속기·액추에이터',
+        stocks:[
+          { n:'에스비비테크', code:'389500', tier:2, update:'2026-08-11',
+            d:'2026년 1분기 별도기준 매출액이 전년동기 대비 50.6% 증가했으며, 협동로봇·반도체·디스플레이 자동화 장비向 정밀 감속기 수요 확대가 성장을 이끌었다. 다만 천안 신공장 가동에 따른 고정비 부담과 액추에이터 양산 초기 수율 안정화 비용으로 2026년 연간 영업손실이 전망되며 흑자전환은 2028년 이후로 예상된다. 목표주가 IBK투자증권 75,000원. ⚠️리스크: 최근 3년간 매출 컨센서스 대비 실적 괴리율 30~87%에 달하는 예측 미스 이력, 손익분기점 도달까지 지속되는 영업적자' }
+        ]
+      },
+      { t:'완제품·휴머노이드', s:'협동로봇·2족보행',
+        stocks:[
+          { n:'레인보우로보틱스', code:'277810', tier:1, update:'2026-05-19',
+            d:'2026년 1분기 연결 매출액이 전년동기 대비 116.6% 급증했으나 영업손실·순손실도 함께 늘며 적자가 지속되고 있다. 삼성전자가 최대주주 지위를 확보하고 미래로봇추진단을 신설한 이후 삼성 휴머노이드 개발의 핵심 파트너로 자리매김했으며, 삼성 로봇 이벤트마다 주가가 민감하게 반응하고 있다. 목표주가 iM증권 915,000원. ⚠️리스크: 영업손실 지속에 따른 실적 대비 고평가 논란, 삼성전자 로봇 사업 전략 변경 시 주가 변동성 확대' },
+          { n:'두산로보틱스', code:'454910', tier:2, update:'2026-07-24',
+            d:'2026년 2분기 연결 매출액이 전년동기比 3배 이상 성장했으며, 2025년 인수한 미국 로봇자동화 기업 원엑시아의 실적 반영과 EOL(포장·팔레타이징) 부문 매출 130% 증가가 성장을 견인했다. 영업손실은 전년동기 대비 7.9% 축소됐고, 현대차向 협동로봇을 지속 공급하며 중대형 거래를 추가 확보했다. 목표주가 DS투자증권 92,000원. ⚠️리스크: 여전한 영업적자 지속, 커버리지 증권사가 소수에 그쳐 컨센서스 신뢰도 낮음' }
+        ]
+      }
+    ]
+  },
+  {
+    key:'nuke', name:'원전·SMR', icon:'⚛️',
+    desc:'AI데이터센터發 전력수요 급증으로 전 세계적인 원전 르네상스가 진행 중이며, 체코·폴란드·UAE 등 대형원전 수출과 SMR 상용화가 동시에 진행되는 슈퍼사이클 국면이다. 국내 원전 밸류체인은 설계·주기기·기자재 전 영역에서 수주 잔고가 사상 최대 수준으로 확대되고 있다.',
+    strength:{ type:'pos', txt:'두산에너빌리티의 2026년 신규수주 전망이 약 14조원에 달하며 SMR 매출은 2026년 2,000억~3,000억원에서 2030년 3조3,000억원까지 급성장할 것으로 예상.' },
+    glossary:[
+      {t:'SMR', d:'소형모듈원전 — 발전용량 300MW 이하로 공장에서 모듈 생산 후 현장 조립하는 차세대 원전, AI데이터센터 전용 전력원으로 각광'},
+    ],
+    stages:[
+      { t:'설계·엔지니어링', s:'종합엔지니어링',
+        stocks:[
+          { n:'한전기술', code:'051600', tier:1, update:'2026-07-22',
+            d:'2026년 상반기 누적 영업이익이 전년동기 대비 300.4% 증가했고 2분기 영업이익은 흑자전환했다. 체코 두코바니 원전 매출이 2026년부터 본격 반영되기 시작해 연간 매출 5,952억원(+14.7%), 영업이익 819억원(+131%)이 전망되며, 대형원전·SMR 추가 수주도 가시화되고 있다. 목표주가 삼성증권 220,000원. ⚠️리스크: 체코 원전 최종계약 지연 시 매출 본격 확대 시점이 2028~2029년으로 늦춰질 가능성' }
+        ]
+      },
+      { t:'주기기·기자재 제작', s:'원자로·터빈',
+        stocks:[
+          { n:'두산에너빌리티', code:'034020', tier:1, update:'2026-08-04',
+            d:'2026년 신규수주 전망은 약 14조원으로 원자력 부문 비중이 크게 확대되고 있으며, SMR 매출은 2026년 2,000억~3,000억원에서 2027년 7,000억원, 2030년 3조3,000억원까지 급성장할 것으로 전망된다. 체코 두코바니 원전 프로젝트는 법원의 계약 진행 허가 판결 이후 본계약 절차가 진전되고 있다. 목표주가 신한투자증권 157,000원. ⚠️리스크: 최근 급등에 따른 단기 밸류에이션 부담, 웨스팅하우스와의 지식재산권 분쟁 및 체코 계약 확정 지연 가능성' },
+          { n:'비에이치아이', code:'083650', tier:2, update:'2026-05-20',
+            d:'2026년 신규수주 목표 2조원, 매출 약 1조323억원·영업이익 약 1,084억원으로 사상 최대 실적이 예상되며, 신한울 3·4호기向 격납건물철판(CLP)·복수기 등 주기기 공급계약을 확보했다. 뉴스케일파워·테라파워·시보그 등 글로벌 SMR 기업과 기술협력을 확대하며 북미 SMR 시장 진출을 준비하고 있다. 목표주가 유안타증권 120,000원. ⚠️리스크: 실적 눈높이 변동성, 해외 SMR 프로젝트 상업화 시점의 불확실성' }
+        ]
+      }
+    ]
+  },
+  {
+    key:'power', name:'전력 인프라', icon:'⚡',
+    desc:'AI데이터센터·반도체 팹 전력수요 폭증으로 변압기·배전반·차단기·냉각(UPS/칠러) 등 전력 인프라 전 영역에서 공급자 우위 시장이 형성되고 있다. 미국 노후 전력망 교체와 신재생에너지 확충 수요까지 겹치며 국내 전력기기 수출이 사상 최대치를 경신하고 있다.',
+    strength:{ type:'pos', txt:'HD현대일렉트릭 2분기 영업이익이 전년동기 대비 37.3% 증가했고 수주잔고가 84억9,000만달러(+29.6%)로 확대되는 등 전력기기 업체들이 잇달아 어닝서프라이즈를 기록.' },
+    glossary:[
+      {t:'765kV 초고압변압기', d:'국내 최고 전압등급 변압기 — 대용량 장거리 송전에 사용, 북미 전력망 노후교체 수요의 핵심 품목'},
+      {t:'CDU(냉각수 분배장치)', d:'AI서버 랙에 냉각수를 순환·분배하는 액체냉각 핵심장치 — 데이터센터 발열관리의 필수 인프라'},
+    ],
+    stages:[
+      { t:'중전기기', s:'변압기·배전반·차단기',
+        stocks:[
+          { n:'HD현대일렉트릭', code:'267260', tier:1, update:'2026-08-06',
+            d:'2026년 2분기 매출 1조1,418억원, 영업이익 2,870억원으로 전년동기 대비 각각 26.0%, 37.3% 증가했으며, 수주잔고는 84억9,000만달러(+29.6%)로 늘었다. 북미 전력망 투자 확대와 765kV급 초고압 변압기 수요 증가에 힘입어 2026년 연간 수주목표를 기존 대비 22.8% 상향 조정했다. 목표주가 미래에셋증권 1,300,000원. ⚠️리스크: 미국 관세정책 재변동 가능성, 실적 고성장을 이미 반영한 밸류에이션 부담' },
+          { n:'LS ELECTRIC', code:'010120', tier:1, update:'2026-07-28',
+            d:'2026년 2분기 매출 1조5,770억원(+32.2%), 영업이익 1,785억원(+64.4%)으로 컨센서스를 약 9% 상회하는 어닝서프라이즈를 기록했다. 전력부문 매출이 34.4% 급증했으며 미국 전력망·데이터센터向 배전반·초고압변압기 공급 확대가 실적을 견인했고, 2026년 신규수주 가이던스는 기존 4조1,000억원에서 5~6조원 수준으로 상향될 전망이다. 목표주가 LS증권 350,000원. ⚠️리스크: 마진이 낮은 배전반·데이터센터 인프라 비중 확대에 따른 수익성 희석 가능성, 원자재가·환율 변동' }
+        ]
+      },
+      { t:'냉각·UPS', s:'데이터센터 전원',
+        stocks:[
+          { n:'LG전자', code:'066570', tier:2, update:'2026-07-09',
+            d:'AI데이터센터向 공기·액체·액침 냉각 풀라인업을 앞세워 엔비디아 인증을 획득해 미국 AI 데이터센터 냉각시장 공략을 확대하고 있다. LS일렉트릭·LS전선과 공동개발한 직류(DC) 그리드 솔루션은 전력 변환 손실을 25%에서 15%로 낮췄으며, 칠러 시장 규모는 2026년 16억달러에서 2030년 127억달러로 8배 성장이 전망된다. 2분기 실적 발표 이후 국내 증권사 다수가 목표주가를 상향했다. 목표주가 증권사평균 246,400원. ⚠️리스크: 냉각·전력인프라 사업이 아직 초기 단계로 가전 대비 매출 기여도가 낮음, 기존 냉각 강자와의 경쟁 심화' }
+        ]
+      }
+    ]
+  },
+  {
+    key:'battery', name:'2차전지·전고체', icon:'🔋',
+    desc:'전기차 수요 둔화(캐즘)가 지속되는 가운데 미국 ESS·AI데이터센터向 대용량 배터리 수요가 새로운 성장축으로 부상했다. LG에너지솔루션·삼성SDI 모두 2026년 2분기 나란히 흑자전환하며 실적 저점 통과 신호가 확인됐지만, 중국 CATL·BYD의 글로벌 점유율 확대 압박은 여전하다.',
+    strength:{ type:'pos', txt:'LG에너지솔루션(영업이익 1,133억원, 3개분기만)과 삼성SDI(영업이익 2,038억원, 7개분기만)가 2026년 2분기 나란히 흑자전환하며 업종 실적 저점 통과를 확인.' },
+    glossary:[
+      {t:'전고체 배터리', d:'액체 전해질 대신 고체 전해질을 사용해 안전성과 에너지밀도를 높인 차세대 배터리'},
+      {t:'ESS', d:'에너지저장장치 — 재생에너지·AI데이터센터 전력 안정화용 대용량 배터리 시스템, 최근 배터리 3사 실적 개선의 핵심 동력'},
+    ],
+    stages:[
+      { t:'완성 배터리(셀)', s:'파우치·각형',
+        stocks:[
+          { n:'LG에너지솔루션', code:'373220', tier:1, update:'2026-07-08',
+            d:'2026년 2분기 매출 7조5,602억원(전년比 +24.8%), 영업이익 1,133억원으로 3개 분기 만에 흑자전환했다. 미국 ESS 현지화 최대 수혜주로 꼽히며 전고체 배터리는 2026년 고분자계 양산, 2030년 황화물계 상용화를 목표로 개발 중이다. 목표주가 유안타증권 574,000원. ⚠️리스크: 중국 CATL·BYD 점유율 확대(한중일 3사 합산 점유율 16.0%, 전년比 -3.5%p), 전기차 캐즘 장기화에 따른 수주 지연' },
+          { n:'삼성SDI', code:'006400', tier:1, update:'2026-07-31',
+            d:'2026년 2분기 매출 3조7,700억원(전년比 +18.5%), 영업이익 2,038억원으로 7개 분기 만에 흑자전환하며 턴어라운드를 조기 달성했다. AI데이터센터向 ESS·UPS·BBU 고출력 제품 수요가 실적 개선을 견인했고, 2025년 4분기 미국 ESS용 NCA 배터리 양산에 이어 2026년 4분기 LFP 배터리 양산도 예정돼 있다. 전고체 배터리는 2027년 양산이 목표다. 목표주가 DB증권 680,000원. ⚠️리스크: 목표주가 하향 조정 사례가 시사하는 밸류에이션 부담, 중국 배터리사 저가 공세에 따른 가격 경쟁 심화' }
+        ]
+      },
+      { t:'소재', s:'인조흑연 음극재',
+        stocks:[
+          { n:'포스코퓨처엠', code:'003670', tier:2, update:'2026-08-11',
+            d:'글로벌 완성차업체와 이차전지용 인조흑연 음극재 단일판매·공급계약(총액 1조원)을 체결했으며, 2026년 매출 3조4,971억원·영업이익 961억원이 전망된다. 대신증권은 투자의견을 매수로 상향하며 목표주가 23만원을 제시했고, KB증권은 목표주가 28만원(매수)을 유지 중이다. 목표주가 KB증권 280,000원. ⚠️리스크: 공급망 경쟁력이 실제 신규 수주로 이어져야 하는 불확실성, 전기차 캐즘에 따른 음극재 판가·물량 압박' }
+        ]
+      }
+    ]
+  },
+  {
+    key:'mobility', name:'자율주행·모빌리티', icon:'🚗',
+    desc:'현대차그룹은 레벨2에서 레벨3 자율주행으로의 전환과 SDV(소프트웨어 중심 차량)·피지컬AI 전환을 2026년 핵심 전략으로 제시했다. 다만 관세·원자재가 상승과 부품사 화재 등 공급망 변수로 완성차 수익성은 단기 압박을 받고 있다.',
+    strength:{ type:'warn', txt:'현대차 2026년 2분기 영업이익이 관세·원자재가·부품사 화재 여파로 전년比 20.8% 감소(영업이익률 5.8%)했지만, 매출은 49조2,153억원으로 역대 최대치를 기록해 하반기 반등 여지를 남김.' },
+    glossary:[
+      {t:'SDV', d:'Software Defined Vehicle — 소프트웨어로 차량 기능·성능을 정의·업데이트하는 차세대 자동차 아키텍처'},
+    ],
+    stages:[
+      { t:'완성차·자율주행', s:'레벨3·SDV',
+        stocks:[
+          { n:'현대차', code:'005380', tier:1, update:'2026-07-23',
+            d:'2026년 2분기 매출 49조2,153억원(전년比 +1.9%)으로 역대 최대 수준을 기록했으나, 원자재가 상승·관세·부품사 화재발 생산차질로 영업이익은 2조8,509억원(전년比 -20.8%, 영업이익률 5.8%)에 그쳤다. 레벨2→레벨3 자율주행 HDA 시리즈를 다중 센서 융합 방식으로 고도화 중이며 2030년 레벨4 상용화를 목표로 한다. 목표주가 한화투자증권 760,000원. ⚠️리스크: 관세·원자재가 부담에 따른 수익성 악화, 부품 공급망 차질 재발 가능성' }
+        ]
+      },
+      { t:'부품·전장', s:'통합제어기·로보틱스',
+        stocks:[
+          { n:'현대모비스', code:'012330', tier:1, update:'2026-06-16',
+            d:'그룹 SDV·피지컬AI 전환의 핵심 부품·통합제어기 공급사로 평가받으며, 글로벌 SDV·로보틱스 전문기업들과 파트너십을 체결했다. 차량용 반도체·로보틱스 부품 사업 강화를 강조하며 유안타증권은 목표주가를 56만원에서 87만원으로 대폭 상향했다. 목표주가 유안타증권 870,000원. ⚠️리스크: 완성차(현대차) 판매·생산 차질에 연동되는 부품 수요 리스크, SDV·로보틱스 사업의 가시적 매출화까지 시간 소요' }
+        ]
+      }
+    ]
+  },
+  {
+    key:'space', name:'우주·항공', icon:'🚀',
+    desc:'한화에어로스페이스는 방산·조선 쌍끌이로 2026년 2분기 분기 영업이익 첫 1조원을 돌파하며 실적 모멘텀을 이어가고 있다. 한국항공우주는 KF-21 양산 출고 본격화에도 상반기 수주 진척이 가이던스에 못 미쳐 하반기 수출 모멘텀이 관건이다. 이노스페이스는 민간 발사체 상용화의 분수령을 맞고 있다.',
+    strength:{ type:'pos', txt:'한화에어로스페이스가 2026년 2분기 영업이익 1조3,655억원(전년比 +58.5%)으로 창사 이래 첫 분기 1조원을 돌파했고, 수주잔고는 약 38조3,000억원(4.7년치 일감)에 달함.' },
+    glossary:[
+      {t:'발사체', d:'위성·화물을 우주로 쏘아 올리는 로켓 시스템. 민간 발사체는 정부 주도가 아닌 민간기업이 자체 개발·운용하는 로켓을 의미'},
+    ],
+    stages:[
+      { t:'방산·우주체계', s:'위성·발사체 지원',
+        stocks:[
+          { n:'한화에어로스페이스', code:'012450', tier:1, update:'2026-07-31',
+            d:'2026년 2분기 매출 9조2,929억원(전년比 +47.2%), 영업이익 1조3,655억원(전년比 +58.5%, 영업이익률 14.7%)으로 분기 영업이익 첫 1조원을 돌파했다. 핀란드向 K9 자주포 추가 수출(약 9,400억원), 에스토니아向 천무 추가 공급계약이 반영되며 수주잔고는 약 38조3,000억원(약 4.7년치 일감)에 달한다. 목표주가 유안타증권 1,480,000원. ⚠️리스크: 목표주가 하향 조정에서 드러난 밸류에이션 부담, 대형 해외 수주 확정 지연 시 모멘텀 둔화' }
+        ]
+      },
+      { t:'항공기체·수출', s:'KF-21·FA-50',
+        stocks:[
+          { n:'한국항공우주', code:'047810', tier:2, update:'2026-07-30',
+            d:'2026년 2분기 영업이익이 시장 기대치를 하회했고, 상반기 누적 신규수주는 6,295억원으로 연간 가이던스 10조원 대비 진척도가 낮지만 계절적으로 하반기에 수주가 집중되는 특성이 있다. KF-21은 사천에서 양산 출고를 시작해 연 40대 생산·최대 1,000대 수출을 목표로 하며, 필리핀·말레이시아·폴란드 등과 수출 협상이 진행 중이다. 목표주가 대신증권 165,000원. ⚠️리스크: 상반기 수주·실적 진척 부진, KF-21 초도 수출계약 확정 지연 가능성' }
+        ]
+      },
+      { t:'민간발사체', s:'한빛 시리즈',
+        stocks:[
+          { n:'이노스페이스', code:'462350', tier:3, update:'2026-05-18',
+            d:'한빛-나노/미니 라인업 가동으로 2026년 매출 925억원(전년比 +116.1%), 영업이익 158억원 흑자전환이 전망되며, 2026년 총 10회 발사를 계획하고 있다. 하반기 발사 성공 여부와 민간 발사체 기업으로서의 전략적 가치 부각이 핵심 체크포인트로 꼽힌다. 목표주가 메리츠증권 22,500원. ⚠️리스크: 발사 실패 시 기술 신뢰도 훼손, 흑자전환 시점까지 실적 변동성 지속' }
+        ]
+      }
+    ]
+  },
+  {
+    key:'quantum', name:'양자', icon:'🔬',
+    desc:'양자컴퓨터의 암호체계 위협에 대응하기 위한 PQC(양자내성암호) 전환이 국내 통신·금융권에서 본격화되고 있다. 2026년 국내 정보보안 시장은 전년대비 13.6% 성장한 10.6조원 규모로 전망되며, PUF 기반 보안칩과 국가표준 KpqC 알고리즘을 보유한 기업들이 상용화 파이프라인을 확보하고 있다.',
+    strength:{ type:'pos', txt:'ICTK가 BTQ테크놀로지와 143억원 규모 양자보안칩 개발 용역계약을 체결하고 국내 통신사向 PQC·PUF 통합 KMS를 개발 중 — 상용화 파이프라인 가시화.' },
+    glossary:[
+      {t:'PUF', d:'물리적 복제방지 기능(Physically Unclonable Function) — 반도체 개별 소자의 미세한 물리적 차이를 이용해 복제 불가능한 고유 암호키를 생성하는 기술'},
+      {t:'PQC', d:'양자내성암호(Post-Quantum Cryptography) — 양자컴퓨터의 연산력으로도 해독이 어려운 차세대 암호 알고리즘, 미국 NIST와 한국 KpqC가 표준화 주도'},
+    ],
+    stages:[
+      { t:'양자보안', s:'PUF·PQC 보안칩',
+        stocks:[
+          { n:'ICTK', code:'456010', tier:1, update:'2026-08-11',
+            d:'PUF(물리적복제방지) 기반 보안칩 원천기술을 보유한 국내 유일 업체로, BTQ테크놀로지와 143억원 규모 양자보안칩 개발 용역계약을 체결했고 국내 통신사 의뢰로 PQC·PUF 통합 KMS(키관리시스템) 솔루션을 개발 중이다. 다만 2025년 매출은 전년대비 39.9% 감소했고 영업손실이 확대되는 등 PQC 상용화 전환기의 실적 공백이 이어지고 있다. 목표주가 하나증권 28,000원. ⚠️리스크: 매출 급감·적자 지속에 따른 실적 불확실성, PQC 상용화 지연 시 고밸류에이션 부담' },
+          { n:'드림시큐리티', code:'203650', tier:2, update:'2026-04-24',
+            d:'PQC·블록체인 보안·스테이블코인 인프라 3중 테마의 핵심주로, NIST·KpqC·TTA 표준 PQC 알고리즘을 모두 지원하는 솔루션을 보유하고 있다. 정부 PQC 시범사업 파이프라인을 확보했고, 카카오뱅크·KB국민은행·IBK기업은행 사업자인증서를 통합한 플랫폼을 출시했다. 목표주가 증권사평균 4,300원. ⚠️리스크: 정부 PQC 실증사업 예산·일정 지연 가능성, 복수 테마 동시 편입에 따른 주가 변동성 확대' }
+        ]
+      }
+    ]
+  },
+  {
+    key:'hydro', name:'수소·친환경', icon:'🌿',
+    desc:'수소전기차 판매 캐즘이 장기화되며 모빌리티向 수소 부품업체들은 실적 회복이 더딘 반면, 액화수소 플랜트·대형 수전해 설비 등 인프라·정책 주도형 대형 국책사업은 여전히 견조하게 진행되고 있다. 수전해 경제성 확보와 그린수소 생산단가 인하가 산업 확산의 핵심 변수로 남아있다.',
+    strength:{ type:'warn', txt:'수소전기차 캐즘 지속에도 일진하이솔루스 1분기 매출 148.7%↑·순손실 89.7%↓로 반등 조짐, 효성중공업은 10MW급 수전해 국책 실증사업과 액화수소 플랜트로 대형 파이프라인 유지.' },
+    glossary:[
+      {t:'수전해', d:'물을 전기분해해 그린수소를 생산하는 설비 — 재생에너지 전력을 사용하면 탄소배출 없는 그린수소 생산이 가능'},
+      {t:'Type4 수소탱크', d:'금속 라이너 없이 탄소섬유 복합재로만 제작한 초경량 고압 수소저장용기 — 수소전기차·수소트럭에 주로 사용'},
+    ],
+    stages:[
+      { t:'수소 생산·인프라', s:'액화수소·수전해',
+        stocks:[
+          { n:'효성중공업', code:'298040', tier:1, update:'2026-08-04',
+            d:'린데그룹과 함께 세계 최대 규모(연 1만3,000톤)의 울산 액화수소 플랜트를 구축했고, 국내 최대인 10MW급 수전해 설비를 바탕으로 그린수소 생산능력을 연 20만톤까지 확대할 계획이다. 다만 울산 액화수소 플랜트의 상업 생산이 지연되고 있고 액화수소충전소 매출도 아직 소규모에 머물러 수소 밸류체인 수익화 속도는 더딘 편이다. 목표주가 대신증권 4,200,000원. ⚠️리스크: 액화수소 플랜트·충전 인프라 상업화 지연, 수소차 캐즘 장기화에 따른 가동률 저하' }
+        ]
+      },
+      { t:'수소 저장·모빌리티', s:'Type4 수소탱크',
+        stocks:[
+          { n:'일진하이솔루스', code:'271940', tier:2, update:'2026-08-11',
+            d:'현대차 수소전기차 넥쏘에 초경량 복합재 Type4 수소탱크를 독점 공급하며 북미·유럽 시장 공략을 확대하고 있다. 2026년 1분기 연결 매출액이 전년동기대비 148.7% 증가했고 영업손실·순손실이 각각 32.7%, 89.7% 축소되며 적자 폭을 크게 줄였다. 목표주가 증권사평균 15,900원. ⚠️리스크: 수소차 판매 캐즘 장기화에 따른 물량 회복 지연, 완전 흑자전환 시점 불확실성' }
+        ]
+      }
+    ]
+  },
+  {
+    key:'bio', name:'바이오·제약', icon:'💊',
+    desc:'ADC·비만치료제·AI신약개발 열기가 이어지는 가운데, 국내 CMO/CDMO 업체들은 대형 위탁생산 계약과 설비 증설을 바탕으로 호황을 지속하고 있다. 자체 신약의 미국 상업화 성과와 대형 기술수출 후속 마일스톤이 실적 모멘텀의 핵심으로 부상했다.',
+    strength:{ type:'pos', txt:'셀트리온 짐펜트라 미국 처방 185%↑로 역대 최대 분기 실적, 삼성바이오로직스 5공장 상업화로 CDMO 매출 성장 가속(2026년 매출 전년비 15~20%↑ 전망).' },
+    glossary:[
+      {t:'ADC', d:'항체-약물 접합체 — 항체에 세포독성 약물을 화학적으로 결합해 암세포만 선택적으로 공격하는 차세대 항암제 플랫폼'},
+      {t:'CDMO', d:'위탁개발생산 — 신약 후보물질의 공정개발부터 대량생산까지 위탁 수행하는 사업모델'},
+    ],
+    stages:[
+      { t:'CMO·CDMO', s:'바이오의약품 생산',
+        stocks:[
+          { n:'삼성바이오로직스', code:'207940', tier:1, update:'2026-07-30',
+            d:'18만L 규모 5공장이 가동을 시작해 2026년 상반기부터 상업생산이 본격화되고 있으며, 유럽 제약사와 2032년까지 이어지는 2,796억원 규모 CMO 계약을 신규 체결했다. 순수 CDMO 전환 효과로 2025년 매출 4.5조원을 돌파했고 2026년에는 전년대비 15~20% 성장한 매출이 전망된다. 다만 인건비 등 구조적 비용 부담이 커지며 목표주가가 하향 조정됐고, 대형 신규 수주 공백이 이어지고 있다. 목표주가 증권사평균 1,800,000원. ⚠️리스크: 인건비 등 구조적 비용 증가에 따른 마진 압박, 대형 신규 수주 공백 장기화' },
+          { n:'셀트리온', code:'068270', tier:1, update:'2026-05-13',
+            d:'미국 자체신약 짐펜트라(인플릭시맙 SC)가 2026년 1분기 처방량이 전년동기대비 185% 급증하며 역대 최대 분기 실적을 기록했고, 램시마SC와 합산 매출은 41% 증가한 2,099억원을 기록했다. 2026년 연간 매출액은 전년대비 30% 이상 성장한 5조3,404억원이 전망된다. 목표주가 유진투자증권 280,000원. ⚠️리스크: 바이오시밀러 경쟁 심화에 따른 약가 인하 압력, 짐펜트라 처방 확대 속도 둔화 가능성' }
+        ]
+      },
+      { t:'ADC·혁신신약', s:'기술수출',
+        stocks:[
+          { n:'레고켐바이오', code:'141080', tier:2, update:'2026-06-19',
+            d:'자체 ADC 플랫폼 컨쥬올(ConjuAll)을 기반으로 누적 12건, 83억달러 이상의 기술이전을 공개했으며, 오노약품과의 ADC 공동연구에서 2026년 1~2월 연달아 개발단계별 마일스톤을 달성했다. 최대 파이프라인 LCB84(Trop2 ADC)의 임상 1상 결과가 2026년 상반기 공개될 예정이며, 하반기에는 서브라이선스 협상을 통한 추가 기술이전 수익도 기대된다. 목표주가 240,000원. ⚠️리스크: 임상 데이터가 기대치에 못 미칠 경우 밸류에이션 급락 가능성, 마일스톤·기술료 수익의 분기별 변동성' }
+        ]
+      }
+    ]
+  },
+  {
+    key:'stablecoin', name:'스테이블코인·디지털자산', icon:'🪙',
+    desc:'정부가 은행 지분 51% 이상 컨소시엄 모델을 축으로 디지털자산기본법 제정을 추진하며 원화 스테이블코인 제도화가 임박했다. 국내 금융권·빅테크·핀테크 23개사 이상이 275건 넘는 상표를 출원하며 시장 선점 경쟁에 나섰고, 보안 인프라·간편결제 기업이 동시에 수혜주로 부각되고 있다.',
+    strength:{ type:'warn', txt:'디지털자산기본법 발행주체(은행 vs 비은행 지분한도) 이견으로 입법이 지연되고 있으나, 다날핀테크-JB전북은행 PoC 완료 등 민간 실사용 검증은 이미 진행 중.' },
+    glossary:[
+      {t:'스테이블코인', d:'법정화폐·실물자산에 1:1로 가치가 연동되도록 설계된 디지털자산 — 변동성이 큰 일반 가상자산과 달리 가격 안정성을 목표'},
+      {t:'DID(분산신원인증)', d:'Decentralized Identity — 블록체인 기반으로 개인이 자신의 신원정보를 직접 통제·증명하는 인증 방식, 모바일 신분증·전자서명 등에 활용'},
+    ],
+    stages:[
+      { t:'신원인증·보안 인프라', s:'DID·PQC',
+        stocks:[
+          { n:'라온시큐어', code:'042510', tier:2, update:'2026-08-11',
+            d:'생체인증 기반 신원인증(DID)·모바일 신분증 솔루션 전문기업으로, 원화 스테이블코인 제도화 시 은행권 신원인증·보안 인프라 수혜주로 꼽힌다. 2026년 국내 정보보안 시장은 전년대비 13.6% 성장한 10.6조원으로 전망되며, 보안 패러다임이 경계형에서 신원·권한 통제형으로 전환되는 흐름의 수혜가 기대된다. 목표주가 14,000원. ⚠️리스크: 스테이블코인 발행주체 관련 입법 지연 시 테마 모멘텀 약화, 정부 사업 의존도에 따른 매출 변동성' }
+        ]
+      },
+      { t:'결제·정산 플랫폼', s:'스테이블코인 PoC',
+        stocks:[
+          { n:'다날', code:'064260', tier:3, update:'2026-08-11',
+            d:'다날핀테크를 통해 JB전북은행과 원화 스테이블코인 기반 결제·정산 플랫폼의 E2E 기술검증(PoC)을 완료했으며, SaaS 플랫폼 이음(IEUM)으로 스테이블코인 발행부터 가맹점 결제·정산까지 전 과정을 구현한 국내 최초 사례를 확보했다. 2026년은 전환사채(CB) 부담 해소로 순이익·현금흐름이 동시에 흑자전환하는 전환점이 될 것으로 전망된다. 목표주가 증권사평균 10,136원. ⚠️리스크: 스테이블코인 관련 입법·제도화 지연에 따른 테마 변동성, 정책 기대감을 상당 부분 선반영했다는 고평가 우려' }
+        ]
+      }
+    ]
+  }
+];
+
+
+
+const nav = document.getElementById('nav');
+const content = document.getElementById('content');
+const navPrev = document.getElementById('nav-prev');
+const navNext = document.getElementById('nav-next');
+// key → sector 객체 Map (applyHomeTierFilter O(1) 조회용)
+let DATA_MAP = new Map();
+// ── 종목명 → {st, tabName, stageName} 역방향 Map (getFavStocks 매 호출 재순회 방지) ──
+let STOCK_MAP = new Map();
+
+// ── 앱 업데이트 날짜 단일 관리 ──
+// DATA 전체 종목 중 가장 최신 upd를 자동 산출 → 헤더 날짜 한 곳만 수정하면 전체 반영
+// 업데이트 날짜: rebuildApp() 에서 처리
+
+// XSS 방지: innerHTML 주입 전 이스케이프
+// ── 리스크 구분자 전역 상수 (splitRisk·buildHistHTML 공용) ──
+const RISK_MARK = '⚠️리스크:';
+function esc(v){
+  return String(v).replace(/[&<>"']/g, c => (
+    {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]
+  ));
+}
+
+// [버그 수정] tier를 숫자로 검증하여 안전하게 처리
+function tierLabel(t){
+  const tier = Number(t);
+  if(tier === 1) return '<span class="lead t1">독보</span>';
+  if(tier === 2) return '<span class="lead t2">선두</span>';
+  return '<span class="lead t3">성장</span>';
+}
+
+// ── 섹터 총 종목 수 집계 헬퍼 ──
+function countStocks(d){
+  return d.stages.reduce((a, s) => a + s.stocks.length, 0);
+}
+
+// ── 섹터 내 가장 최근 upd 날짜 반환 헬퍼 (panelHTML·renderHomePanel 공용) ──
+function getSectorLatestUpd(d){
+  let latest = '';
+  d.stages.forEach(s => s.stocks.forEach(st => {
+    if(st.update && (!latest || st.update > latest)) latest = st.update;
+  }));
+  return latest;
+}
+
+// ── [r2] 날짜 diff → 표시 label 공통 헬퍼 ──
+// diff(일수)와 label(표시 텍스트)을 함께 반환 — updDateHTML·renderHomePanel 공용
+function dayDiffLabel(upd){
+  const diff = Math.floor((new Date() - new Date(upd)) / 86400000);
+  let label;
+  if(diff === 0) label = '오늘';
+  else label = upd.replace(/^(\d{4})-(\d{2})-(\d{2})$/, (_, y, m, d) => y + '.' + m + '.' + d);
+  return {diff, label};
+}
+
+// ── [r1] 리스크 파싱 공통 헬퍼 ── (메인 카드·즐겨찾기 공용) — 원문(raw) 기준
+// 본문·리스크를 직접 받아 렌더 (합성·재분리 없이)
+function renderDescRisk(main, risk, riskSpanClass){
+  const m = (main || '').trim();
+  const r = (risk || '').trim();
+  const riskHTML = r ? `<span class="${riskSpanClass}"><span class="risk-label">⚠️ 리스크</span>${riskToBullets(r)}</span>` : '';
+  return mainToBullets(m) + riskHTML;
+}
+// 구버전 d(본문 ⚠️리스크: 리스크) 포맷 분리용 — history 폴백·구버전 호환 유지
+function splitRisk(raw, riskSpanClass){
+  const idx = raw.indexOf(RISK_MARK);
+  const main = (idx === -1 ? raw : raw.slice(0, idx)).trim();
+  const risk = idx === -1 ? '' : raw.slice(idx + RISK_MARK.length).trim();
+  return renderDescRisk(main, risk, riskSpanClass);
+}
+
+// ── 리스크 텍스트 → 불릿 목록 변환 ──
+// ", " 기준으로 항목 분리, 2항목 이상일 때만 <ul> 적용
+function riskToBullets(text){
+  if(!text) return text;
+  const raw = text
+    .split(/,\s+/)
+    .map(s => s.trim())
+    .filter(s => s.length > 0);
+  if(raw.length < 2) return esc(text);
+  const items = raw.map(s => `<li>${esc(s)}</li>`).join('');
+  return `<ul>${items}</ul>`;
+}
+
+
+// ── 메인 설명 텍스트 → 불릿 목록 변환 ──
+// ". " 기준으로 문장 분리, 2문장 이상일 때만 <ul> 적용
+function mainToBullets(text){
+  if(!text) return text;
+  const raw = text
+    .split(/(?:\.\s+(?=[A-Za-z가-힣0-9\'\"\`\[—\-])|·\s+)/)
+    .map(s => s.replace(/\.$/, '').trim())
+    .filter(s => s.length > 0);
+  if(raw.length < 2) return esc(text);
+  const items = raw.map(s => `<li>${esc(s)}</li>`).join('');
+  return `<ul>${items}</ul>`;
+}
+
+// ── 업데이트 날짜 표시 헬퍼 ──
+function updDateHTML(upd, hist, uid){
+  if(!upd) return '';
+  const {diff: diffDays, label} = dayDiffLabel(upd);
+  const cls = diffDays <= 30 ? 'recent' : 'old';
+  const hasHist = hist && hist.length > 0;
+  const histBtn = hasHist
+    ? `<button class="hist-btn" id="hbtn-${uid}" onclick="toggleHist('${uid}')" aria-expanded="false">이력 ${hist.length}건 <span class="hist-arrow">▼</span></button>`
+    : '';
+  const histHTML = hasHist ? buildHistHTML(hist) : '';
+  return `<div class="stock-date ${cls}"><span class="stock-date-dot"></span>업데이트 ${esc(label)}${histBtn}</div>${hasHist ? `<div class="hist-wrap" id="hw-${uid}">${histHTML}</div>` : ''}`;
+}
+
+// ── 이력 HTML 생성 ──
+function buildHistHTML(hist){
+  const items = hist.map((h, i) => {
+    const {label} = dayDiffLabel(h.upd);
+    const isLatest = i === 0;
+    // 이력 본문: 원문을 전달 — mainToBullets/riskToBullets 내부에서 esc() 처리
+    const rawIdx = h.d.indexOf(RISK_MARK);
+    const mainText = (rawIdx === -1 ? h.d : h.d.slice(0, rawIdx)).trim();
+    const riskText = rawIdx === -1 ? '' : h.d.slice(rawIdx + RISK_MARK.length).trim();
+    const mainHTML = mainToBullets(mainText);
+    const riskHTML = riskText ? `<span class="hist-risk"><span style="font-size:11px;font-weight:700;">⚠️ 리스크</span> ${riskToBullets(riskText)}</span>` : '';
+    return `<div class="hist-item">
+      <span class="hist-date${isLatest?' hl':''}">${esc(label)}</span>
+      <span class="hist-body">${mainHTML}${riskHTML}</span>
+    </div>`;
+  }).join('');
+  return `<div class="hist-list">${items}</div>`;
+}
+
+// ── 드롭다운 공통 토글 헬퍼 ──
+function toggleDropdown(bodyEl, btnEl){
+  if(!bodyEl || !btnEl) return;
+  const isOpen = bodyEl.classList.contains('open');
+  bodyEl.classList.toggle('open', !isOpen);
+  btnEl.classList.toggle('open', !isOpen);
+  btnEl.setAttribute('aria-expanded', String(!isOpen));
+}
+
+// ── 용어 해설 드롭다운 토글 ──
+function toggleGlossary(key){
+  toggleDropdown(
+    document.getElementById(key+'-body'),
+    document.getElementById(key+'-btn')
+  );
+}
+
+// ── 이력 드롭다운 토글 ──
+function toggleHist(uid){
+  toggleDropdown(
+    document.getElementById('hw-'+uid),
+    document.getElementById('hbtn-'+uid)
+  );
+}
+
+// ── 종목 설명 렌더링: ⚠️리스크 부분을 별도 블록으로 분리 ──
+// formatDesc 래퍼 제거 — splitRisk(st.d, 'risk') 직접 사용 (원문 기준, 내부 esc 처리)
+
+function panelHTML(d){
+  const isPos = d.strength.type === 'pos';
+  const parts = [];
+  // 용어 해설 HTML 생성
+  const gKey = 'g_' + d.key;
+  let glossaryHTML = '';
+  if(d.glossary && d.glossary.length > 0){
+    const items = d.glossary.map(g =>
+      `<div class="glossary-item"><span class="glossary-term">${esc(g.t)}</span><span class="glossary-def">${esc(g.d)}</span></div>`
+    ).join('');
+    glossaryHTML = `<div class="glossary-wrap">
+      <button class="glossary-btn" id="${gKey}-btn" onclick="toggleGlossary('${gKey}')" aria-expanded="false">
+        📖 용어 해설 보기 <span class="g-arrow">▼</span>
+      </button>
+      <div class="glossary-body" id="${gKey}-body">
+        <div class="glossary-list">${items}</div>
+      </div>
+    </div>`;
+  }
+  parts.push(`<div class="intro">
+    <h2>${esc(d.icon)} ${esc(d.name)}</h2>
+    <div class="desc">${mainToBullets(d.desc)}</div>
+    <div class="strength ${isPos ? 'pos' : 'warn'}">
+      <span class="strength-label">${isPos ? '📈 투자 포인트' : '⚠️ 주의 사항'}</span><span>${mainToBullets(d.strength.txt)}</span>
+    </div>
+    ${glossaryHTML}
+  </div>`);
+
+  d.stages.forEach((s, si) => {
+    const sorted = [...s.stocks].sort((a, b) => Number(a.tier) - Number(b.tier));
+    // 스테이지 내 첫 번째 tier1 종목 인덱스
+    const firstT1idx = sorted.findIndex(st => Number(st.tier) === 1);
+    const cards = sorted.map((st, cardIdx) => {
+      const isKey = cardIdx === firstT1idx && firstT1idx !== -1;
+      const uid = (st.code||st.n.replace(/\s/g,'')) + '_' + si + '_' + cardIdx;
+      return `
+      <div class="stock${isKey ? ' stock-key' : ''}" data-name="${esc(st.n)}" data-code="${esc(st.code||'')}">
+        <div class="stock-top">
+          <a class="stock-name stock-link" href="${st.code ? 'https://m.stock.naver.com/domestic/stock/'+esc(st.code)+'/total' : '#'}" target="_blank" rel="noopener noreferrer">${esc(st.n)}<span class="stock-link-icon">&#x2197;</span></a>
+          <span style="display:flex;align-items:center;gap:4px">${isKey ? '<span class="key-badge">★ 핵심</span>' : ''}${tierLabel(st.tier)}<button class="fav-btn" data-name="${esc(st.n)}" onclick="toggleFav(this)" aria-label="즐겨찾기">☆</button></span>
+        </div>
+        <div class="stock-desc">${st.descRaw!==undefined ? renderDescRisk(st.descRaw, st.riskRaw, 'risk') : splitRisk(st.d, 'risk')}</div>
+        ${updDateHTML(st.update, st.history||[], uid)}
+      </div>`;
+    }).join('');
+    parts.push(`<div class="stage">
+      <div class="stage-hd">
+        <div class="stage-num">${si + 1}</div>
+        <div>
+          <div class="stage-title">${esc(s.t)}</div>
+          <div class="stage-sub">${esc(s.s)}</div>
+        </div>
+      </div>
+      <div class="grid">${cards}</div>
+    </div>`);
+  });
+  // 섹터 내 최신 upd 동적 산출 → 면책 날짜에 반영
+  const latestUpdDisc = getSectorLatestUpd(d);
+  const discDate = latestUpdDisc
+    ? latestUpdDisc.replace(/^(\d{4})-(\d{2})-\d{2}$/, (_, y, m) => y + '년 ' + m + '월')
+    : '최신';
+  parts.push(`<div class="disc"><b>⚠️ 투자 유의</b> · 본 자료는 ${discDate} 기준 최신 실적·수주 정보를 반영한 밸류체인 참고용이며, 특정 종목 매수 추천이 아닙니다. 미래 테마주 다수는 기대가 주가에 선반영되어 밸류에이션이 높고 변동성이 큽니다. <b>독보적 기술력 ≠ 좋은 매수 시점</b> — 실제 진입은 전저점 종가 확인 후 분할 진입 등 별도 전략으로 리스크를 관리하세요. 최종 투자 판단은 반드시 본인이 직접 하세요.</div>`);
+  return parts.join('');
+}
+
+// tabs / panels — rebuildApp() 실행 후 채워짐
+const tabs = [], panels = [];
+
+// ── rebuildApp: DATA 로드 후 호출 — 탭·패널·Map 재구성 ──
+function rebuildApp(){
+  // 기존 탭·패널 DOM 초기화 (재빌드 시 중복 방지)
+  tabs.length = 0; panels.length = 0;
+  // nav에서 섹터 탭만 제거 (홈·즐찾 특수탭 유지)
+  Array.from(nav.querySelectorAll('.nav-tab:not(.home-tab):not(.fav-tab)')).forEach(b => b.remove());
+  Array.from(content.children).forEach(p => p.remove());
+
+  // Map 재구성
+  DATA_MAP = new Map(DATA.map(d => [d.key, d]));
+  STOCK_MAP = new Map();
+  DATA.forEach(d => d.stages.forEach(s => s.stocks.forEach(st => {
+    STOCK_MAP.set(st.n, {st, tabName: d.name, stageName: s.t});
+  })));
+
+  // 탭 버튼 + 패널 빌드
+  DATA.forEach((d, i) => {
+    const b = document.createElement('button');
+    b.className = 'nav-tab';
+    b.id = 'tab-' + d.key;
+    b.type = 'button';
+    b.setAttribute('role', 'tab');
+    b.setAttribute('aria-controls', 'panel-' + d.key);
+    b.setAttribute('aria-selected', 'false');
+    b.tabIndex = -1;
+    b.innerHTML = `<span>${esc(d.name)}</span>`;
+    b.onclick = () => show(i);
+    b.addEventListener('keydown', e => onKey(e, i));
+    nav.appendChild(b);
+    tabs.push(b);
+
+    const p = document.createElement('div');
+    p.id = 'panel-' + d.key;
+    p.className = 'hidden';
+    p.setAttribute('role', 'tabpanel');
+    p.setAttribute('aria-labelledby', 'tab-' + d.key);
+    p.setAttribute('aria-hidden', 'true');
+    p.innerHTML = panelHTML(d);
+    content.appendChild(p);
+    panels.push(p);
+  });
+
+  // 즐겨찾기 동기화
+  syncAllFavBtns();
+  updateFavTab();
+
+  // 홈으로 시작
+  current = -1;
+  showHomePanel();
+  updateNavArrows();
+}
+
+let current = -1; // [버그 수정] show() 멱등성: -1로 초기화하여 첫 호출 항상 실행
+
+function show(idx, focusTab) {
+  // 멱등성 보장 — 이미 같은 탭이면 즉시 반환
+  if (current === idx) return;
+  current = idx;
+
+  // 특수 탭·패널(즐겨찾기) 비활성화는 deactivateAll 공통 헬퍼 사용 (r2)
+  deactivateAll();
+
+  // content 영역 복원
+  content.classList.remove('hidden');
+
+  // 섹터 탭 활성화
+  tabs.forEach((t, i) => {
+    const on = i === idx;
+    t.classList.toggle('on', on);
+    t.setAttribute('aria-selected', on ? 'true' : 'false');
+    t.tabIndex = on ? 0 : -1;
+  });
+
+  // panels: back-btn-wrap 제거 + hidden 토글 한 번에 처리
+  panels.forEach((p, i) => {
+    const bw = p.querySelector('.back-btn-wrap');
+    if(bw) bw.remove();
+    const on = i === idx;
+    p.classList.toggle('hidden', !on);
+    p.setAttribute('aria-hidden', on ? 'false' : 'true');
+    if (on) p.tabIndex = 0;
+    else p.removeAttribute('tabindex');
+  });
+
+  window.scrollTo({ top: 0, behavior: 'instant' });
+
+  // 활성 탭이 nav 스크롤 영역 안에 보이도록 직접 스크롤
+  (function scrollTabIntoNav(){
+    const tab = tabs[idx];
+    const navRect = nav.getBoundingClientRect();
+    const tabRect = tab.getBoundingClientRect();
+    const offset = tabRect.left - navRect.left + nav.scrollLeft - (nav.clientWidth / 2) + (tab.offsetWidth / 2);
+    nav.scrollTo({ left: Math.max(0, offset), behavior: 'smooth' });
+    onScrollEnd(nav, updateNavArrows);
+  })();
+  if (focusTab) tabs[idx].focus();
+
+  // URL 해시 연동
+  safeReplaceHash(DATA[idx].key);
+
+  // 즐겨찾기 버튼 상태 동기화 (★/☆)
+  syncAllFavBtns();
+}
+
+// 키보드 네비게이션: ←→, Home, End — nav 전체 탭 순환 (홈·관심 포함)
+function onKey(e, idx) {
+  if (e.key === 'ArrowDown') {
+    // WAI-ARIA tablist 권고 — ArrowDown 시 활성 패널로 포커스 이동
+    e.preventDefault();
+    const panel = panels[idx];
+    if(panel){
+      panel.focus();
+    } else {
+      // 홈·관심 탭(panels 범위 밖) — 해당 패널 직접 참조
+      const activeTab = document.querySelector('.nav-tab.on');
+      if(activeTab){
+        const tid = activeTab.id;
+        const targetPanel = tid === 'tab-home' ? homePanel : tid === 'tab-fav' ? favPanel : null;
+        if(targetPanel) targetPanel.focus();
+      }
+    }
+    return;
+  }
+  const allTabs = Array.from(nav.querySelectorAll('.nav-tab'));
+  const activeTab = document.getElementById('tab-' + DATA[idx].key);
+  const curPos = allTabs.indexOf(activeTab);
+  let nextPos = null;
+  if (e.key === 'ArrowRight') nextPos = (curPos + 1) % allTabs.length;
+  else if (e.key === 'ArrowLeft') nextPos = (curPos - 1 + allTabs.length) % allTabs.length;
+  else if (e.key === 'Home') nextPos = 0;
+  else if (e.key === 'End') nextPos = allTabs.length - 1;
+  if (nextPos !== null) { e.preventDefault(); allTabs[nextPos].click(); allTabs[nextPos].focus(); }
+}
+
+
+window.addEventListener('hashchange', () => {
+  const key = location.hash.slice(1);
+  if(key === 'home' || !key){ showHomePanel(); return; }
+  if(key === 'fav'){ showFavPanel(); return; }
+  const i = DATA.findIndex(d => d.key === key);
+  if(i >= 0 && i !== current) show(i);
+});
+
+// ══════════════════════════════════════
+// 홈 그리드 패널
+// ══════════════════════════════════════
+const homePanel = document.getElementById('home-panel');
+const favPanel  = document.getElementById('fav-panel');
+
+// 섹터 강도 → dot 클래스 + 라벨 (DATA.strength.type 단일 소스)
+const STRENGTH_LABEL = {pos:'실적 동반', warn:'기대 단계'};
+function sectorStrength(d){
+  const type = d.strength ? d.strength.type : 'warn';
+  return {cls: type, label: STRENGTH_LABEL[type] || '기대 단계'};
+}
+
+// ── 홈 티어 필터 상태 ──
+let homeTierFilter = 'all'; // 'all' | '1' | '2' | '3'
+
+// 섹터가 특정 tier 종목을 보유하는지 확인
+function sectorHasTier(d, tier){
+  return d.stages.some(s => s.stocks.some(st => Number(st.tier) === tier));
+}
+
+// 티어별 종목 수 집계
+function countSectorsByTier(tier){
+  if(tier === 'all') return DATA.reduce((a,d) => a + countStocks(d), 0);
+  return DATA.reduce((a,d) =>
+    a + d.stages.reduce((b,s) =>
+      b + s.stocks.filter(st => Number(st.tier) === Number(tier)).length, 0), 0);
+}
+
+function renderHomePanel(){
+  const cards = DATA.map((d, i) => {
+    const sm = sectorStrength(d);
+
+    // 종목 수
+    const stockCount = countStocks(d);
+
+    // 대표 종목 최대 2개: tier1 우선, 없으면 tier2 fallback
+    const keyList = [];
+    d.stages.forEach(s => s.stocks.forEach(st => { if(Number(st.tier)===1 && keyList.length < 2) keyList.push(st.n); }));
+    if(keyList.length === 0)
+      d.stages.forEach(s => s.stocks.forEach(st => { if(Number(st.tier)===2 && keyList.length < 2) keyList.push(st.n); }));
+    const keyNames = keyList.map(n => `<span class="home-key-name">${esc(n)}</span>`).join('');
+
+    // 가장 최근 upd
+    const latestUpd = getSectorLatestUpd(d);
+    const {diff: updDiff, label: updLabel} = latestUpd ? dayDiffLabel(latestUpd) : {diff:99, label:''};
+    const updCls = updDiff <= 7 ? 'home-upd recent' : 'home-upd old';
+
+    // 필터 숨김 여부 — 초기 렌더 시 homeTierFilter 반영
+    const hidden = (homeTierFilter !== 'all' && !sectorHasTier(d, Number(homeTierFilter))) ? ' hf-hidden' : '';
+
+    return `<div class="home-card${hidden}" data-sector-key="${esc(d.key)}" onclick="showFromHome(${i})" role="button" tabindex="0"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showFromHome(${i})}">
+      <div class="home-card-top">
+        <span class="home-card-icon">${esc(d.icon)}</span>
+        <span class="${updCls}">↺ ${esc(updLabel)}</span>
+      </div>
+      <div class="home-card-name">${esc(d.name)}</div>
+      <div class="home-card-status">
+        <span class="home-card-dot ${sm.cls}"></span>
+        <span class="home-card-label">${esc(sm.label)}</span>
+        <span class="home-card-cnt">${stockCount}종목</span>
+      </div>
+      ${keyNames ? `<div class="home-key-row">${keyNames}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  // 필터 바 HTML
+  const filterBar = buildHomeTierFilterBar();
+
+  homePanel.innerHTML = filterBar + `<div class="home-grid" id="home-grid">${cards}</div>`;
+}
+
+function buildHomeTierFilterBar(){
+  const cnt = {
+    all: countSectorsByTier('all'),
+    '1': countSectorsByTier('1'),
+    '2': countSectorsByTier('2'),
+    '3': countSectorsByTier('3'),
+  };
+  const btns = [
+    {key:'all', cls:'all', label:'전체'},
+    {key:'1',   cls:'t1',  label:'독보'},
+    {key:'2',   cls:'t2',  label:'선두'},
+    {key:'3',   cls:'t3',  label:'성장'},
+  ].map(({key, cls, label}) => {
+    const on = homeTierFilter === key ? ' on' : '';
+    return `<button class="hf-btn ${cls}${on}" data-tier="${key}" onclick="applyHomeTierFilter('${key}')">${label}<span class="hf-cnt">${cnt[key]}</span></button>`;
+  }).join('');
+  return `<div class="home-filter-bar"><span class="home-filter-label">티어</span>${btns}</div>`;
+}
+
+function applyHomeTierFilter(tier){
+  homeTierFilter = tier;
+  // 필터 버튼 on 상태 갱신
+  document.querySelectorAll('.hf-btn').forEach(b => {
+    b.classList.toggle('on', b.dataset.tier === tier);
+  });
+  // 카드 show/hide
+  const grid = document.getElementById('home-grid');
+  if(!grid) return;
+  let visCount = 0;
+  grid.querySelectorAll('.home-card').forEach(card => {
+    const key = card.dataset.sectorKey;
+    const d = DATA_MAP.get(key);
+    const visible = tier === 'all' || (d && sectorHasTier(d, Number(tier)));
+    card.classList.toggle('hf-hidden', !visible);
+    if(visible) visCount++;
+  });
+  // 빈 상태 처리
+  let emptyEl = grid.querySelector('.home-filter-empty');
+  if(visCount === 0){
+    if(!emptyEl){
+      emptyEl = document.createElement('div');
+      emptyEl.className = 'home-filter-empty';
+      emptyEl.textContent = '해당 티어 종목이 없습니다.';
+      grid.appendChild(emptyEl);
+    }
+  } else {
+    if(emptyEl) emptyEl.remove();
+  }
+}
+
+function showHomePanel(){
+  deactivateAll();
+  homePanel.classList.remove('hidden');
+  const homeTab = document.getElementById('tab-home');
+  if(homeTab) homeTab.classList.add('on');
+  current = -4;
+  renderHomePanel();
+  window.scrollTo({top:0, behavior:'instant'});
+  // 홈은 해시 없는 clean URL 유지
+  try{ if(location.hash) history.replaceState(null,'',location.pathname); }catch(e){}
+}
+
+function showFromHome(idx){
+  show(idx);
+  // 패널 상단에 뒤로가기 버튼 주입 (이미 있으면 스킵)
+  const panel = panels[idx];
+  if(panel && !panel.querySelector('.back-btn-wrap')){
+    const wrap = document.createElement('div');
+    wrap.className = 'back-btn-wrap';
+    wrap.innerHTML = `<button class="back-btn" onclick="showHomePanel()">← 전체 섹터</button>`;
+    panel.insertBefore(wrap, panel.firstChild);
+  }
+}
+
+// 초기 진입 처리는 홈 탭 버튼 추가 이후(addHomeTab 실행 후)로 이동
+
+
+// ══════════════════════════════════════
+// 즐겨찾기
+// ══════════════════════════════════════
+const FAV_KEY = 'vc_favorites';
+function loadFavs(){ try{ const v=JSON.parse(localStorage.getItem(FAV_KEY)||'[]'); return Array.isArray(v)?v:[]; }catch(e){ return []; } }
+function saveFavs(arr){ try{ localStorage.setItem(FAV_KEY, JSON.stringify(arr)); }catch(e){} }
+let favs = loadFavs();
+
+function toggleFav(btn){
+  const name = btn.dataset.name;
+  const idx = favs.indexOf(name);
+  if(idx === -1){ favs.push(name); }
+  else { favs.splice(idx,1); }
+  saveFavs(favs);
+  // 모든 같은 이름 버튼 동기화
+  document.querySelectorAll('.fav-btn[data-name="'+name+'"]').forEach(b => syncFavBtn(b));
+  renderFavPanel();
+  updateFavTab();
+}
+
+function syncFavBtn(btn){
+  const on = favs.includes(btn.dataset.name);
+  btn.classList.toggle('on', on);
+  btn.textContent = on ? '★' : '☆';
+}
+
+function syncAllFavBtns(){
+  document.querySelectorAll('.fav-btn').forEach(b => syncFavBtn(b));
+}
+
+// ── 공통 카드 HTML (즐겨찾기 패널 공용) ──
+// footerHTML → 순서 버튼 등 (선택), uidSuffix → 중복 uid 방지용
+function favCardHTML(st, tabName, stageName, footerHTML, uidSuffix){
+  const isFav = favs.includes(st.n);
+  const nameEl = `<a class="stock-name stock-link" href="${st.code ? 'https://m.stock.naver.com/domestic/stock/'+esc(st.code)+'/total' : '#'}" target="_blank" rel="noopener noreferrer">${esc(st.n)}<span class="stock-link-icon">&#x2197;</span></a>`;
+  const uid = 'fav_' + (st.code||st.n.replace(/\s/g,'')) + (uidSuffix ? '_'+uidSuffix : '');
+  return `<div class="search-result-item">
+    <div class="search-result-meta">
+      <span class="tab-badge">${esc(tabName)}</span>
+      <span class="stage-badge">${esc(stageName)}</span>
+    </div>
+    <div class="stock-top">
+      ${nameEl}
+      <span style="display:flex;align-items:center;gap:4px">${tierLabel(st.tier)}<button class="fav-btn ${isFav?'on':''}" data-name="${esc(st.n)}" onclick="toggleFav(this)" aria-label="즐겨찾기">${isFav?'★':'☆'}</button></span>
+    </div>
+    <div class="stock-desc">${st.descRaw!==undefined ? renderDescRisk(st.descRaw, st.riskRaw, 'risk') : splitRisk(st.d, 'risk')}</div>
+    ${updDateHTML(st.update, st.history||[], uid)}
+  </div>`;
+}
+function getFavStocks(){
+  // favIdx: 실제 favs 배열 인덱스 함께 반환 (moveFav 인덱스 불일치 방지)
+  return favs.map((n, favIdx) => {
+    const entry = STOCK_MAP.get(n);
+    return entry ? { ...entry, favIdx } : null;
+  }).filter(Boolean);
+}
+
+function moveFav(idx, dir){
+  const ni = idx + dir;
+  if(ni < 0 || ni >= favs.length) return;
+  const tmp = favs[idx]; favs[idx] = favs[ni]; favs[ni] = tmp;
+  saveFavs(favs);
+  renderFavPanel();
+}
+
+function renderFavPanel(){
+  if(!favPanel.classList.contains('vis')) return;
+  if(favs.length === 0){
+    favPanel.innerHTML = '<div class="fav-empty">⭐ 관심종목이 없습니다.<br>카드 우측 ☆ 버튼으로 추가하세요.</div>';
+    return;
+  }
+  const hint = favs.length > 1 ? '<div class="fav-order-hint">▲▼ 버튼으로 순서 변경</div>' : '';
+  const total = favs.length;
+  const items = getFavStocks().map(({st, tabName, stageName, favIdx}, i) => {
+    const footer = total > 1 ? `<div class="fav-card-footer">
+      <span class="fav-card-footer-label">${i+1} / ${total}</span>
+      <button class="fav-move-btn" onclick="moveFav(${favIdx},-1)" ${favIdx===0?'disabled':''} aria-label="위로">▲ 위로</button>
+      <button class="fav-move-btn" onclick="moveFav(${favIdx},1)" ${favIdx===favs.length-1?'disabled':''} aria-label="아래로">▼ 아래로</button>
+    </div>` : '';
+    return `<div class="fav-item-row">${favCardHTML(st, tabName, stageName, footer)}</div>`;
+  }).join('');
+  favPanel.innerHTML = hint + items;
+}
+
+function updateFavTab(){
+  const btn = document.getElementById('tab-fav');
+  if(btn) btn.querySelector('.cnt').textContent = favs.length;
+}
+
+// ── 특수 탭 버튼 생성 공통 헬퍼 ──
+function makeSpecialTab(id, cls, innerHtml, onClick, insertFn){
+  const b = document.createElement('button');
+  b.className = cls;
+  b.id = id;
+  b.type = 'button';
+  b.setAttribute('role', 'tab');
+  b.setAttribute('aria-selected', 'false');
+  b.innerHTML = innerHtml;
+  b.onclick = onClick;
+  insertFn(b);
+}
+
+// 즐겨찾기 탭 버튼 추가 — nav 맨 앞에 삽입
+makeSpecialTab('tab-fav', 'nav-tab fav-tab', `<span>관심종목</span><span class="cnt">${favs.length}</span>`, () => showFavPanel(), b => nav.insertBefore(b, nav.firstChild));
+
+// 탭·패널 전체 비활성화 헬퍼
+function deactivateAll(){
+  tabs.forEach(t => { t.classList.remove('on'); t.setAttribute('aria-selected','false'); t.tabIndex=-1; });
+  panels.forEach(p => { p.classList.add('hidden'); p.setAttribute('aria-hidden','true'); });
+  content.classList.add('hidden');
+  const favTab = document.getElementById('tab-fav');
+  if(favTab) favTab.classList.remove('on');
+  if(favPanel) favPanel.classList.remove('vis');
+  // 홈 패널 비활성화
+  const homeTab = document.getElementById('tab-home');
+  if(homeTab) homeTab.classList.remove('on');
+  if(homePanel) homePanel.classList.add('hidden');
+  // 열린 glossary/hist 드롭다운 모두 닫기
+  document.querySelectorAll('.glossary-body.open, .hist-wrap.open').forEach(body => {
+    body.classList.remove('open');
+  });
+  document.querySelectorAll('.glossary-btn.open, .hist-btn.open').forEach(btn => {
+    btn.classList.remove('open');
+    btn.setAttribute('aria-expanded', 'false');
+  });
+}
+
+function showFavPanel(){
+  deactivateAll();
+  const favTab = document.getElementById('tab-fav');
+  if(favTab) favTab.classList.add('on');
+  current = -2;
+  favPanel.classList.add('vis');
+  renderFavPanel();
+  window.scrollTo({top:0, behavior:'instant'});
+  safeReplaceHash('fav');
+}
+
+syncAllFavBtns();
+updateFavTab();
+
+// ── URL 해시 안전 교체 헬퍼 ──
+function safeReplaceHash(hash){
+  try{ if(location.hash.slice(1) !== hash) history.replaceState(null,'','#'+hash); }catch(e){}
+}
+
+// 홈 탭 버튼 추가 — 모든 특수 탭 삽입 후 맨 마지막에 실행 → insertBefore(firstChild)로 맨 좌측 확보
+makeSpecialTab('tab-home', 'nav-tab home-tab', `<span>홈</span>`, () => showHomePanel(), b => nav.insertBefore(b, nav.firstChild));
+
+// ════════════════════════════════════════════════
+// 설정 모달 — 화면모드(다크/라이트)
+// ════════════════════════════════════════════════
+function openSettingsModal(){ document.getElementById('settingsModal').classList.add('modal-open'); syncThemeOptUI(); }
+function closeSettingsModal(){ document.getElementById('settingsModal').classList.remove('modal-open'); }
+function setTheme(t){
+  document.documentElement.setAttribute('data-theme', t);
+  try{ localStorage.setItem('theme', t); }catch(e){}
+  syncThemeOptUI();
+}
+function syncThemeOptUI(){
+  const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+  document.getElementById('theme-opt-dark')?.classList.toggle('on', cur === 'dark');
+  document.getElementById('theme-opt-light')?.classList.toggle('on', cur === 'light');
+}
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeSettingsModal(); });
+
+// ── 초기 진입: 정적 리포트 데이터로 앱 구동 ──
+(function initPage(){
+  try { history.replaceState(null, '', location.pathname); } catch(e){}
+  DATA = REPORT_DATA;
+  rebuildApp();
+})();
+
+// fixed 헤더 높이만큼 본문 상단 여백 자동 적용
+function applyHeaderOffset() {
+  const h = document.querySelector('.hdr-wrap');
+  const m = document.querySelector('.main');
+  if (h && m) m.style.paddingTop = (h.offsetHeight + 8) + 'px';
+}
+
+applyHeaderOffset();
+window.addEventListener('resize', () => { applyHeaderOffset(); updateNavArrows(); });
+
+// [버그 수정] 폰트 로드 완료 후 헤더 높이 재측정 (폰트 미로드 시 높이 오차 방지)
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(() => { applyHeaderOffset(); updateNavArrows(); });
+}
+
+// [개선] ResizeObserver — hdr-wrap 높이가 콘텐츠 변화로 달라질 때도 자동 재측정
+if(typeof ResizeObserver !== 'undefined'){
+  const hdrWrapEl = document.querySelector('.hdr-wrap');
+  if(hdrWrapEl) new ResizeObserver(() => applyHeaderOffset()).observe(hdrWrapEl);
+}
+
+// ── scrollend 폴백 공통 헬퍼 ──
+function onScrollEnd(el, fn){
+  if('onscrollend' in window){
+    el.addEventListener('scrollend', fn, {once: true});
+  } else {
+    setTimeout(fn, 300);
+  }
+}
+
+function updateNavArrows(){
+  if(!nav || !navPrev || !navNext) return;
+  const atStart = nav.scrollLeft <= 4;
+  const atEnd = nav.scrollLeft >= nav.scrollWidth - nav.clientWidth - 4;
+  navPrev.disabled = atStart;
+  navNext.disabled = atEnd;
+}
+
+function navScroll(dir){
+  if(!nav) return;
+  nav.scrollBy({ left: dir * 160, behavior: 'smooth' });
+  onScrollEnd(nav, updateNavArrows);
+}
+
+nav.addEventListener('scroll', updateNavArrows);
+updateNavArrows();
+
+</script>
+</body>
+</html>

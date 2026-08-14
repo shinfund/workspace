@@ -1,0 +1,217 @@
+<meta charset="UTF-8">
+<title>입퇴원사실확인서 양식</title>
+<style>
+  @page { size: A4 portrait; margin: 15mm 18mm; }
+  * { box-sizing: border-box; }
+  html, body {
+    font-family: "Malgun Gothic", "맑은 고딕", sans-serif;
+    color: #1a1a1a;
+    background: #f2f2f2;
+    margin: 0;
+    padding: 0;
+  }
+  body { padding: 16px 12px; }
+  .sheet {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0 auto;
+    background: #fff;
+    padding: 15mm 18mm;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+    display: flex;
+    flex-direction: column;
+  }
+  h1 {
+    text-align: center;
+    font-size: 26px;
+    letter-spacing: 12px;
+    margin: 0 0 40px;
+    padding-bottom: 16px;
+    border-bottom: 3px double #1a1a1a;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 28px;
+  }
+  table th, table td {
+    border: 1px solid #444;
+    padding: 10px 12px;
+    font-size: 14px;
+    vertical-align: middle;
+  }
+  table th {
+    background: #f5f5f5;
+    font-weight: 600;
+    width: 22%;
+    text-align: center;
+  }
+  table td { width: 28%; }
+  table td.wide { width: 78%; }
+  table td.blank { height: 40px; }
+  .diag-row td { height: 60px; vertical-align: top; }
+  .purpose-row td { height: 40px; }
+  .statement {
+    text-align: center;
+    font-size: 15px;
+    line-height: 1.9;
+    margin: 40px 0;
+  }
+  .issue-block {
+    text-align: center;
+    font-size: 15px;
+    line-height: 2.1;
+    margin-top: auto;
+    padding-top: 48px;
+  }
+  .issue-block .date-line { margin-bottom: 32px; }
+  .issue-block .field-line {
+    display: inline-block;
+    min-width: 260px;
+    text-align: left;
+    margin: 4px 0;
+  }
+  .fill-line {
+    display: inline-block;
+    border-bottom: 1px solid #333;
+    min-width: 160px;
+    margin-left: 8px;
+  }
+  .seal-note {
+    display: inline-block;
+    width: 60px;
+    height: 60px;
+    border: 1px dashed #999;
+    border-radius: 4px;
+    text-align: center;
+    line-height: 60px;
+    font-size: 12px;
+    color: #999;
+    margin-left: 10px;
+    vertical-align: middle;
+  }
+  .footnote {
+    margin-top: 40px;
+    font-size: 12px;
+    color: #666;
+    border-top: 1px solid #ddd;
+    padding-top: 12px;
+    line-height: 1.7;
+  }
+  .toolbar {
+    max-width: 800px;
+    margin: 0 auto 16px;
+    text-align: right;
+  }
+  .toolbar button {
+    font-family: inherit;
+    font-size: 13px;
+    padding: 8px 16px;
+    border: 1px solid #888;
+    border-radius: 6px;
+    background: #fff;
+    cursor: pointer;
+  }
+  .toolbar button:hover { background: #f0f0f0; }
+
+  input.f {
+    font-family: inherit;
+    font-size: 14px;
+    width: 100%;
+    border: none;
+    border-bottom: 1px solid #aaa;
+    background: transparent;
+    padding: 4px 2px;
+    color: #1a1a1a;
+  }
+  input.f:focus { outline: none; border-bottom: 1px solid #333; }
+  input.f.line {
+    display: inline-block;
+    min-width: 200px;
+    width: auto;
+    margin-left: 8px;
+  }
+  .days-input {
+    width: 50px;
+    text-align: center;
+    display: inline-block;
+  }
+
+  @media print {
+    html, body { background: #fff; }
+    body { padding: 0; }
+    .sheet {
+      width: auto;
+      min-height: 267mm;
+      margin: 0;
+      padding: 0;
+      box-shadow: none;
+    }
+    .toolbar { display: none; }
+    input.f { border-bottom: none; }
+  }
+</style>
+
+<div class="toolbar">
+  <button onclick="window.print()">인쇄 / PDF 저장</button>
+</div>
+
+<div class="sheet">
+  <h1>입퇴원사실확인서</h1>
+
+  <table>
+    <tr>
+      <th>성&nbsp;&nbsp;&nbsp;&nbsp;명</th>
+      <td><input class="f" type="text"></td>
+      <th>생년월일</th>
+      <td><input class="f" type="text" placeholder="YYYY.MM.DD"></td>
+    </tr>
+    <tr>
+      <th>주&nbsp;&nbsp;&nbsp;&nbsp;소</th>
+      <td colspan="3"><input class="f" type="text"></td>
+    </tr>
+    <tr>
+      <th>병록(차트)번호</th>
+      <td><input class="f" type="text"></td>
+      <th>진료과</th>
+      <td><input class="f" type="text"></td>
+    </tr>
+    <tr>
+      <th>입&nbsp;원&nbsp;일</th>
+      <td><input class="f" type="text" placeholder="YYYY.MM.DD"></td>
+      <th>퇴&nbsp;원&nbsp;일</th>
+      <td><input class="f" type="text" placeholder="YYYY.MM.DD"></td>
+    </tr>
+    <tr>
+      <th>입원기간</th>
+      <td colspan="3">총 <input class="f days-input" type="text"> 일간</td>
+    </tr>
+    <tr class="diag-row">
+      <th>진&nbsp;단&nbsp;명</th>
+      <td colspan="3"><input class="f" type="text"></td>
+    </tr>
+    <tr class="purpose-row">
+      <th>용&nbsp;&nbsp;&nbsp;&nbsp;도</th>
+      <td colspan="3"><input class="f" type="text"></td>
+    </tr>
+  </table>
+
+  <p class="statement">
+    위 환자는 상기와 같이 본원에 입원하여 치료 후 퇴원하였음을 확인함.
+  </p>
+
+  <div class="issue-block">
+    <div class="date-line">발급일자 : <input class="f line" style="min-width:180px" type="text" placeholder="YYYY년 MM월 DD일"></div>
+    <div>
+      <span class="field-line">병원명 : <input class="f line" type="text"></span>
+    </div>
+    <div>
+      <span class="field-line">주&nbsp;&nbsp;&nbsp;&nbsp;소 : <input class="f line" type="text"></span>
+    </div>
+    <div>
+      <span class="field-line">병원장 : <input class="f line" type="text"></span>
+      <span class="seal-note">(직인)</span>
+    </div>
+  </div>
+
+</div>

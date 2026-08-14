@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<title>기술적 분석</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --sky:#0366D6; --sky50:#E9F1FE; --sky100:#C7DCF6; --sky600:#005CC5; --sky800:#032F62;
+  --teal:#D85A30; --teal50:#FAECE7; --teal100:#F5C4B3; --teal600:#B34321;
+  --coral:#D85A30; --coral50:#FAECE7; --coral100:#F5C4B3;
+  --amber:#BA7517; --amber50:#FAEEDA; --amber100:#FAC775;
+  --purple:#534AB7; --purple50:#EEEDFE; --purple100:#CECBF6;
+  --gray50:#F1EFE8; --gray100:#D3D1C7; --gray600:#5F5E5A;
+  --bg:#FFFFFF; --card:#FFFFFF; --border:#E1E4E8; --border2:#F6F8FA;
+  --txt:#24292E; --txt2:#3A4453; --txt3:#6A737D;
+  --red:var(--coral); --red50:var(--coral50); --blue:var(--sky); --blue50:var(--sky50);
+  --hdrbg:#5A2410; --hdr-text:#fff; --hdr-text-dim:rgba(255,255,255,.85);
+  --hdr-btn-bg:rgba(255,255,255,.15); --hdr-btn-border:rgba(255,255,255,.35);
+  --hdr-btn-hover-bg:rgba(255,255,255,.25); --hdr-btn-text:#fff;
+  --hdr-shadow:0 2px 8px rgba(90,36,16,.3);
+  --r6:6px; --r8:8px; --r10:10px; --r12:12px; --r14:14px; --r16:16px; --r20:20px;
+  --shadow:none;
+  --shadow-h:0 20px 60px rgba(0,0,0,.2);
+}
+html[data-theme="light"]{
+  --hdrbg:#FFFFFF; --hdr-text:#5A2410; --hdr-text-dim:#8A4526;
+  --hdr-btn-bg:#FCEEE7; --hdr-btn-border:#F0C6AC; --hdr-btn-hover-bg:#F5DBC8; --hdr-btn-text:#B34321;
+  --hdr-shadow:0 2px 8px rgba(90,36,16,.12);
+}
+html[data-theme="dark"]{
+  --bg:#24292E; --card:#1C2024;
+  --border:rgba(255,255,255,.13); --border2:rgba(255,255,255,.09);
+  --txt:rgba(255,255,255,.92); --txt2:rgba(255,255,255,.75); --txt3:rgba(255,255,255,.5);
+  --shadow:none; --shadow-h:0 20px 60px rgba(0,0,0,.5);
+  --hdrbg:#24292E; --hdr-shadow:0 2px 10px rgba(0,0,0,.4);
+  --sky:#2E8FFF; --sky50:rgba(46,143,255,.16); --sky100:rgba(46,143,255,.32); --sky600:#79B8FF; --sky800:#C8E1FF;
+  --teal:#F2896A; --teal50:rgba(216,90,48,.16); --teal100:rgba(216,90,48,.32); --teal600:#F2896A;
+  --coral:#F2896A; --coral50:rgba(216,90,48,.16); --coral100:rgba(216,90,48,.32);
+  --amber:#E8A93D; --amber50:rgba(186,117,23,.22); --amber100:rgba(186,117,23,.38);
+  --purple:#B4A6FF; --purple50:rgba(83,74,183,.26); --purple100:rgba(83,74,183,.4);
+  --gray50:rgba(255,255,255,.10); --gray600:#C9C7BF;
+  --red:var(--coral); --red50:var(--coral50); --blue:var(--sky); --blue50:var(--sky50);
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Noto Sans KR','Pretendard',-apple-system,BlinkMacSystemFont,sans-serif;font-size:14.5px;background:var(--bg);color:var(--txt);word-break:keep-all}
+.hdr-wrap{position:fixed;top:0;left:0;right:0;z-index:50;box-shadow:var(--hdr-shadow);transition:background .18s ease}
+.header{background:var(--hdrbg);padding:max(12px,env(safe-area-inset-top)) 16px 12px;display:flex;align-items:center;justify-content:space-between;max-width:1100px;margin:0 auto;transition:background .18s ease}
+.header-left{display:flex;align-items:center;gap:10px;flex:1;min-width:0;overflow:hidden}
+.logo-mark{width:34px;height:34px;background:linear-gradient(155deg,#F5A582 0%,#D85A30 55%,#5A2410 100%);border-radius:var(--r8);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 2px 6px rgba(216,90,48,.35)}
+.logo-info{display:flex;flex-direction:column;gap:1px;min-width:0;overflow:hidden}
+.logo-title{font-size:17px;font-weight:800;color:var(--hdr-text);letter-spacing:-.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:color .18s ease}
+.logo-sub{font-size:13px;color:var(--hdr-text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:color .18s ease}
+.header-right{display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:10px}
+.hdr-date{font-size:13.5px;font-weight:700;color:var(--hdr-text);white-space:nowrap;transition:color .18s ease}
+.hdr-btn{background:var(--hdr-btn-bg);border:1px solid var(--hdr-btn-border);color:var(--hdr-btn-text);font-size:13px;font-weight:700;padding:6px 12px;border-radius:16px;cursor:pointer;white-space:nowrap;font-family:inherit;transition:background .12s}
+.hdr-btn:hover{background:var(--hdr-btn-hover-bg)}
+.top-nav{background:var(--card);border-bottom:1.5px solid var(--border);display:flex;padding:0 4px;max-width:1100px;margin:0 auto;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;overscroll-behavior-x:contain}
+.top-nav::-webkit-scrollbar{display:none}
+.tab-btn{flex:1;flex-shrink:0;min-width:64px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;color:var(--txt);font-size:13.5px;font-weight:700;font-family:inherit;cursor:pointer;padding:13px 6px;touch-action:manipulation;transition:color .15s;position:relative;white-space:nowrap}
+.tab-btn.on{color:var(--teal600)}
+.tab-btn.on::after{content:'';position:absolute;bottom:0;left:8%;right:8%;height:2.5px;background:var(--teal);border-radius:2px 2px 0 0}
+.nav-spacer{height:calc(104px + env(safe-area-inset-top,0px))}
+.wrap{max-width:1100px;margin:0 auto}
+.main{padding:0 16px max(20px,env(safe-area-inset-bottom))}
+.panel{display:none}
+.panel.on{display:block;animation:fade .22s}
+@keyframes fade{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+.kpi-row{display:flex;gap:9px;margin-bottom:14px;padding-top:10px;flex-wrap:wrap}
+.kpi-card{flex:1;min-width:100px;background:var(--card);border:1px solid var(--border);border-radius:var(--r12);padding:12px 10px;text-align:center;box-shadow:var(--shadow)}
+.kpi-card .num{font-size:20px;font-weight:800;line-height:1.1}
+.kpi-card .lbl{font-size:13.5px;margin-top:4px;font-weight:700;color:var(--txt)}
+.kpi-sky .num,.kpi-sky .lbl{color:var(--sky600)}
+.kpi-red .num,.kpi-red .lbl{color:var(--red)}
+.kpi-teal .num,.kpi-teal .lbl{color:var(--teal600)}
+.kpi-coral .num,.kpi-coral .lbl{color:var(--coral)}
+.kpi-amber .num,.kpi-amber .lbl{color:var(--amber)}
+.kpi-purple .num,.kpi-purple .lbl{color:var(--purple)}
+.sc{background:var(--card);border-radius:var(--r12);border:1px solid var(--border);padding:16px;margin-bottom:14px;box-shadow:var(--shadow)}
+.sc-title{font-size:14.5px;font-weight:800;color:var(--txt);margin-bottom:12px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.sc-title .sub{font-size:13.5px;font-weight:600;color:var(--txt2)}
+.sc-note{font-size:14px;color:var(--txt2);margin-bottom:12px;line-height:1.6;padding:8px 10px;background:var(--bg);border-radius:var(--r8)}
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:var(--r8);overscroll-behavior-x:contain;margin-bottom:8px}
+table{min-width:100%;border-collapse:collapse;font-size:13.5px}
+thead th{background:var(--teal50);color:var(--teal600);font-weight:400;font-size:13.5px;padding:9px 8px;text-align:right;white-space:nowrap}
+html[data-theme="dark"] thead th{color:#fff}
+thead th.l{text-align:left} thead th.c{text-align:center}
+tbody td{padding:9px 8px;border-bottom:1px solid var(--border2);text-align:right;white-space:nowrap;color:var(--txt)}
+tbody td.l{text-align:left} tbody td.c{text-align:center}
+tbody tr:hover{background:var(--teal50)}
+.chart-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(460px,1fr));gap:16px}
+.chart-card{background:var(--bg);border:1px solid var(--border);border-radius:var(--r12);padding:12px 14px 14px}
+.chart-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:6px;flex-wrap:wrap}
+.chart-card-name{font-size:15px;font-weight:800;color:var(--txt)}
+.chart-card-stats{display:flex;gap:10px;flex-wrap:wrap;margin-top:9px;font-size:14px;color:var(--txt);font-weight:400}
+.chart-card-stats .sep{color:var(--gray600);font-weight:400;margin:0 1px}
+.chart-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:14px;color:var(--txt);margin-bottom:12px;padding:8px 10px;background:var(--bg);border-radius:var(--r8)}
+.chart-legend span{display:inline-flex;align-items:center;gap:5px}
+.chart-legend span:not(:last-child){border-right:1.5px solid var(--gray600);padding-right:12px}
+.chart-legend i{display:inline-block;width:22px;height:0;border-top:3px solid}
+.chart-legend i.dash{border-top-style:dashed}
+.t-neg-hi{color:var(--blue);font-weight:400}
+.t-neg{color:var(--blue);font-weight:400}
+.t-pos{color:var(--red);font-weight:400}
+.t-flat{color:var(--txt2);font-weight:400}
+.badge{font-size:12.5px;font-weight:700;padding:2px 9px;border-radius:10px;white-space:nowrap}
+.bdg-red{background:var(--red50);color:var(--red)}
+.bdg-blue{background:var(--blue50);color:var(--blue)}
+.bdg-sky{background:var(--sky50);color:var(--sky600)}
+.bdg-teal{background:var(--teal50);color:var(--teal600)}
+.bdg-amber{background:var(--amber50);color:var(--amber)}
+.bdg-coral{background:var(--coral50);color:var(--coral)}
+.bdg-gray{background:var(--gray50);color:var(--gray600)}
+.bdg-purple{background:var(--purple50);color:var(--purple)}
+.ai-sc{background:linear-gradient(135deg,var(--teal50) 0%,var(--card) 100%);border:1px solid var(--teal100);border-left:4px solid var(--teal);border-radius:var(--r12);padding:16px;margin-bottom:14px;box-shadow:var(--shadow)}
+.ai-title{font-size:14.5px;font-weight:800;color:var(--teal600);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.ai-badge{margin-left:auto}
+.ai-list{display:flex;flex-direction:column;gap:7px}
+.ai-item{display:flex;gap:8px;align-items:flex-start;font-size:14px;color:var(--txt);line-height:1.55}
+.ai-dot{flex-shrink:0;width:6px;height:6px;border-radius:50%;margin-top:8px}
+.ai-dot-red{background:var(--red)} .ai-dot-teal{background:var(--teal)} .ai-dot-sky{background:var(--sky)}
+.ai-dot-amber{background:var(--amber)} .ai-dot-purple{background:var(--purple)} .ai-dot-gray{background:var(--gray600)}
+.rule-box{background:var(--bg);border:1px solid var(--border);border-radius:var(--r12);padding:12px 14px;margin-bottom:10px}
+.rule-box .rb-title{font-size:14.5px;font-weight:800;color:var(--teal600);margin-bottom:6px}
+.rule-box .rb-body{font-size:14px;color:var(--txt2);line-height:1.7}
+.rule-box .rb-body code{background:var(--border2);padding:1px 6px;border-radius:5px;font-size:13px;color:var(--txt)}
+.rule-box ol,.rule-box ul{margin:6px 0 0;padding-left:20px}
+.rule-box li{margin-bottom:4px}
+.hist-item{display:flex;gap:8px;font-size:13.5px;line-height:1.6;color:var(--txt2);padding:5px 0;border-bottom:1px dashed var(--border)}
+.hist-item:last-child{border-bottom:none}
+.hist-v{flex-shrink:0;font-weight:800;color:var(--teal600);width:34px}
+#settingsModal{display:none;position:fixed;inset:0;z-index:100}
+#settingsModal.modal-open{display:block}
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:20px}
+.modal-box{background:var(--card);border-radius:var(--r16);padding:20px;width:100%;max-width:320px;box-shadow:var(--shadow-h)}
+.modal-title{font-size:16px;font-weight:800;color:var(--txt);margin-bottom:14px}
+.modal-section{font-size:13.5px;font-weight:700;color:var(--txt2);margin-bottom:8px}
+.theme-opts{display:flex;gap:10px}
+.theme-opt{flex:1;cursor:pointer;text-align:center;padding:8px;border-radius:var(--r12);border:2px solid var(--border);position:relative;transition:border-color .12s}
+.theme-opt.on{border-color:var(--teal)}
+.theme-opt.on::after{content:'✓';position:absolute;top:5px;right:7px;width:16px;height:16px;background:var(--teal);color:#fff;border-radius:50%;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.theme-swatch{width:100%;height:50px;border-radius:8px;border:1px solid var(--border2);margin-bottom:6px;position:relative;overflow:hidden}
+.theme-swatch-dark{background:#24292E}
+.theme-swatch-light{background:#FFFFFF}
+.theme-swatch-dark .ts-side{background:#24292E;border-right:1px solid rgba(255,255,255,.08)}
+.theme-swatch-light .ts-side{background:#FFFFFF;border-right:1px solid #DCE9F7}
+.ts-side{position:absolute;left:0;top:0;bottom:0;width:30%}
+.theme-opt-label{font-size:13px;font-weight:700;color:var(--txt)}
+html[data-theme="dark"]{--txt2:#fff;--txt3:rgba(255,255,255,.92)}
+html[data-theme="dark"] .tab-btn.on{color:#fff}
+@media(max-width:374px){.logo-sub{display:none} .tab-btn{font-size:13px;padding:11px 2px;min-width:52px} .kpi-card .num{font-size:16px} .kpi-card .lbl{font-size:12px}}
+@media(max-width:600px){
+  .nav-spacer{height:calc(108px + env(safe-area-inset-top,0px))}
+  .main{padding:0 10px max(20px,env(safe-area-inset-bottom))}
+  .sc{padding:12px 12px} .tab-btn{font-size:13.5px;padding:12px 4px}
+  .kpi-card .num{font-size:18px} .kpi-card .lbl{font-size:13px}
+  table{font-size:13px} thead th,tbody td{padding:8px 5px}
+  .hdr-date{display:none}
+}
+@media(min-width:769px){
+  .nav-spacer{height:calc(106px + env(safe-area-inset-top,0px))}
+  .main{padding:0 20px max(20px,env(safe-area-inset-bottom))}
+  .sc{padding:18px 20px} .sc-title{font-size:15px}
+  table{font-size:14px} thead th,tbody td{padding:10px 9px}
+}
+@media(min-width:1024px){.kpi-row{gap:12px} .kpi-card .num{font-size:24px}}
+</style>
+</head>
+<body>
+<script>(function(){try{document.documentElement.setAttribute('data-theme',localStorage.getItem('theme')||'dark');}catch(e){}})();</script>
+
+<div id="settingsModal">
+  <div class="modal-backdrop" onclick="closeSettingsModal()">
+    <div class="modal-box" onclick="event.stopPropagation()">
+      <div class="modal-title">설정</div>
+      <div class="modal-section">화면모드</div>
+      <div class="theme-opts">
+        <div class="theme-opt" id="theme-opt-dark" onclick="setTheme('dark')">
+          <div class="theme-swatch theme-swatch-dark"><span class="ts-side"></span></div>
+          <div class="theme-opt-label">다크</div>
+        </div>
+        <div class="theme-opt" id="theme-opt-light" onclick="setTheme('light')">
+          <div class="theme-swatch theme-swatch-light"><span class="ts-side"></span></div>
+          <div class="theme-opt-label">라이트</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="hdr-wrap"><div class="wrap">
+  <div class="header">
+    <div class="header-left">
+      <div class="logo-mark">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h4v-6H3v6zm7 0h4v-11h-4v11zm7 0h4V4h-4v16z"/></svg>
+      </div>
+      <div class="logo-info">
+        <div class="logo-title">기술적 분석</div>
+        <div class="logo-sub">완전정배열(5/20/50/100/200/400) · 시장국면필터 · SL10/TRAIL12 · TOP50</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="hdr-date">2026-08-10</div>
+      <button class="hdr-btn" onclick="openSettingsModal()">⚙ 설정</button>
+    </div>
+  </div>
+  <nav class="top-nav">
+    <button class="tab-btn on" data-tab="0">차트</button>
+    <button class="tab-btn" data-tab="1">전략상세</button>
+    <button class="tab-btn" data-tab="2">요약</button>
+    <button class="tab-btn" data-tab="3">백테스트결과</button>
+    <button class="tab-btn" data-tab="4">최근신호</button>
+  </nav>
+</div></div>
+<div class="nav-spacer"></div>
+
+<div class="wrap"><div class="main">
+
+<!-- ═══════════════ 0. 차트 ═══════════════ -->
+<div class="panel on" id="p0">
+  <div class="sc">
+    <div class="sc-title">참고용 관심종목 차트 <span class="sub">최근 110거래일 · 종가·EMA20·EMA100·EMA400 · 현재 완전정배열(5/5) 8종목</span></div>
+    <div class="sc-note">⚠️ 현재(2026-08-10) KOSPI가 하락/횡보 국면(상승지속 0거래일)이라 시장국면 조건을 충족하지 못해 <b>신규 진입 내역이 없습니다.</b> 아래 8종목은 개별적으로는 이미 EMA래더가 완전정배열 상태이지만, 시장국면 필터에 걸려 "대기" 상태인 참고용 종목들입니다 — KOSPI가 다시 상승국면(EMA100 상승 + 지속10거래일)에 진입하면 이 종목들부터 매수신호가 나올 가능성이 있습니다.</div>
+    <div class="chart-legend"><span><i style="border-color:var(--txt)"></i>종가</span><span><i class="dash" style="border-color:var(--purple)"></i>EMA20</span><span><i class="dash" style="border-color:var(--amber)"></i>EMA100</span><span><i class="dash" style="border-color:var(--gray600)"></i>EMA400</span><span style="color:var(--txt)">4개 선 전부 이 순서대로 쌓여있으면(종가>EMA20>EMA100>EMA400) 완전정배열</span></div>
+    <div class="chart-grid">
+
+      <div class="chart-card">
+        <div class="chart-card-head"><span class="chart-card-name">삼성화재</span><span class="badge bdg-teal">완전정배열 5/5</span></div>
+        <svg viewBox="0 0 480 220" width="100%" height="220" style="display:block;max-width:100%"><polyline points="6.0,194.0 10.3,193.9 14.6,193.7 18.9,193.4 23.2,193.3 27.5,193.1 31.8,192.9 36.1,192.7 40.3,192.5 44.6,192.4 48.9,192.2 53.2,192.0 57.5,191.9 61.8,191.7 66.1,191.7 70.4,191.5 74.7,191.3 79.0,191.2 83.3,191.2 87.6,191.1 91.9,191.1 96.2,191.0 100.5,190.9 104.8,190.9 109.0,190.8 113.3,190.8 117.6,190.7 121.9,190.5 126.2,190.4 130.5,190.3 134.8,190.1 139.1,189.9 143.4,189.7 147.7,189.6 152.0,189.5 156.3,189.3 160.6,189.2 164.9,189.1 169.2,189.1 173.4,189.0 177.7,188.8 182.0,188.7 186.3,188.6 190.6,188.5 194.9,188.4 199.2,188.2 203.5,188.0 207.8,187.8 212.1,187.6 216.4,187.4 220.7,187.1 225.0,186.7 229.3,186.3 233.6,186.0 237.9,185.7 242.1,185.3 246.4,184.9 250.7,184.5 255.0,184.1 259.3,183.7 263.6,183.4 267.9,182.9 272.2,182.3 276.5,181.5 280.8,180.7 285.1,180.1 289.4,179.5 293.7,179.0 298.0,178.3 302.3,177.7 306.6,177.1 310.8,176.4 315.1,175.8 319.4,175.1 323.7,174.3 328.0,173.7 332.3,173.1 336.6,172.6 340.9,172.0 345.2,171.5 349.5,171.0 353.8,170.6 358.1,170.1 362.4,169.7 366.7,169.2 371.0,168.5 375.2,167.9 379.5,167.3 383.8,166.9 388.1,166.3 392.4,165.8 396.7,165.4 401.0,164.8 405.3,164.2 409.6,163.8 413.9,163.4 418.2,162.9 422.5,162.4 426.8,161.9 431.1,161.4 435.4,161.1 439.7,160.7 443.9,160.3 448.2,159.9 452.5,159.5 456.8,159.1 461.1,158.6 465.4,158.2 469.7,157.7 474.0,157.2" fill="none" stroke="var(--gray600)" stroke-width="1.3" stroke-dasharray="2,3"/><polyline points="6.0,150.2 10.3,150.5 14.6,150.5 18.9,150.5 23.2,150.7 27.5,150.8 31.8,150.8 36.1,150.8 40.3,151.1 44.6,151.4 48.9,151.6 53.2,151.6 57.5,151.8 61.8,152.0 66.1,152.4 70.4,152.6 74.7,152.6 79.0,153.0 83.3,153.6 87.6,154.1 91.9,154.6 96.2,155.0 100.5,155.5 104.8,156.1 109.0,156.5 113.3,157.0 117.6,157.2 121.9,157.4 126.2,157.5 130.5,157.7 134.8,157.6 139.1,157.5 143.4,157.5 147.7,157.5 152.0,157.6 156.3,157.8 160.6,158.0 164.9,158.2 169.2,158.5 173.4,158.8 177.7,158.8 182.0,159.0 186.3,159.2 190.6,159.3 194.9,159.3 199.2,159.1 203.5,158.9 207.8,158.7 212.1,158.4 216.4,158.2 220.7,157.5 225.0,156.7 229.3,155.9 233.6,155.2 237.9,154.5 242.1,153.7 246.4,152.7 250.7,151.7 255.0,150.7 259.3,150.0 263.6,149.2 267.9,147.9 272.2,146.3 276.5,143.7 280.8,141.5 285.1,139.7 289.4,138.1 293.7,136.9 298.0,135.3 302.3,133.7 306.6,132.0 310.8,130.3 315.1,128.6 319.4,126.7 323.7,124.8 328.0,123.1 332.3,121.9 336.6,120.9 340.9,119.7 345.2,118.7 349.5,117.8 353.8,117.0 358.1,116.2 362.4,115.5 366.7,114.6 371.0,113.2 375.2,111.8 379.5,110.6 383.8,109.9 388.1,108.9 392.4,108.1 396.7,107.4 401.0,106.4 405.3,104.9 409.6,104.5 413.9,104.0 418.2,103.4 422.5,102.7 426.8,101.9 431.1,101.2 435.4,100.8 439.7,100.8 443.9,100.3 448.2,99.8 452.5,99.4 456.8,99.0 461.1,98.3 465.4,97.6 469.7,96.9 474.0,96.4" fill="none" stroke="var(--amber)" stroke-width="1.3" stroke-dasharray="6,3"/><polyline points="6.0,126.4 10.3,130.2 14.6,132.3 18.9,134.0 23.2,136.7 27.5,138.4 31.8,139.4 36.1,140.8 40.3,142.9 44.6,145.3 48.9,146.8 53.2,147.2 57.5,148.5 61.8,149.8 66.1,152.1 70.4,152.8 74.7,152.8 79.0,155.0 83.3,157.4 87.6,159.5 91.9,161.7 96.2,162.9 100.5,164.6 104.8,166.2 109.0,167.6 113.3,168.6 117.6,168.4 121.9,168.3 126.2,168.0 130.5,167.7 134.8,166.3 139.1,165.3 143.4,164.2 147.7,163.8 152.0,163.6 156.3,163.9 160.6,164.5 164.9,164.9 169.2,165.7 173.4,166.2 177.7,165.4 182.0,165.7 186.3,166.2 190.6,165.9 194.9,165.2 199.2,164.1 203.5,162.6 207.8,160.9 212.1,159.4 216.4,158.4 220.7,155.3 225.0,151.6 229.3,148.2 233.6,145.4 237.9,143.2 242.1,140.0 246.4,136.9 250.7,133.5 255.0,130.6 259.3,128.9 263.6,126.9 267.9,123.1 272.2,117.6 276.5,107.8 280.8,100.8 285.1,95.8 289.4,92.2 293.7,91.1 298.0,87.4 302.3,84.6 306.6,80.9 310.8,77.8 315.1,74.6 319.4,70.5 323.7,66.7 328.0,64.2 332.3,64.1 336.6,64.5 340.9,64.1 345.2,64.5 349.5,65.5 353.8,66.8 358.1,67.7 362.4,69.0 366.7,68.9 371.0,66.8 375.2,64.4 379.5,62.9 383.8,64.2 388.1,64.0 392.4,64.2 396.7,65.1 401.0,64.1 405.3,60.9 409.6,63.5 413.9,65.0 418.2,65.7 422.5,65.9 426.8,65.7 431.1,65.5 435.4,67.3 439.7,70.1 443.9,71.0 448.2,71.0 452.5,71.9 456.8,72.5 461.1,72.0 465.4,71.1 469.7,70.3 474.0,70.3" fill="none" stroke="var(--purple)" stroke-width="1.3" stroke-dasharray="4,3"/><polyline points="6.0,135.0 10.3,166.4 14.6,152.7 18.9,149.8 23.2,162.6 27.5,154.5 31.8,149.2 36.1,153.6 40.3,162.9 44.6,168.1 48.9,160.9 53.2,151.3 57.5,160.3 61.8,162.6 66.1,173.7 70.4,159.1 74.7,153.6 79.0,175.1 83.3,180.9 87.6,179.5 91.9,182.4 96.2,174.5 100.5,180.4 104.8,181.8 109.0,180.1 113.3,178.9 117.6,166.4 121.9,166.7 126.2,165.5 130.5,164.4 134.8,153.9 139.1,155.9 143.4,153.6 147.7,159.4 152.0,162.0 156.3,166.4 160.6,170.2 164.9,169.3 169.2,173.4 173.4,170.5 177.7,157.7 182.0,168.7 186.3,170.5 190.6,163.2 194.9,159.1 199.2,153.6 203.5,148.4 207.8,144.9 212.1,144.9 216.4,149.0 220.7,125.7 225.0,116.4 229.3,116.4 233.6,118.1 237.9,122.8 242.1,109.4 246.4,107.7 250.7,100.7 255.0,103.0 259.3,112.9 263.6,107.7 267.9,87.3 272.2,65.8 276.5,14.0 280.8,34.4 285.1,48.9 289.4,57.6 293.7,80.3 298.0,53.0 302.3,58.2 306.6,45.4 310.8,48.3 315.1,43.7 319.4,31.5 323.7,31.5 328.0,40.2 332.3,62.9 336.6,68.7 340.9,60.0 345.2,68.7 349.5,75.1 353.8,79.1 358.1,76.2 362.4,81.5 366.7,67.5 371.0,46.6 375.2,41.9 379.5,48.3 383.8,76.8 388.1,61.7 392.4,66.9 396.7,73.3 401.0,54.1 405.3,30.9 409.6,88.5 413.9,79.1 418.2,72.2 422.5,67.5 426.8,64.0 431.1,63.4 435.4,84.4 439.7,97.2 443.9,79.1 448.2,71.0 452.5,80.3 456.8,78.0 461.1,68.1 465.4,61.7 469.7,63.4 474.0,70.4" fill="none" stroke="var(--txt)" stroke-width="1.7"/><text x="6" y="214" font-size="13.5" fill="var(--txt)">2026-03-03</text><text x="474" y="214" font-size="13.5" fill="var(--txt)" text-anchor="end">2026-08-10</text></svg>
+        <div class="chart-card-stats">
+          <span>현재가 <span>633,000</span> <span class="sep">|</span> EMA100대비 <span class="t-pos">+7.59%</span></span>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-head"><span class="chart-card-name">삼성에스디에스</span><span class="badge bdg-teal">완전정배열 5/5</span></div>
+        <svg viewBox="0 0 480 220" width="100%" height="220" style="display:block;max-width:100%"><polyline points="6.0,187.3 10.3,187.3 14.6,187.2 18.9,187.2 23.2,187.2 27.5,187.1 31.8,187.1 36.1,187.1 40.3,187.1 44.6,187.1 48.9,187.0 53.2,187.0 57.5,187.0 61.8,186.9 66.1,187.0 70.4,187.0 74.7,187.0 79.0,187.0 83.3,187.0 87.6,187.0 91.9,187.0 96.2,187.0 100.5,187.0 104.8,187.0 109.0,187.1 113.3,187.1 117.6,187.1 121.9,187.1 126.2,187.2 130.5,187.2 134.8,187.2 139.1,187.1 143.4,187.0 147.7,186.9 152.0,186.8 156.3,186.7 160.6,186.6 164.9,186.5 169.2,186.4 173.4,186.4 177.7,186.3 182.0,186.3 186.3,186.2 190.6,186.2 194.9,186.1 199.2,186.1 203.5,186.0 207.8,185.9 212.1,185.8 216.4,185.7 220.7,185.6 225.0,185.5 229.3,185.4 233.6,185.4 237.9,185.3 242.1,185.2 246.4,185.1 250.7,184.9 255.0,184.5 259.3,184.1 263.6,183.5 267.9,182.7 272.2,182.1 276.5,181.6 280.8,181.3 285.1,180.9 289.4,180.6 293.7,180.3 298.0,180.0 302.3,179.7 306.6,179.4 310.8,179.1 315.1,178.8 319.4,178.6 323.7,178.4 328.0,178.3 332.3,178.2 336.6,178.1 340.9,178.0 345.2,177.9 349.5,177.7 353.8,177.6 358.1,177.5 362.4,177.4 366.7,177.3 371.0,177.1 375.2,177.0 379.5,176.9 383.8,176.8 388.1,176.7 392.4,176.6 396.7,176.5 401.0,176.4 405.3,176.2 409.6,176.2 413.9,176.1 418.2,176.0 422.5,175.8 426.8,175.6 431.1,175.4 435.4,175.3 439.7,175.1 443.9,175.0 448.2,174.9 452.5,174.7 456.8,174.5 461.1,174.3 465.4,174.0 469.7,173.8 474.0,173.6" fill="none" stroke="var(--gray600)" stroke-width="1.3" stroke-dasharray="2,3"/><polyline points="6.0,174.7 10.3,175.0 14.6,175.0 18.9,175.1 23.2,175.3 27.5,175.5 31.8,175.6 36.1,175.7 40.3,175.9 44.6,176.1 48.9,176.2 53.2,176.2 57.5,176.3 61.8,176.5 66.1,176.7 70.4,176.9 74.7,177.1 79.0,177.3 83.3,177.5 87.6,177.7 91.9,178.0 96.2,178.2 100.5,178.5 104.8,178.7 109.0,179.0 113.3,179.2 117.6,179.4 121.9,179.7 126.2,180.0 130.5,180.2 134.8,180.5 139.1,180.2 143.4,179.8 147.7,179.5 152.0,179.3 156.3,179.0 160.6,178.8 164.9,178.6 169.2,178.5 173.4,178.5 177.7,178.4 182.0,178.3 186.3,178.3 190.6,178.3 194.9,178.3 199.2,178.1 203.5,178.0 207.8,177.9 212.1,177.7 216.4,177.5 220.7,177.2 225.0,176.9 229.3,176.7 233.6,176.7 237.9,176.7 242.1,176.4 246.4,176.0 250.7,175.5 255.0,174.0 259.3,172.7 263.6,170.6 267.9,167.5 272.2,165.5 276.5,164.1 280.8,162.9 285.1,162.1 289.4,161.0 293.7,160.3 298.0,159.6 302.3,158.8 306.6,158.0 310.8,157.2 315.1,156.6 319.4,156.1 323.7,155.8 328.0,155.5 332.3,155.6 336.6,155.6 340.9,155.7 345.2,155.8 349.5,155.7 353.8,155.7 358.1,155.7 362.4,155.5 366.7,155.5 371.0,155.5 375.2,155.3 379.5,155.3 383.8,155.4 388.1,155.3 392.4,155.4 396.7,155.4 401.0,155.3 405.3,155.3 409.6,155.4 413.9,155.4 418.2,155.4 422.5,155.0 426.8,154.8 431.1,154.4 435.4,154.3 439.7,154.3 443.9,154.2 448.2,154.0 452.5,153.9 456.8,153.5 461.1,153.0 465.4,152.4 469.7,152.0 474.0,151.6" fill="none" stroke="var(--amber)" stroke-width="1.3" stroke-dasharray="6,3"/><polyline points="6.0,169.9 10.3,171.6 14.6,172.2 18.9,173.0 23.2,174.2 27.5,175.0 31.8,175.6 36.1,176.2 40.3,176.9 44.6,177.7 48.9,178.1 53.2,178.1 57.5,178.5 61.8,178.9 66.1,180.0 70.4,180.6 74.7,181.0 79.0,181.6 83.3,182.1 87.6,182.9 91.9,183.8 96.2,184.1 100.5,184.9 104.8,185.4 109.0,185.9 113.3,186.5 117.6,186.7 121.9,187.4 126.2,188.0 130.5,188.5 134.8,188.8 139.1,186.9 143.4,184.1 147.7,182.3 152.0,180.9 156.3,179.6 160.6,178.4 164.9,177.5 169.2,177.3 173.4,177.2 177.7,176.9 182.0,176.7 186.3,176.9 190.6,177.1 194.9,176.9 199.2,176.3 203.5,175.8 207.8,175.5 212.1,174.8 216.4,174.1 220.7,173.2 225.0,172.0 229.3,171.5 233.6,171.8 237.9,172.6 242.1,171.7 246.4,170.1 250.7,168.1 255.0,161.5 259.3,156.5 263.6,148.0 267.9,135.2 272.2,128.6 276.5,125.2 280.8,123.4 285.1,123.1 289.4,121.5 293.7,122.3 298.0,122.6 302.3,122.3 306.6,121.8 310.8,121.5 315.1,121.6 319.4,122.7 323.7,124.4 328.0,126.2 332.3,129.2 336.6,132.0 340.9,134.5 345.2,136.8 349.5,138.2 353.8,140.1 358.1,141.3 362.4,142.1 366.7,143.2 371.0,144.5 375.2,144.6 379.5,145.7 383.8,147.0 388.1,147.4 392.4,148.5 396.7,149.2 401.0,149.4 405.3,149.6 409.6,150.8 413.9,151.4 418.2,151.7 422.5,150.1 426.8,149.4 431.1,148.1 435.4,148.3 439.7,148.7 443.9,149.0 448.2,148.6 452.5,148.6 456.8,147.2 461.1,145.0 465.4,142.9 469.7,141.9 474.0,140.9" fill="none" stroke="var(--purple)" stroke-width="1.3" stroke-dasharray="4,3"/><polyline points="6.0,169.3 10.3,187.3 14.6,178.3 18.9,180.9 23.2,185.3 27.5,182.0 31.8,181.2 36.1,182.5 40.3,183.4 44.6,185.4 48.9,181.4 53.2,178.2 57.5,182.9 61.8,182.0 66.1,190.5 70.4,186.6 74.7,184.6 79.0,187.4 83.3,187.3 87.6,189.8 91.9,192.5 96.2,187.5 100.5,192.1 104.8,190.7 109.0,190.5 113.3,191.5 117.6,189.2 121.9,194.0 126.2,193.7 130.5,193.7 134.8,191.3 139.1,168.5 143.4,158.0 147.7,165.2 152.0,167.5 156.3,167.1 160.6,167.2 164.9,168.6 169.2,175.9 173.4,175.9 177.7,173.6 182.0,175.6 186.3,178.9 190.6,178.3 194.9,175.7 199.2,170.2 203.5,171.2 207.8,172.6 212.1,167.9 216.4,167.9 220.7,164.9 225.0,159.7 229.3,166.8 233.6,174.9 237.9,180.1 242.1,162.8 246.4,154.9 250.7,149.2 255.0,98.7 259.3,109.6 263.6,67.1 267.9,14.0 272.2,65.8 276.5,93.2 280.8,106.2 285.1,120.1 289.4,106.2 293.7,129.4 298.0,125.6 302.3,119.3 306.6,117.2 310.8,118.4 315.1,123.1 319.4,132.8 323.7,140.3 328.0,143.3 332.3,157.5 336.6,159.0 340.9,158.4 345.2,159.0 349.5,151.5 353.8,158.2 358.1,152.6 362.4,149.2 366.7,154.3 371.0,156.1 375.2,146.2 379.5,155.3 383.8,160.3 388.1,150.8 392.4,158.7 396.7,156.3 401.0,151.0 405.3,151.0 409.6,162.4 413.9,157.6 418.2,153.8 422.5,135.3 426.8,142.5 431.1,135.7 435.4,150.0 439.7,152.7 443.9,151.5 448.2,145.4 452.5,147.9 456.8,134.0 461.1,124.8 465.4,123.1 469.7,132.3 474.0,131.5" fill="none" stroke="var(--txt)" stroke-width="1.7"/><text x="6" y="214" font-size="13.5" fill="var(--txt)">2026-03-03</text><text x="474" y="214" font-size="13.5" fill="var(--txt)" text-anchor="end">2026-08-10</text></svg>
+        <div class="chart-card-stats">
+          <span>현재가 <span>222,500</span> <span class="sep">|</span> EMA100대비 <span class="t-pos">+11.99%</span></span>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-head"><span class="chart-card-name">KT&G</span><span class="badge bdg-teal">완전정배열 5/5</span></div>
+        <svg viewBox="0 0 480 220" width="100%" height="220" style="display:block;max-width:100%"><polyline points="6.0,194.0 10.3,193.6 14.6,193.2 18.9,192.8 23.2,192.4 27.5,192.0 31.8,191.6 36.1,191.2 40.3,190.8 44.6,190.5 48.9,190.1 53.2,189.6 57.5,189.2 61.8,188.8 66.1,188.4 70.4,188.0 74.7,187.6 79.0,187.2 83.3,186.8 87.6,186.4 91.9,186.0 96.2,185.5 100.5,185.2 104.8,184.8 109.0,184.4 113.3,184.0 117.6,183.6 121.9,183.1 126.2,182.6 130.5,182.1 134.8,181.6 139.1,181.0 143.4,180.4 147.7,179.9 152.0,179.3 156.3,178.7 160.6,178.1 164.9,177.6 169.2,176.9 173.4,176.3 177.7,175.6 182.0,175.0 186.3,174.4 190.6,173.7 194.9,173.1 199.2,172.5 203.5,171.8 207.8,171.1 212.1,170.4 216.4,169.8 220.7,169.0 225.0,168.4 229.3,167.8 233.6,167.2 237.9,166.6 242.1,165.9 246.4,165.2 250.7,164.5 255.0,163.9 259.3,163.2 263.6,162.6 267.9,161.9 272.2,161.2 276.5,160.6 280.8,160.1 285.1,159.5 289.4,158.8 293.7,158.2 298.0,157.5 302.3,156.8 306.6,156.1 310.8,155.5 315.1,154.8 319.4,154.2 323.7,153.6 328.0,153.1 332.3,152.7 336.6,152.3 340.9,151.8 345.2,151.5 349.5,151.0 353.8,150.6 358.1,150.2 362.4,149.8 366.7,149.3 371.0,148.9 375.2,148.3 379.5,147.7 383.8,147.2 388.1,146.7 392.4,146.3 396.7,145.9 401.0,145.5 405.3,144.9 409.6,144.4 413.9,143.9 418.2,143.5 422.5,142.9 426.8,142.4 431.1,141.8 435.4,141.3 439.7,140.8 443.9,140.2 448.2,139.7 452.5,139.3 456.8,138.8 461.1,138.4 465.4,137.8 469.7,137.2 474.0,136.7" fill="none" stroke="var(--gray600)" stroke-width="1.3" stroke-dasharray="2,3"/><polyline points="6.0,128.9 10.3,128.7 14.6,128.3 18.9,127.9 23.2,127.7 27.5,127.4 31.8,127.1 36.1,126.7 40.3,126.6 44.6,126.4 48.9,126.1 53.2,125.6 57.5,125.2 61.8,124.8 66.1,124.7 70.4,124.3 74.7,123.9 79.0,123.7 83.3,123.3 87.6,122.9 91.9,122.4 96.2,121.9 100.5,121.7 104.8,121.5 109.0,121.1 113.3,120.9 117.6,120.6 121.9,119.9 126.2,119.2 130.5,118.5 134.8,117.6 139.1,116.6 143.4,115.6 147.7,114.6 152.0,113.6 156.3,112.5 160.6,111.6 164.9,110.6 169.2,109.5 173.4,108.2 177.7,107.0 182.0,105.8 186.3,104.6 190.6,103.4 194.9,102.4 199.2,101.3 203.5,100.0 207.8,98.8 212.1,97.5 216.4,96.5 220.7,94.9 225.0,93.8 229.3,92.8 233.6,91.9 237.9,91.0 242.1,89.9 246.4,88.5 250.7,87.4 255.0,86.5 259.3,85.3 263.6,84.2 267.9,83.0 272.2,81.9 276.5,81.3 280.8,80.5 285.1,79.8 289.4,78.8 293.7,77.7 298.0,76.7 302.3,75.5 306.6,74.3 310.8,73.4 315.1,72.3 319.4,71.6 323.7,71.0 328.0,70.7 332.3,70.5 336.6,70.5 340.9,70.4 345.2,70.6 349.5,70.4 353.8,70.3 358.1,70.5 362.4,70.2 366.7,69.9 371.0,69.7 375.2,69.0 379.5,68.1 383.8,67.8 388.1,67.6 392.4,67.4 396.7,67.3 401.0,67.2 405.3,66.7 409.6,66.2 413.9,65.7 418.2,65.4 422.5,64.9 426.8,64.3 431.1,63.7 435.4,63.1 439.7,62.5 443.9,61.7 448.2,61.3 452.5,61.1 456.8,61.0 461.1,60.8 465.4,60.2 469.7,59.3 474.0,58.6" fill="none" stroke="var(--amber)" stroke-width="1.3" stroke-dasharray="6,3"/><polyline points="6.0,80.8 10.3,84.6 14.6,86.7 18.9,89.2 23.2,91.7 27.5,93.6 31.8,95.4 36.1,96.8 40.3,98.7 44.6,100.6 48.9,101.5 53.2,101.4 57.5,101.8 61.8,102.0 66.1,103.8 70.4,103.8 74.7,104.2 79.0,104.8 83.3,104.6 87.6,104.6 91.9,104.1 96.2,103.5 100.5,104.3 104.8,104.6 109.0,104.6 113.3,105.3 117.6,105.0 121.9,103.3 126.2,101.6 130.5,99.6 134.8,97.1 139.1,94.3 143.4,91.5 147.7,89.0 152.0,86.6 156.3,84.1 160.6,82.3 164.9,80.7 169.2,77.8 173.4,74.8 177.7,72.0 182.0,69.9 186.3,67.5 190.6,65.0 194.9,63.8 199.2,62.4 203.5,60.0 207.8,58.0 212.1,55.7 216.4,54.7 220.7,50.8 225.0,49.8 229.3,49.4 233.6,49.2 237.9,48.8 242.1,47.7 246.4,44.7 250.7,43.7 255.0,43.4 259.3,42.0 263.6,40.5 267.9,39.1 272.2,37.9 276.5,39.2 280.8,39.4 285.1,40.2 289.4,39.0 293.7,37.7 298.0,36.5 302.3,34.7 306.6,32.9 310.8,32.2 315.1,30.9 319.4,31.6 323.7,32.4 328.0,34.5 332.3,37.0 336.6,40.4 340.9,42.9 345.2,46.1 349.5,47.4 353.8,49.5 358.1,52.1 362.4,52.8 366.7,52.9 371.0,53.7 375.2,51.4 379.5,49.1 383.8,49.2 388.1,50.1 392.4,50.7 396.7,52.1 401.0,53.0 405.3,51.7 409.6,50.7 413.9,50.2 418.2,50.1 422.5,49.2 426.8,47.6 431.1,46.2 435.4,45.1 439.7,43.9 443.9,41.9 448.2,41.9 452.5,42.9 456.8,43.8 461.1,44.5 465.4,43.3 469.7,40.6 474.0,38.8" fill="none" stroke="var(--purple)" stroke-width="1.3" stroke-dasharray="4,3"/><polyline points="6.0,90.4 10.3,121.0 14.6,106.7 18.9,112.1 23.2,115.3 27.5,112.4 31.8,112.4 36.1,109.6 40.3,117.0 44.6,118.4 48.9,109.9 53.2,100.7 57.5,105.6 61.8,104.1 66.1,120.4 70.4,103.9 74.7,108.7 79.0,109.9 83.3,102.7 87.6,105.3 91.9,99.3 96.2,97.0 100.5,112.4 104.8,107.6 109.0,104.7 113.3,112.1 117.6,101.3 121.9,87.8 126.2,84.7 130.5,81.0 134.8,73.8 139.1,67.2 143.4,65.5 147.7,64.6 152.0,64.1 156.3,59.8 160.6,65.5 164.9,65.5 169.2,50.6 173.4,46.0 177.7,45.5 182.0,49.8 186.3,44.6 190.6,40.9 194.9,52.9 199.2,49.2 203.5,36.9 207.8,38.9 212.1,33.7 216.4,45.5 220.7,14.0 225.0,40.3 229.3,44.9 233.6,47.8 237.9,44.9 242.1,36.9 246.4,16.9 250.7,33.7 255.0,40.6 259.3,29.2 263.6,26.3 267.9,25.2 272.2,26.6 276.5,51.8 280.8,41.8 285.1,47.8 289.4,27.4 293.7,25.2 298.0,25.2 302.3,17.4 306.6,15.4 310.8,25.4 315.1,19.2 319.4,38.6 323.7,39.8 328.0,54.3 332.3,60.9 336.6,72.4 340.9,66.9 345.2,75.8 349.5,60.6 353.8,69.2 358.1,76.7 362.4,59.8 366.7,53.8 371.0,60.9 375.2,30.0 379.5,27.4 383.8,50.1 388.1,58.4 392.4,56.1 396.7,65.5 401.0,61.2 405.3,40.0 409.6,41.5 413.9,44.9 418.2,49.5 422.5,40.9 426.8,32.3 431.1,32.3 435.4,34.9 439.7,32.3 443.9,23.2 448.2,42.3 452.5,52.3 456.8,52.3 461.1,51.2 465.4,32.0 469.7,14.6 474.0,21.4" fill="none" stroke="var(--txt)" stroke-width="1.7"/><text x="6" y="214" font-size="13.5" fill="var(--txt)">2026-03-03</text><text x="474" y="214" font-size="13.5" fill="var(--txt)" text-anchor="end">2026-08-10</text></svg>
+        <div class="chart-card-stats">
+          <span>현재가 <span>186,400</span> <span class="sep">|</span> EMA100대비 <span class="t-pos">+7.48%</span></span>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-head"><span class="chart-card-name">KB금융</span><span class="badge bdg-teal">완전정배열 5/5</span></div>
+        <svg viewBox="0 0 480 220" width="100%" height="220" style="display:block;max-width:100%"><polyline points="6.0,194.0 10.3,193.6 14.6,193.2 18.9,192.7 23.2,192.3 27.5,191.9 31.8,191.4 36.1,190.9 40.3,190.4 44.6,190.0 48.9,189.5 53.2,189.0 57.5,188.4 61.8,187.9 66.1,187.5 70.4,187.1 74.7,186.6 79.0,186.2 83.3,185.7 87.6,185.3 91.9,184.9 96.2,184.5 100.5,184.1 104.8,183.7 109.0,183.3 113.3,182.9 117.6,182.4 121.9,181.9 126.2,181.4 130.5,180.9 134.8,180.4 139.1,179.9 143.4,179.3 147.7,178.7 152.0,178.2 156.3,177.7 160.6,177.2 164.9,176.7 169.2,176.2 173.4,175.7 177.7,175.2 182.0,174.7 186.3,174.2 190.6,173.7 194.9,173.2 199.2,172.7 203.5,172.2 207.8,171.7 212.1,171.3 216.4,170.9 220.7,170.4 225.0,170.0 229.3,169.6 233.6,169.2 237.9,168.8 242.1,168.4 246.4,167.9 250.7,167.5 255.0,167.1 259.3,166.7 263.6,166.3 267.9,166.0 272.2,165.5 276.5,165.0 280.8,164.4 285.1,164.1 289.4,163.7 293.7,163.3 298.0,163.0 302.3,162.5 306.6,161.9 310.8,161.4 315.1,160.9 319.4,160.4 323.7,160.0 328.0,159.6 332.3,159.2 336.6,158.9 340.9,158.5 345.2,158.2 349.5,157.9 353.8,157.5 358.1,157.1 362.4,156.6 366.7,156.1 371.0,155.5 375.2,155.0 379.5,154.4 383.8,153.9 388.1,153.2 392.4,152.5 396.7,151.9 401.0,151.3 405.3,150.6 409.6,150.2 413.9,149.6 418.2,149.1 422.5,148.5 426.8,148.0 431.1,147.5 435.4,147.0 439.7,146.7 443.9,146.2 448.2,145.8 452.5,145.3 456.8,144.8 461.1,144.4 465.4,143.9 469.7,143.3 474.0,142.9" fill="none" stroke="var(--gray600)" stroke-width="1.3" stroke-dasharray="2,3"/><polyline points="6.0,132.1 10.3,131.9 14.6,131.3 18.9,130.7 23.2,130.3 27.5,129.7 31.8,129.0 36.1,128.4 40.3,127.8 44.6,127.2 48.9,126.5 53.2,125.7 57.5,124.8 61.8,124.0 66.1,123.7 70.4,123.2 74.7,122.7 79.0,122.1 83.3,121.5 87.6,121.1 91.9,121.0 96.2,120.6 100.5,120.2 104.8,119.9 109.0,119.5 113.3,119.2 117.6,118.5 121.9,117.8 126.2,117.0 130.5,116.3 134.8,115.6 139.1,114.9 143.4,113.9 147.7,113.0 152.0,112.2 156.3,111.4 160.6,110.7 164.9,110.1 169.2,109.5 173.4,108.9 177.7,108.2 182.0,107.5 186.3,106.8 190.6,106.2 194.9,105.6 199.2,104.9 203.5,104.2 207.8,103.6 212.1,103.3 216.4,103.1 220.7,102.6 225.0,102.3 229.3,102.0 233.6,101.7 237.9,101.5 242.1,101.2 246.4,100.6 250.7,100.2 255.0,99.9 259.3,99.8 263.6,99.7 267.9,99.6 272.2,99.2 276.5,98.5 280.8,97.5 285.1,97.3 289.4,97.1 293.7,96.9 298.0,96.8 302.3,96.3 306.6,95.4 310.8,94.4 315.1,93.8 319.4,93.3 323.7,92.9 328.0,92.7 332.3,92.6 336.6,92.5 340.9,92.5 345.2,92.6 349.5,92.5 353.8,92.2 358.1,91.8 362.4,91.2 366.7,90.4 371.0,89.6 375.2,88.7 379.5,87.9 383.8,87.1 388.1,85.7 392.4,84.3 396.7,83.2 401.0,82.0 405.3,80.9 409.6,80.3 413.9,79.6 418.2,78.8 422.5,77.9 426.8,77.3 431.1,76.7 435.4,76.4 439.7,76.3 443.9,75.9 448.2,75.5 452.5,75.0 456.8,74.6 461.1,74.1 465.4,73.5 469.7,72.8 474.0,72.3" fill="none" stroke="var(--amber)" stroke-width="1.3" stroke-dasharray="6,3"/><polyline points="6.0,82.2 10.3,86.1 14.6,87.3 18.9,88.6 23.2,90.8 27.5,91.9 31.8,91.9 36.1,92.4 40.3,93.0 44.6,93.4 48.9,93.4 53.2,92.6 57.5,91.7 61.8,90.9 66.1,92.4 70.4,93.3 74.7,93.7 79.0,93.4 83.3,93.1 87.6,94.2 91.9,96.1 96.2,96.4 100.5,97.1 104.8,97.9 109.0,98.1 113.3,98.6 117.6,97.0 121.9,96.0 126.2,94.1 130.5,92.9 134.8,91.8 139.1,90.4 143.4,88.3 147.7,86.3 152.0,84.9 156.3,83.7 160.6,83.2 164.9,82.7 169.2,82.3 173.4,82.0 177.7,81.4 182.0,80.5 186.3,79.6 190.6,79.5 194.9,79.1 199.2,78.3 203.5,77.4 207.8,77.2 212.1,78.2 216.4,79.4 220.7,79.7 225.0,80.0 229.3,80.8 233.6,81.6 237.9,82.6 242.1,82.6 246.4,81.7 250.7,81.4 255.0,81.9 259.3,83.3 263.6,84.3 267.9,85.0 272.2,84.5 276.5,82.5 280.8,79.2 285.1,80.4 289.4,80.8 293.7,81.3 298.0,82.4 302.3,81.2 306.6,78.4 310.8,75.3 315.1,74.2 319.4,73.4 323.7,73.8 328.0,74.3 332.3,75.6 336.6,77.1 340.9,78.4 345.2,80.2 349.5,80.9 353.8,80.3 358.1,80.0 362.4,78.2 366.7,75.6 371.0,73.0 375.2,70.2 379.5,68.1 383.8,66.1 388.1,61.5 392.4,57.0 396.7,54.2 401.0,51.4 405.3,48.9 409.6,49.3 413.9,48.6 418.2,47.7 422.5,46.6 426.8,46.6 431.1,46.4 435.4,47.9 439.7,50.2 443.9,50.8 448.2,51.1 452.5,51.2 456.8,51.3 461.1,51.1 465.4,50.7 469.7,49.5 474.0,49.1" fill="none" stroke="var(--purple)" stroke-width="1.3" stroke-dasharray="4,3"/><polyline points="6.0,87.7 10.3,123.2 14.6,97.8 18.9,101.4 23.2,112.2 27.5,101.4 31.8,92.6 36.1,97.3 40.3,98.0 44.6,97.1 48.9,94.0 53.2,84.9 57.5,82.7 61.8,83.8 66.1,106.1 70.4,102.5 74.7,96.9 79.0,90.6 83.3,90.6 87.6,104.8 91.9,113.8 96.2,99.4 100.5,103.4 104.8,105.7 109.0,100.3 113.3,103.0 117.6,82.0 121.9,86.1 126.2,76.8 130.5,80.7 134.8,82.2 139.1,77.1 143.4,67.8 147.7,67.8 152.0,71.0 156.3,72.1 160.6,78.9 164.9,77.5 169.2,78.9 173.4,78.9 177.7,75.7 182.0,71.7 186.3,71.9 190.6,78.0 194.9,75.5 199.2,70.3 203.5,69.2 207.8,75.7 212.1,87.4 216.4,91.0 220.7,82.0 225.0,82.9 229.3,88.8 233.6,89.2 237.9,91.7 242.1,82.5 246.4,73.0 250.7,79.1 255.0,87.0 259.3,96.2 263.6,94.2 267.9,90.8 272.2,80.7 276.5,63.6 280.8,46.9 285.1,92.2 289.4,84.7 293.7,86.5 298.0,92.2 302.3,70.3 306.6,51.4 310.8,46.0 315.1,64.0 319.4,66.0 323.7,76.8 328.0,79.8 332.3,87.2 336.6,91.5 340.9,91.3 345.2,97.1 349.5,87.2 353.8,75.3 358.1,76.4 362.4,61.7 366.7,50.3 371.0,48.5 375.2,43.3 379.5,48.2 383.8,47.3 388.1,18.1 392.4,14.0 396.7,28.0 401.0,24.4 405.3,25.5 409.6,53.2 413.9,41.5 418.2,39.0 422.5,36.3 426.8,47.1 431.1,44.6 435.4,61.3 439.7,72.8 443.9,56.3 448.2,53.9 452.5,51.6 456.8,53.2 461.1,48.9 465.4,47.1 469.7,37.4 474.0,46.0" fill="none" stroke="var(--txt)" stroke-width="1.7"/><text x="6" y="214" font-size="13.5" fill="var(--txt)">2026-03-03</text><text x="474" y="214" font-size="13.5" fill="var(--txt)" text-anchor="end">2026-08-10</text></svg>
+        <div class="chart-card-stats">
+          <span>현재가 <span>172,000</span> <span class="sep">|</span> EMA100대비 <span class="t-pos">+7.28%</span></span>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-head"><span class="chart-card-name">S-Oil</span><span class="badge bdg-teal">완전정배열 5/5</span></div>
+        <svg viewBox="0 0 480 220" width="100%" height="220" style="display:block;max-width:100%"><polyline points="6.0,194.0 10.3,193.4 14.6,192.7 18.9,192.0 23.2,191.4 27.5,190.9 31.8,190.4 36.1,189.9 40.3,189.5 44.6,189.2 48.9,188.8 53.2,188.4 57.5,188.0 61.8,187.6 66.1,187.2 70.4,186.9 74.7,186.4 79.0,186.0 83.3,185.6 87.6,185.3 91.9,184.9 96.2,184.5 100.5,184.2 104.8,183.8 109.0,183.3 113.3,182.9 117.6,182.5 121.9,182.0 126.2,181.5 130.5,181.0 134.8,180.5 139.1,180.1 143.4,179.7 147.7,179.2 152.0,178.8 156.3,178.4 160.6,178.0 164.9,177.5 169.2,177.1 173.4,176.7 177.7,176.2 182.0,175.6 186.3,175.0 190.6,174.5 194.9,174.0 199.2,173.6 203.5,173.2 207.8,172.8 212.1,172.5 216.4,172.1 220.7,171.7 225.0,171.4 229.3,171.0 233.6,170.7 237.9,170.4 242.1,170.1 246.4,169.8 250.7,169.5 255.0,169.2 259.3,169.0 263.6,168.7 267.9,168.5 272.2,168.2 276.5,167.8 280.8,167.5 285.1,167.2 289.4,166.9 293.7,166.6 298.0,166.3 302.3,166.0 306.6,165.7 310.8,165.3 315.1,165.0 319.4,164.8 323.7,164.6 328.0,164.3 332.3,164.2 336.6,163.9 340.9,163.8 345.2,163.7 349.5,163.5 353.8,163.2 358.1,163.0 362.4,162.7 366.7,162.4 371.0,162.1 375.2,161.6 379.5,161.1 383.8,160.6 388.1,160.1 392.4,159.5 396.7,159.0 401.0,158.4 405.3,157.7 409.6,157.1 413.9,156.5 418.2,155.9 422.5,155.2 426.8,154.5 431.1,153.9 435.4,153.5 439.7,153.1 443.9,152.6 448.2,152.2 452.5,151.8 456.8,151.4 461.1,151.1 465.4,150.7 469.7,150.2 474.0,149.6" fill="none" stroke="var(--gray600)" stroke-width="1.3" stroke-dasharray="2,3"/><polyline points="6.0,156.8 10.3,155.1 14.6,153.1 18.9,151.3 23.2,149.6 27.5,148.4 31.8,147.4 36.1,146.3 40.3,145.6 44.6,145.1 48.9,144.5 53.2,143.8 57.5,143.0 61.8,142.2 66.1,141.8 70.4,141.2 74.7,140.4 79.0,139.6 83.3,139.0 87.6,138.4 91.9,138.0 96.2,137.3 100.5,136.9 104.8,136.3 109.0,135.4 113.3,134.6 117.6,134.0 121.9,133.0 126.2,132.1 130.5,131.1 134.8,130.2 139.1,129.4 143.4,128.6 147.7,127.9 152.0,127.3 156.3,126.7 160.6,126.1 164.9,125.3 169.2,124.5 173.4,124.0 177.7,123.3 182.0,121.9 186.3,120.5 190.6,119.4 194.9,118.7 199.2,118.1 203.5,117.6 207.8,117.4 212.1,117.0 216.4,116.6 220.7,116.2 225.0,115.9 229.3,115.7 233.6,115.6 237.9,115.4 242.1,115.4 246.4,115.3 250.7,115.1 255.0,115.1 259.3,115.1 263.6,115.1 267.9,115.2 272.2,115.1 276.5,114.8 280.8,114.5 285.1,114.5 289.4,114.3 293.7,114.2 298.0,113.9 302.3,113.7 306.6,113.5 310.8,113.2 315.1,113.1 319.4,113.2 323.7,113.3 328.0,113.4 332.3,113.7 336.6,113.7 340.9,114.1 345.2,114.8 349.5,114.9 353.8,115.0 358.1,114.8 362.4,114.8 366.7,114.6 371.0,114.2 375.2,113.3 379.5,112.2 383.8,111.1 388.1,110.0 392.4,108.6 396.7,107.7 401.0,106.3 405.3,104.8 409.6,103.2 413.9,101.8 418.2,100.5 422.5,98.9 426.8,97.2 431.1,96.2 435.4,95.6 439.7,95.1 443.9,94.4 448.2,93.9 452.5,93.7 456.8,93.3 461.1,93.0 465.4,92.6 469.7,91.7 474.0,90.7" fill="none" stroke="var(--amber)" stroke-width="1.3" stroke-dasharray="6,3"/><polyline points="6.0,108.9 10.3,105.2 14.6,100.1 18.9,96.6 23.2,93.7 27.5,93.3 31.8,93.8 36.1,93.4 40.3,95.3 44.6,97.5 48.9,99.3 53.2,100.1 57.5,100.6 61.8,100.9 66.1,102.5 70.4,103.4 74.7,103.2 79.0,103.2 83.3,103.7 87.6,104.2 91.9,105.6 96.2,105.2 100.5,106.3 104.8,106.2 109.0,104.6 113.3,103.9 117.6,103.9 121.9,102.2 126.2,100.5 130.5,98.6 134.8,97.6 139.1,97.0 143.4,96.3 147.7,95.8 152.0,95.7 156.3,96.0 160.6,96.3 164.9,95.1 169.2,94.3 173.4,94.5 177.7,93.9 182.0,90.0 186.3,86.4 190.6,84.5 194.9,84.2 199.2,84.7 203.5,85.5 207.8,87.5 212.1,88.5 216.4,89.3 220.7,90.0 225.0,91.3 229.3,92.6 233.6,94.1 237.9,95.3 242.1,97.1 246.4,98.4 250.7,99.3 255.0,100.6 259.3,102.0 263.6,103.2 267.9,104.8 272.2,105.5 276.5,104.8 280.8,104.5 285.1,105.2 289.4,105.3 293.7,105.5 298.0,105.1 302.3,105.1 306.6,104.6 310.8,104.0 315.1,104.5 319.4,105.9 323.7,107.2 328.0,108.0 332.3,109.9 336.6,110.3 340.9,112.7 345.2,116.0 349.5,116.6 353.8,116.6 358.1,115.9 362.4,115.4 366.7,114.7 371.0,112.6 375.2,108.4 379.5,103.7 383.8,99.0 388.1,95.1 392.4,89.9 396.7,87.0 401.0,82.4 405.3,77.2 409.6,72.2 413.9,68.8 418.2,65.6 422.5,61.0 426.8,56.5 431.1,55.7 435.4,56.5 439.7,57.8 443.9,58.3 448.2,59.3 452.5,61.4 456.8,62.4 461.1,64.1 465.4,65.0 469.7,63.1 474.0,61.0" fill="none" stroke="var(--purple)" stroke-width="1.3" stroke-dasharray="4,3"/><polyline points="6.0,36.7 10.3,70.6 14.6,51.8 18.9,63.3 23.2,65.5 27.5,90.3 31.8,97.8 36.1,90.1 40.3,113.0 44.6,118.9 48.9,116.4 53.2,107.0 57.5,105.6 61.8,104.3 66.1,117.5 70.4,112.0 74.7,100.8 79.0,103.1 83.3,109.1 87.6,108.2 91.9,119.1 96.2,101.7 100.5,116.4 104.8,105.2 109.0,89.8 113.3,97.4 117.6,103.6 121.9,86.4 126.2,83.9 130.5,80.9 134.8,87.5 139.1,91.2 143.4,89.8 147.7,91.7 152.0,94.9 156.3,98.5 160.6,99.0 164.9,83.6 169.2,86.8 173.4,96.0 177.7,88.5 182.0,52.7 186.3,52.3 190.6,67.1 194.9,80.9 199.2,89.6 203.5,92.8 207.8,106.3 212.1,98.5 216.4,96.2 220.7,96.9 225.0,103.6 229.3,104.9 233.6,108.2 237.9,106.6 242.1,114.6 246.4,110.7 250.7,108.2 255.0,112.7 259.3,115.3 263.6,114.3 267.9,120.5 272.2,112.3 276.5,98.1 280.8,102.0 285.1,111.8 289.4,106.3 293.7,106.6 298.0,101.3 302.3,105.2 306.6,99.9 310.8,99.0 315.1,108.8 319.4,119.6 323.7,119.1 328.0,115.3 332.3,127.9 336.6,114.6 340.9,135.4 345.2,146.9 349.5,122.8 353.8,116.6 358.1,109.3 362.4,110.2 366.7,107.9 371.0,92.6 375.2,68.5 379.5,58.9 383.8,54.5 388.1,57.8 392.4,40.8 396.7,59.4 401.0,38.7 405.3,28.4 409.6,24.3 413.9,36.0 418.2,35.8 422.5,17.2 426.8,14.0 431.1,47.9 435.4,63.7 439.7,70.8 443.9,62.3 448.2,68.8 452.5,81.6 456.8,72.2 461.1,79.7 465.4,74.2 469.7,45.2 474.0,40.3" fill="none" stroke="var(--txt)" stroke-width="1.7"/><text x="6" y="214" font-size="13.5" fill="var(--txt)">2026-03-03</text><text x="474" y="214" font-size="13.5" fill="var(--txt)" text-anchor="end">2026-08-10</text></svg>
+        <div class="chart-card-stats">
+          <span>현재가 <span>139,700</span> <span class="sep">|</span> EMA100대비 <span class="t-pos">+18.66%</span></span>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-head"><span class="chart-card-name">하나금융지주</span><span class="badge bdg-teal">완전정배열 5/5</span></div>
+        <svg viewBox="0 0 480 220" width="100%" height="220" style="display:block;max-width:100%"><polyline points="6.0,194.0 10.3,193.6 14.6,193.1 18.9,192.6 23.2,192.2 27.5,191.7 31.8,191.2 36.1,190.7 40.3,190.2 44.6,189.8 48.9,189.4 53.2,188.8 57.5,188.3 61.8,187.8 66.1,187.4 70.4,187.1 74.7,186.6 79.0,186.2 83.3,185.8 87.6,185.4 91.9,185.0 96.2,184.5 100.5,184.1 104.8,183.7 109.0,183.2 113.3,182.8 117.6,182.2 121.9,181.7 126.2,181.1 130.5,180.6 134.8,180.0 139.1,179.4 143.4,178.8 147.7,178.2 152.0,177.6 156.3,177.0 160.6,176.4 164.9,175.9 169.2,175.3 173.4,174.7 177.7,174.0 182.0,173.4 186.3,172.7 190.6,172.1 194.9,171.5 199.2,170.8 203.5,170.2 207.8,169.6 212.1,169.0 216.4,168.5 220.7,167.9 225.0,167.4 229.3,167.0 233.6,166.5 237.9,166.1 242.1,165.6 246.4,165.1 250.7,164.6 255.0,164.2 259.3,163.7 263.6,163.3 267.9,162.9 272.2,162.5 276.5,162.0 280.8,161.5 285.1,161.1 289.4,160.7 293.7,160.3 298.0,159.9 302.3,159.4 306.6,158.8 310.8,158.1 315.1,157.6 319.4,157.0 323.7,156.5 328.0,156.1 332.3,155.7 336.6,155.3 340.9,155.0 345.2,154.7 349.5,154.4 353.8,154.0 358.1,153.6 362.4,153.2 366.7,152.7 371.0,152.2 375.2,151.6 379.5,151.2 383.8,150.7 388.1,150.2 392.4,149.5 396.7,148.9 401.0,148.2 405.3,147.6 409.6,147.0 413.9,146.4 418.2,145.8 422.5,145.2 426.8,144.6 431.1,144.1 435.4,143.7 439.7,143.3 443.9,142.8 448.2,142.3 452.5,141.9 456.8,141.4 461.1,140.9 465.4,140.3 469.7,139.7 474.0,139.1" fill="none" stroke="var(--gray600)" stroke-width="1.3" stroke-dasharray="2,3"/><polyline points="6.0,126.7 10.3,126.4 14.6,125.8 18.9,125.2 23.2,124.8 27.5,124.3 31.8,123.6 36.1,122.9 40.3,122.5 44.6,122.1 48.9,121.6 53.2,120.9 57.5,120.2 61.8,119.6 66.1,119.4 70.4,119.2 74.7,118.9 79.0,118.6 83.3,118.1 87.6,117.9 91.9,117.7 96.2,117.2 100.5,116.8 104.8,116.4 109.0,115.9 113.3,115.5 117.6,114.7 121.9,113.9 126.2,113.0 130.5,112.1 134.8,111.2 139.1,110.2 143.4,109.2 147.7,108.2 152.0,107.2 156.3,106.2 160.6,105.4 164.9,104.6 169.2,103.7 173.4,102.7 177.7,101.5 182.0,100.4 186.3,99.2 190.6,98.2 194.9,97.2 199.2,96.1 203.5,95.1 207.8,94.1 212.1,93.4 216.4,92.7 220.7,91.8 225.0,91.4 229.3,91.2 233.6,91.1 237.9,90.8 242.1,90.4 246.4,89.8 250.7,89.4 255.0,89.0 259.3,88.9 263.6,88.7 267.9,88.7 272.2,88.4 276.5,88.0 280.8,87.3 285.1,87.4 289.4,87.0 293.7,86.8 298.0,86.7 302.3,86.2 306.6,85.3 310.8,84.2 315.1,83.4 319.4,82.7 323.7,82.2 328.0,81.9 332.3,81.9 336.6,81.9 340.9,82.0 345.2,82.3 349.5,82.3 353.8,82.4 358.1,82.3 362.4,81.9 366.7,81.3 371.0,80.7 375.2,80.0 379.5,79.6 383.8,79.2 388.1,78.4 392.4,77.4 396.7,76.3 401.0,75.1 405.3,73.9 409.6,72.9 413.9,72.0 418.2,71.2 422.5,70.4 426.8,69.6 431.1,68.9 435.4,68.6 439.7,68.6 443.9,68.3 448.2,67.9 452.5,67.4 456.8,67.0 461.1,66.4 465.4,65.6 469.7,64.7 474.0,64.1" fill="none" stroke="var(--amber)" stroke-width="1.3" stroke-dasharray="6,3"/><polyline points="6.0,69.0 10.3,73.1 14.6,75.2 18.9,77.3 23.2,79.9 27.5,81.7 31.8,82.2 36.1,83.0 40.3,84.8 44.6,86.5 48.9,87.7 53.2,87.3 57.5,87.4 61.8,87.5 66.1,89.7 70.4,91.6 74.7,92.6 79.0,93.5 83.3,93.8 87.6,95.1 91.9,96.4 96.2,95.7 100.5,95.8 104.8,96.2 109.0,95.6 113.3,95.5 117.6,93.7 121.9,92.0 126.2,89.7 130.5,87.5 134.8,85.3 139.1,83.2 143.4,80.9 147.7,78.5 152.0,76.6 156.3,74.8 160.6,74.2 164.9,73.2 169.2,71.6 173.4,69.9 177.7,67.5 182.0,65.3 186.3,63.1 190.6,61.5 194.9,60.4 199.2,58.3 203.5,57.2 207.8,56.1 212.1,56.2 216.4,56.5 220.7,55.6 225.0,56.9 229.3,59.6 233.6,61.7 237.9,63.5 242.1,64.0 246.4,63.6 250.7,63.9 255.0,64.7 259.3,66.3 263.6,67.8 267.9,69.5 272.2,70.2 276.5,69.7 280.8,68.3 285.1,70.5 289.4,70.4 293.7,70.7 298.0,71.9 302.3,71.1 306.6,67.9 310.8,64.2 315.1,62.4 319.4,61.0 323.7,60.5 328.0,61.2 332.3,63.1 336.6,65.2 340.9,67.1 345.2,70.2 349.5,71.4 353.8,72.6 358.1,73.1 362.4,72.3 366.7,70.1 371.0,68.3 375.2,66.1 379.5,65.5 383.8,64.8 388.1,62.5 392.4,59.1 396.7,55.7 401.0,51.7 405.3,48.1 409.6,45.9 413.9,44.1 418.2,42.8 422.5,41.9 426.8,40.6 431.1,39.9 435.4,41.6 439.7,43.9 443.9,44.7 448.2,45.2 452.5,45.2 456.8,44.9 461.1,44.4 465.4,42.6 469.7,40.5 474.0,39.7" fill="none" stroke="var(--purple)" stroke-width="1.3" stroke-dasharray="4,3"/><polyline points="6.0,66.5 10.3,112.4 14.6,94.5 18.9,97.3 23.2,104.8 27.5,98.5 31.8,87.5 36.1,90.4 40.3,101.7 44.6,103.3 48.9,98.5 53.2,84.1 57.5,88.2 61.8,88.2 66.1,110.8 70.4,109.2 74.7,102.3 79.0,102.0 83.3,97.0 87.6,107.0 91.9,108.9 96.2,89.4 100.5,97.0 104.8,99.2 109.0,90.7 113.3,94.5 117.6,75.9 121.9,75.9 126.2,68.4 130.5,66.8 134.8,64.3 139.1,63.3 143.4,58.9 147.7,55.8 152.0,58.3 156.3,57.4 160.6,68.4 164.9,64.0 169.2,56.4 173.4,54.2 177.7,44.8 182.0,44.5 186.3,42.0 190.6,46.1 194.9,49.5 199.2,39.1 203.5,46.4 207.8,46.1 212.1,57.1 216.4,59.6 220.7,46.4 225.0,69.9 229.3,85.0 233.6,81.6 237.9,80.6 242.1,68.7 246.4,60.2 250.7,66.8 255.0,71.8 259.3,81.6 263.6,82.2 267.9,86.0 272.2,76.2 276.5,64.9 280.8,55.5 285.1,90.7 289.4,69.9 293.7,73.4 298.0,83.1 302.3,63.7 306.6,37.6 310.8,29.1 315.1,45.4 319.4,47.6 323.7,55.8 328.0,67.7 332.3,80.9 336.6,85.0 340.9,85.7 345.2,99.2 349.5,83.1 353.8,83.8 358.1,78.1 362.4,64.3 366.7,49.2 371.0,51.7 375.2,45.1 379.5,59.6 383.8,58.6 388.1,40.1 392.4,27.2 396.7,22.8 401.0,14.0 405.3,14.0 409.6,24.7 413.9,27.2 418.2,30.3 422.5,33.8 426.8,27.8 431.1,33.5 435.4,57.4 439.7,65.5 443.9,52.3 448.2,49.8 452.5,45.1 456.8,42.9 461.1,39.8 465.4,25.0 469.7,20.6 474.0,32.2" fill="none" stroke="var(--txt)" stroke-width="1.7"/><text x="6" y="214" font-size="13.5" fill="var(--txt)">2026-03-03</text><text x="474" y="214" font-size="13.5" fill="var(--txt)" text-anchor="end">2026-08-10</text></svg>
+        <div class="chart-card-stats">
+          <span>현재가 <span>131,000</span> <span class="sep">|</span> EMA100대비 <span class="t-pos">+8.38%</span></span>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-head"><span class="chart-card-name">신한지주</span><span class="badge bdg-teal">완전정배열 5/5</span></div>
+        <svg viewBox="0 0 480 220" width="100%" height="220" style="display:block;max-width:100%"><polyline points="6.0,194.0 10.3,193.5 14.6,193.0 18.9,192.4 23.2,192.0 27.5,191.5 31.8,191.0 36.1,190.5 40.3,190.0 44.6,189.5 48.9,189.0 53.2,188.4 57.5,187.8 61.8,187.2 66.1,186.7 70.4,186.3 74.7,185.8 79.0,185.2 83.3,184.7 87.6,184.3 91.9,183.8 96.2,183.3 100.5,182.9 104.8,182.4 109.0,181.9 113.3,181.4 117.6,180.8 121.9,180.3 126.2,179.7 130.5,179.1 134.8,178.5 139.1,177.9 143.4,177.3 147.7,176.7 152.0,176.0 156.3,175.4 160.6,174.9 164.9,174.3 169.2,173.7 173.4,173.1 177.7,172.5 182.0,171.9 186.3,171.3 190.6,170.7 194.9,170.2 199.2,169.7 203.5,169.1 207.8,168.6 212.1,168.1 216.4,167.6 220.7,167.1 225.0,166.7 229.3,166.2 233.6,165.8 237.9,165.4 242.1,164.9 246.4,164.4 250.7,163.9 255.0,163.5 259.3,163.1 263.6,162.6 267.9,162.2 272.2,161.8 276.5,161.2 280.8,160.6 285.1,160.1 289.4,159.5 293.7,159.0 298.0,158.6 302.3,158.1 306.6,157.4 310.8,156.8 315.1,156.2 319.4,155.7 323.7,155.2 328.0,154.7 332.3,154.2 336.6,153.8 340.9,153.4 345.2,153.1 349.5,152.7 353.8,152.3 358.1,151.9 362.4,151.3 366.7,150.7 371.0,150.1 375.2,149.4 379.5,148.8 383.8,148.2 388.1,147.6 392.4,146.9 396.7,146.3 401.0,145.7 405.3,145.1 409.6,144.6 413.9,144.1 418.2,143.5 422.5,143.0 426.8,142.5 431.1,141.9 435.4,141.5 439.7,141.1 443.9,140.6 448.2,140.2 452.5,139.7 456.8,139.2 461.1,138.7 465.4,138.2 469.7,137.5 474.0,137.0" fill="none" stroke="var(--gray600)" stroke-width="1.3" stroke-dasharray="2,3"/><polyline points="6.0,124.9 10.3,124.4 14.6,123.6 18.9,122.8 23.2,122.4 27.5,121.9 31.8,121.2 36.1,120.5 40.3,120.0 44.6,119.4 48.9,118.8 53.2,117.9 57.5,117.0 61.8,115.9 66.1,115.4 70.4,115.0 74.7,114.4 79.0,113.8 83.3,113.1 87.6,112.7 91.9,112.5 96.2,111.9 100.5,111.4 104.8,110.9 109.0,110.3 113.3,109.9 117.6,109.1 121.9,108.2 126.2,107.3 130.5,106.3 134.8,105.4 139.1,104.4 143.4,103.4 147.7,102.5 152.0,101.5 156.3,100.6 160.6,99.8 164.9,98.9 169.2,98.0 173.4,97.2 177.7,96.3 182.0,95.5 186.3,94.6 190.6,94.0 194.9,93.4 199.2,92.7 203.5,92.1 207.8,91.6 212.1,91.1 216.4,90.7 220.7,90.3 225.0,89.9 229.3,89.8 233.6,89.5 237.9,89.3 242.1,89.0 246.4,88.5 250.7,88.1 255.0,87.8 259.3,87.7 263.6,87.6 267.9,87.5 272.2,87.1 276.5,86.4 280.8,85.2 285.1,84.8 289.4,84.1 293.7,83.6 298.0,83.3 302.3,82.7 306.6,81.7 310.8,80.7 315.1,79.9 319.4,79.3 323.7,78.7 328.0,78.4 332.3,78.1 336.6,78.0 340.9,78.0 345.2,78.1 349.5,77.9 353.8,77.8 358.1,77.6 362.4,77.0 366.7,75.9 371.0,74.9 375.2,73.8 379.5,72.8 383.8,72.1 388.1,71.0 392.4,70.0 396.7,69.1 401.0,68.2 405.3,67.3 409.6,66.9 413.9,66.3 418.2,65.7 422.5,65.2 426.8,64.6 431.1,64.0 435.4,63.7 439.7,63.7 443.9,63.4 448.2,63.2 452.5,62.8 456.8,62.4 461.1,62.0 465.4,61.2 469.7,60.3 474.0,59.6" fill="none" stroke="var(--amber)" stroke-width="1.3" stroke-dasharray="6,3"/><polyline points="6.0,71.4 10.3,74.0 14.6,74.8 18.9,75.9 23.2,78.2 27.5,80.0 31.8,80.9 36.1,81.4 40.3,82.3 44.6,83.4 48.9,83.9 53.2,83.0 57.5,81.6 61.8,79.7 66.1,81.1 70.4,82.3 74.7,82.6 79.0,82.4 83.3,82.2 87.6,83.1 91.9,85.0 96.2,84.8 100.5,85.0 104.8,85.1 109.0,84.9 113.3,85.2 117.6,83.5 121.9,82.0 126.2,79.8 130.5,78.0 134.8,76.3 139.1,74.3 143.4,72.4 147.7,70.8 152.0,69.2 156.3,67.8 160.6,67.0 164.9,65.8 169.2,64.7 173.4,63.8 177.7,62.9 182.0,62.0 186.3,61.3 190.6,61.3 194.9,61.7 199.2,61.3 203.5,61.4 207.8,61.8 212.1,62.3 216.4,63.3 220.7,63.6 225.0,64.6 229.3,66.2 233.6,67.3 237.9,68.3 242.1,68.9 246.4,68.2 250.7,68.4 255.0,68.9 259.3,70.2 263.6,71.1 267.9,72.3 272.2,71.9 276.5,70.1 280.8,65.7 285.1,65.7 289.4,64.1 293.7,63.9 298.0,64.1 302.3,63.3 306.6,60.3 310.8,57.1 315.1,55.6 319.4,55.2 323.7,54.7 328.0,55.6 332.3,56.3 336.6,57.7 340.9,59.4 345.2,62.1 349.5,62.7 353.8,63.5 358.1,63.9 362.4,62.1 366.7,58.6 371.0,55.2 375.2,51.8 379.5,49.2 383.8,47.8 388.1,44.9 392.4,42.5 396.7,41.1 401.0,39.5 405.3,37.9 409.6,38.7 413.9,38.4 418.2,38.2 422.5,38.2 426.8,38.0 431.1,37.7 435.4,38.9 439.7,40.9 443.9,41.9 448.2,42.8 452.5,42.8 456.8,43.0 461.1,42.7 465.4,40.9 469.7,38.4 474.0,37.3" fill="none" stroke="var(--purple)" stroke-width="1.3" stroke-dasharray="4,3"/><polyline points="6.0,67.1 10.3,98.7 14.6,82.3 18.9,86.7 23.2,99.9 27.5,97.1 31.8,89.5 36.1,86.3 40.3,90.7 44.6,93.9 48.9,89.1 53.2,73.9 57.5,67.9 61.8,62.3 66.1,94.3 70.4,93.9 74.7,85.5 79.0,80.3 83.3,79.9 87.6,91.9 91.9,103.1 96.2,82.7 100.5,87.1 104.8,86.7 109.0,82.3 113.3,88.3 117.6,67.1 121.9,67.5 126.2,59.1 130.5,60.7 134.8,60.7 139.1,54.7 143.4,54.3 147.7,55.5 152.0,53.9 156.3,54.7 160.6,59.5 164.9,54.3 169.2,53.9 173.4,55.1 177.7,54.3 182.0,53.9 186.3,54.3 190.6,61.9 194.9,64.7 199.2,58.3 203.5,61.9 207.8,65.1 212.1,67.1 216.4,73.1 220.7,66.7 225.0,73.5 229.3,81.5 233.6,78.3 237.9,77.9 242.1,74.7 246.4,61.1 250.7,69.9 255.0,73.9 259.3,82.7 263.6,79.5 267.9,83.5 272.2,68.3 276.5,53.5 280.8,24.0 285.1,65.5 289.4,49.1 293.7,61.1 298.0,66.3 302.3,55.5 306.6,31.6 310.8,27.2 315.1,41.6 319.4,50.7 323.7,50.3 328.0,63.9 332.3,63.1 336.6,71.1 340.9,75.9 345.2,87.5 349.5,68.3 353.8,70.7 358.1,68.3 362.4,45.1 366.7,24.8 371.0,23.2 375.2,19.6 379.5,24.8 383.8,34.0 388.1,17.2 392.4,19.6 396.7,28.0 401.0,24.8 405.3,22.4 409.6,46.7 413.9,35.2 418.2,36.0 422.5,38.8 426.8,36.4 431.1,34.0 435.4,50.3 439.7,60.7 443.9,50.7 448.2,51.1 452.5,43.2 456.8,44.7 461.1,39.6 465.4,24.4 469.7,14.0 474.0,26.8" fill="none" stroke="var(--txt)" stroke-width="1.7"/><text x="6" y="214" font-size="13.5" fill="var(--txt)">2026-03-03</text><text x="474" y="214" font-size="13.5" fill="var(--txt)" text-anchor="end">2026-08-10</text></svg>
+        <div class="chart-card-stats">
+          <span>현재가 <span>106,800</span> <span class="sep">|</span> EMA100대비 <span class="t-pos">+8.34%</span></span>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-head"><span class="chart-card-name">우리금융지주</span><span class="badge bdg-teal">완전정배열 5/5</span></div>
+        <svg viewBox="0 0 480 220" width="100%" height="220" style="display:block;max-width:100%"><polyline points="6.0,194.0 10.3,193.4 14.6,192.6 18.9,191.9 23.2,191.3 27.5,190.7 31.8,190.0 36.1,189.3 40.3,188.7 44.6,188.1 48.9,187.4 53.2,186.7 57.5,186.0 61.8,185.3 66.1,184.7 70.4,184.1 74.7,183.4 79.0,182.8 83.3,182.1 87.6,181.5 91.9,180.9 96.2,180.3 100.5,179.7 104.8,179.1 109.0,178.5 113.3,178.0 117.6,177.3 121.9,176.7 126.2,176.0 130.5,175.3 134.8,174.5 139.1,173.8 143.4,173.0 147.7,172.2 152.0,171.4 156.3,170.6 160.6,169.9 164.9,169.2 169.2,168.5 173.4,167.9 177.7,167.3 182.0,166.7 186.3,166.1 190.6,165.5 194.9,164.9 199.2,164.4 203.5,163.8 207.8,163.3 212.1,162.8 216.4,162.4 220.7,161.9 225.0,161.5 229.3,161.1 233.6,160.8 237.9,160.4 242.1,160.0 246.4,159.6 250.7,159.2 255.0,158.8 259.3,158.5 263.6,158.2 267.9,157.9 272.2,157.6 276.5,157.3 280.8,156.9 285.1,156.6 289.4,156.3 293.7,156.0 298.0,155.7 302.3,155.3 306.6,154.8 310.8,154.3 315.1,153.8 319.4,153.4 323.7,153.1 328.0,152.8 332.3,152.5 336.6,152.3 340.9,152.0 345.2,151.9 349.5,151.6 353.8,151.4 358.1,151.1 362.4,150.8 366.7,150.5 371.0,150.1 375.2,149.8 379.5,149.4 383.8,149.1 388.1,148.8 392.4,148.4 396.7,148.1 401.0,147.7 405.3,147.3 409.6,147.0 413.9,146.7 418.2,146.4 422.5,146.1 426.8,145.8 431.1,145.3 435.4,144.9 439.7,144.5 443.9,144.1 448.2,143.6 452.5,143.1 456.8,142.6 461.1,142.2 465.4,141.7 469.7,141.1 474.0,140.6" fill="none" stroke="var(--gray600)" stroke-width="1.3" stroke-dasharray="2,3"/><polyline points="6.0,96.7 10.3,96.1 14.6,95.1 18.9,94.2 23.2,93.8 27.5,93.2 31.8,92.3 36.1,91.6 40.3,91.1 44.6,90.6 48.9,89.9 53.2,89.1 57.5,88.2 61.8,87.2 66.1,86.9 70.4,86.4 74.7,85.7 79.0,85.0 83.3,84.2 87.6,83.7 91.9,83.3 96.2,82.7 100.5,82.4 104.8,82.0 109.0,81.6 113.3,81.4 117.6,80.7 121.9,80.1 126.2,79.2 130.5,78.4 134.8,77.3 139.1,76.2 143.4,75.0 147.7,73.8 152.0,72.6 156.3,71.5 160.6,70.6 164.9,69.7 169.2,68.8 173.4,68.4 177.7,68.0 182.0,67.5 186.3,67.1 190.6,66.8 194.9,66.6 199.2,66.2 203.5,66.0 207.8,65.9 212.1,65.9 216.4,66.1 220.7,66.2 225.0,66.4 229.3,66.8 233.6,67.2 237.9,67.7 242.1,68.1 246.4,68.2 250.7,68.4 255.0,68.7 259.3,69.2 263.6,69.7 267.9,70.4 272.2,70.8 276.5,71.2 280.8,71.3 285.1,72.0 289.4,72.5 293.7,72.9 298.0,73.3 302.3,73.4 306.6,73.1 310.8,72.6 315.1,72.5 319.4,72.5 323.7,72.6 328.0,73.0 332.3,73.6 336.6,74.2 340.9,74.8 345.2,75.6 349.5,76.2 353.8,76.8 358.1,77.3 362.4,77.6 366.7,77.7 371.0,77.7 375.2,77.6 379.5,77.7 383.8,78.0 388.1,77.9 392.4,77.9 396.7,78.0 401.0,77.9 405.3,77.8 409.6,78.0 413.9,78.2 418.2,78.3 422.5,78.3 426.8,78.4 431.1,77.8 435.4,77.7 439.7,77.4 443.9,77.0 448.2,76.4 452.5,75.8 456.8,75.3 461.1,74.7 465.4,74.1 469.7,73.2 474.0,72.7" fill="none" stroke="var(--amber)" stroke-width="1.3" stroke-dasharray="6,3"/><polyline points="6.0,14.2 10.3,19.4 14.6,21.5 18.9,24.4 23.2,28.9 27.5,32.3 31.8,33.8 36.1,36.2 40.3,38.7 44.6,41.5 48.9,43.0 53.2,43.2 57.5,43.3 61.8,43.0 66.1,45.6 70.4,47.1 74.7,47.6 79.0,47.8 83.3,47.4 87.6,48.6 91.9,50.2 96.2,50.6 100.5,51.8 104.8,53.2 109.0,53.9 113.3,55.2 117.6,54.4 121.9,54.1 126.2,52.4 130.5,50.9 134.8,48.4 139.1,45.7 143.4,42.9 147.7,40.3 152.0,37.8 156.3,35.6 160.6,34.7 164.9,33.9 169.2,33.0 173.4,34.6 177.7,35.6 182.0,36.6 186.3,37.6 190.6,38.6 194.9,40.4 199.2,41.3 203.5,42.5 207.8,44.1 212.1,46.4 216.4,49.4 220.7,51.2 225.0,53.6 229.3,56.5 233.6,59.6 237.9,62.7 242.1,65.1 246.4,65.7 250.7,67.1 255.0,68.8 259.3,71.0 263.6,73.5 267.9,76.2 272.2,77.9 276.5,78.9 280.8,78.7 285.1,81.6 289.4,82.7 293.7,83.9 298.0,84.6 302.3,83.9 306.6,81.5 310.8,78.7 315.1,77.2 319.4,76.7 323.7,76.9 328.0,78.7 332.3,80.8 336.6,82.9 340.9,85.2 345.2,88.1 349.5,89.7 353.8,91.4 358.1,92.4 362.4,92.2 366.7,91.3 371.0,90.0 375.2,88.3 379.5,87.9 383.8,88.3 388.1,86.9 392.4,85.9 396.7,85.7 401.0,84.7 405.3,83.6 409.6,83.8 413.9,84.0 418.2,84.1 422.5,83.8 426.8,83.6 431.1,80.4 435.4,79.4 439.7,78.0 443.9,76.0 448.2,72.9 452.5,70.5 456.8,68.5 461.1,66.5 465.4,64.5 469.7,61.0 474.0,59.4" fill="none" stroke="var(--purple)" stroke-width="1.3" stroke-dasharray="4,3"/><polyline points="6.0,20.8 10.3,68.6 14.6,42.0 18.9,51.6 23.2,72.0 27.5,64.5 31.8,47.5 36.1,59.1 40.3,63.2 44.6,67.3 48.9,57.7 53.2,45.4 57.5,44.0 61.8,39.9 66.1,70.0 70.4,61.8 74.7,52.2 79.0,49.5 83.3,44.0 87.6,59.7 91.9,65.2 96.2,54.3 100.5,63.2 104.8,66.6 109.0,60.4 113.3,67.9 117.6,46.8 121.9,50.9 126.2,36.5 130.5,36.5 134.8,24.9 139.1,20.1 143.4,16.0 147.7,15.4 152.0,14.7 156.3,14.0 160.6,26.3 164.9,27.0 169.2,24.2 173.4,49.5 177.7,45.4 182.0,45.4 186.3,47.5 190.6,48.1 194.9,57.7 199.2,49.5 203.5,54.3 207.8,59.1 212.1,68.6 216.4,77.5 220.7,68.6 225.0,76.1 229.3,84.3 233.6,89.1 237.9,91.8 242.1,87.7 246.4,72.0 250.7,80.2 255.0,84.3 259.3,92.5 263.6,97.3 267.9,101.4 272.2,94.6 276.5,87.7 280.8,76.8 285.1,108.9 289.4,93.2 293.7,95.9 298.0,91.2 302.3,77.5 306.6,58.4 310.8,51.6 315.1,63.8 319.4,72.0 323.7,78.9 328.0,95.3 332.3,100.7 336.6,103.4 340.9,106.2 345.2,115.7 349.5,105.5 353.8,106.9 358.1,102.1 362.4,90.5 366.7,83.0 371.0,77.5 375.2,72.0 379.5,83.6 383.8,92.5 388.1,73.4 392.4,76.8 396.7,83.6 401.0,75.5 405.3,72.7 409.6,85.7 413.9,86.4 418.2,84.3 422.5,80.9 426.8,81.6 431.1,50.9 435.4,69.3 439.7,65.2 443.9,56.3 448.2,44.0 452.5,47.5 456.8,49.5 461.1,47.5 465.4,45.4 469.7,27.7 474.0,44.7" fill="none" stroke="var(--txt)" stroke-width="1.7"/><text x="6" y="214" font-size="13.5" fill="var(--txt)">2026-03-03</text><text x="474" y="214" font-size="13.5" fill="var(--txt)" text-anchor="end">2026-08-10</text></svg>
+        <div class="chart-card-stats">
+          <span>현재가 <span>33,550</span> <span class="sep">|</span> EMA100대비 <span class="t-pos">+6.49%</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sc">
+    <div class="sc-title">매매 예시 <span class="sub">확정 규칙 실제 적용 사례 6건(2026-03~07월 진입분)</span></div>
+    <div class="chart-legend"><span><i style="border-color:var(--txt)"></i>종가</span><span><i class="dash" style="border-color:var(--purple)"></i>EMA20</span><span><i class="dash" style="border-color:var(--amber)"></i>EMA100</span><span style="color:var(--txt)"><span style="color:var(--sky)">●매수</span> 시점부터 <span style="color:var(--teal)">●트레일링</span>/<span style="color:var(--red)">●손절</span>/<span style="color:var(--gray600)">●추세이탈</span>/<span style="color:var(--amber)">●시간청산</span> 청산 시점까지 표시</span></div>
+    <div class="chart-grid">
+
+      <div class="chart-card">
+        <div class="chart-card-head"><span class="chart-card-name">S-Oil <span style="font-weight:400;color:var(--txt2);font-size:12.5px">2026-07-08 진입</span></span><span class="badge bdg-teal">트레일링 +4.26%</span></div>
+        <svg viewBox="0 0 480 220" width="100%" height="220" style="display:block;max-width:100%"><polyline points="6.0,172.0 18.6,171.8 31.3,171.6 43.9,171.4 56.6,171.2 69.2,171.0 81.9,170.8 94.5,170.8 107.2,170.6 119.8,170.4 132.5,170.1 145.1,169.9 157.8,169.6 170.4,169.3 183.1,168.9 195.7,168.4 208.4,167.9 221.0,167.5 233.7,166.9 246.3,166.5 259.0,165.9 271.6,165.3 284.3,164.7 296.9,164.2 309.6,163.6 322.2,163.0 334.9,162.3 347.5,161.8 360.2,161.4 372.8,161.1 385.5,160.6 398.1,160.3 410.8,159.9 423.4,159.6 436.1,159.3 448.7,158.9 461.4,158.4 474.0,157.9" fill="none" stroke="var(--gray600)" stroke-width="1.3" stroke-dasharray="2,3"/><polyline points="6.0,124.5 18.6,124.7 31.3,124.8 43.9,124.8 56.6,125.1 69.2,125.1 81.9,125.5 94.5,126.1 107.2,126.2 119.8,126.2 132.5,126.1 145.1,126.1 157.8,125.9 170.4,125.5 183.1,124.7 195.7,123.7 208.4,122.7 221.0,121.7 233.7,120.5 246.3,119.6 259.0,118.3 271.6,116.9 284.3,115.5 296.9,114.2 309.6,113.1 322.2,111.5 334.9,110.0 347.5,109.1 360.2,108.5 372.8,108.1 385.5,107.5 398.1,107.0 410.8,106.8 423.4,106.4 436.1,106.2 448.7,105.8 461.4,105.0 474.0,104.0" fill="none" stroke="var(--amber)" stroke-width="1.3" stroke-dasharray="6,3"/><polyline points="6.0,116.7 18.6,118.0 31.3,119.2 43.9,119.9 56.6,121.6 69.2,122.0 81.9,124.2 94.5,127.2 107.2,127.7 119.8,127.8 132.5,127.1 145.1,126.6 157.8,126.0 170.4,124.0 183.1,120.2 195.7,115.9 208.4,111.6 221.0,108.1 233.7,103.3 246.3,100.7 259.0,96.5 271.6,91.8 284.3,87.2 296.9,84.0 309.6,81.2 322.2,76.9 334.9,72.9 347.5,72.1 360.2,72.8 372.8,74.0 385.5,74.4 398.1,75.4 410.8,77.3 423.4,78.2 436.1,79.7 448.7,80.6 461.4,78.9 474.0,76.9" fill="none" stroke="var(--purple)" stroke-width="1.3" stroke-dasharray="4,3"/><polyline points="6.0,120.7 18.6,130.5 31.3,130.1 43.9,126.5 56.6,138.0 69.2,125.9 81.9,144.9 94.5,155.4 107.2,133.4 119.8,127.8 132.5,121.1 145.1,121.9 157.8,119.8 170.4,105.8 183.1,83.8 195.7,75.0 208.4,71.0 221.0,74.0 233.7,58.5 246.3,75.4 259.0,56.6 271.6,47.2 284.3,43.4 296.9,54.1 309.6,53.9 322.2,36.9 334.9,34.0 347.5,65.0 360.2,79.4 372.8,85.9 385.5,78.2 398.1,84.0 410.8,95.7 423.4,87.2 436.1,94.1 448.7,89.0 461.4,62.5 474.0,58.3" fill="none" stroke="var(--txt)" stroke-width="1.7"/><line x1="195.7" y1="75.0" x2="195.7" y2="25.0" stroke="var(--sky)" stroke-width="1" stroke-dasharray="2,2" opacity="0.7"/><circle cx="195.7" cy="75.0" r="5.5" fill="var(--sky)" stroke="var(--card)" stroke-width="1.5"/><rect x="177.7" y="5.0" width="36.0" height="16" rx="4" fill="var(--card)"/><text x="195.7" y="16.0" font-size="12" font-weight="700" fill="var(--sky)" text-anchor="middle">매수</text><line x1="360.2" y1="79.4" x2="360.2" y2="180.0" stroke="var(--teal)" stroke-width="1" stroke-dasharray="2,2" opacity="0.7"/><circle cx="360.2" cy="79.4" r="5.5" fill="var(--teal)" stroke="var(--card)" stroke-width="1.5"/><rect x="329.2" y="180.0" width="62.0" height="16" rx="4" fill="var(--card)"/><text x="360.2" y="191.0" font-size="12" font-weight="700" fill="var(--teal)" text-anchor="middle">트레일링</text><text x="6" y="214" font-size="13.5" fill="var(--txt)">2026-06-17</text><text x="474" y="214" font-size="13.5" fill="var(--txt)" text-anchor="end">2026-08-10</text></svg>
+        <div class="chart-card-stats">
+          <span>매수가 <span>131,600</span> <span class="sep">|</span> 청산가 <span>129,500</span> <span class="sep">|</span> 보유 <span>D+13</span> <span class="sep">|</span> <span class="t-pos">1차TP(+10%) 경유</span></span>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-head"><span class="chart-card-name">KB금융 <span style="font-weight:400;color:var(--txt2);font-size:12.5px">2026-07-02 진입</span></span><span class="badge bdg-teal">트레일링 +4.39%</span></div>
+        <svg viewBox="0 0 480 220" width="100%" height="220" style="display:block;max-width:100%"><polyline points="6.0,172.0 17.4,171.6 28.8,171.1 40.2,170.5 51.7,170.1 63.1,169.6 74.5,169.2 85.9,168.9 97.3,168.5 108.7,168.2 120.1,167.9 131.6,167.6 143.0,167.3 154.4,166.9 165.8,166.5 177.2,166.1 188.6,165.6 200.0,165.1 211.5,164.6 222.9,164.1 234.3,163.6 245.7,163.0 257.1,162.3 268.5,161.8 280.0,161.2 291.4,160.6 302.8,160.1 314.2,159.6 325.6,159.1 337.0,158.6 348.4,158.1 359.9,157.7 371.3,157.3 382.7,156.9 394.1,156.5 405.5,156.1 416.9,155.6 428.3,155.2 439.8,154.8 451.2,154.3 462.6,153.8 474.0,153.4" fill="none" stroke="var(--gray600)" stroke-width="1.3" stroke-dasharray="2,3"/><polyline points="6.0,110.7 17.4,110.2 28.8,109.4 40.2,108.5 51.7,107.9 63.1,107.4 74.5,107.1 85.9,106.9 97.3,106.8 108.7,106.8 120.1,106.7 131.6,106.8 143.0,106.7 154.4,106.4 165.8,106.1 177.2,105.6 188.6,104.8 200.0,104.0 211.5,103.2 222.9,102.5 234.3,101.7 245.7,100.4 257.1,99.1 268.5,98.1 280.0,97.0 291.4,96.0 302.8,95.5 314.2,94.8 325.6,94.0 337.0,93.2 348.4,92.7 359.9,92.1 371.3,91.8 382.7,91.7 394.1,91.4 405.5,90.9 416.9,90.5 428.3,90.1 439.8,89.6 451.2,89.1 462.6,88.5 474.0,88.0" fill="none" stroke="var(--amber)" stroke-width="1.3" stroke-dasharray="6,3"/><polyline points="6.0,97.4 17.4,96.3 28.8,93.7 40.2,90.8 51.7,89.8 63.1,89.1 74.5,89.4 85.9,89.9 97.3,91.0 108.7,92.4 120.1,93.7 131.6,95.3 143.0,96.0 154.4,95.5 165.8,95.1 177.2,93.5 188.6,91.0 200.0,88.6 211.5,86.0 222.9,84.1 234.3,82.3 245.7,78.0 257.1,73.8 268.5,71.3 280.0,68.6 291.4,66.4 302.8,66.7 314.2,66.0 325.6,65.2 337.0,64.2 348.4,64.2 359.9,64.1 371.3,65.4 382.7,67.6 394.1,68.1 405.5,68.4 416.9,68.4 428.3,68.6 439.8,68.4 451.2,68.0 462.6,66.9 474.0,66.6" fill="none" stroke="var(--purple)" stroke-width="1.3" stroke-dasharray="4,3"/><polyline points="6.0,106.4 17.4,86.2 28.8,68.6 40.2,63.6 51.7,80.3 63.1,82.2 74.5,92.2 85.9,94.9 97.3,101.8 108.7,105.8 120.1,105.6 131.6,111.0 143.0,101.8 154.4,90.8 165.8,91.8 177.2,78.2 188.6,67.6 200.0,65.9 211.5,61.1 222.9,65.7 234.3,64.9 245.7,37.8 257.1,34.0 268.5,46.9 280.0,43.6 291.4,44.6 302.8,70.3 314.2,59.5 325.6,57.2 337.0,54.7 348.4,64.7 359.9,62.4 371.3,77.8 382.7,88.5 394.1,73.2 405.5,70.9 416.9,68.8 428.3,70.3 439.8,66.3 451.2,64.7 462.6,55.7 474.0,64.3" fill="none" stroke="var(--txt)" stroke-width="1.7"/><line x1="177.2" y1="78.2" x2="177.2" y2="25.0" stroke="var(--sky)" stroke-width="1" stroke-dasharray="2,2" opacity="0.7"/><circle cx="177.2" cy="78.2" r="5.5" fill="var(--sky)" stroke="var(--card)" stroke-width="1.5"/><rect x="159.2" y="5.0" width="36.0" height="16" rx="4" fill="var(--card)"/><text x="177.2" y="16.0" font-size="12" font-weight="700" fill="var(--sky)" text-anchor="middle">매수</text><line x1="382.7" y1="88.5" x2="382.7" y2="180.0" stroke="var(--teal)" stroke-width="1" stroke-dasharray="2,2" opacity="0.7"/><circle cx="382.7" cy="88.5" r="5.5" fill="var(--teal)" stroke="var(--card)" stroke-width="1.5"/><rect x="351.7" y="180.0" width="62.0" height="16" rx="4" fill="var(--card)"/><text x="382.7" y="191.0" font-size="12" font-weight="700" fill="var(--teal)" text-anchor="middle">트레일링</text><text x="6" y="214" font-size="13.5" fill="var(--txt)">2026-06-11</text><text x="474" y="214" font-size="13.5" fill="var(--txt)" text-anchor="end">2026-08-10</text></svg>
+        <div class="chart-card-stats">
+          <span>매수가 <span>165,000</span> <span class="sep">|</span> 청산가 <span>160,100</span> <span class="sep">|</span> 보유 <span>D+18</span> <span class="sep">|</span> <span class="t-pos">1차TP(+10%) 경유</span></span>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-head"><span class="chart-card-name">삼성화재 <span style="font-weight:400;color:var(--txt2);font-size:12.5px">2026-07-06 진입</span></span><span class="badge bdg-red">손절 -10.68%</span></div>
+        <svg viewBox="0 0 480 220" width="100%" height="220" style="display:block;max-width:100%"><polyline points="6.0,172.0 19.8,171.4 33.5,170.8 47.3,170.1 61.1,169.4 74.8,168.8 88.6,168.3 102.4,167.8 116.1,167.2 129.9,166.8 143.6,166.3 157.4,165.9 171.2,165.4 184.9,165.0 198.7,164.5 212.5,163.9 226.2,163.3 240.0,162.8 253.8,162.4 267.5,161.9 281.3,161.4 295.1,161.0 308.8,160.4 322.6,159.8 336.4,159.5 350.1,159.1 363.9,158.6 377.6,158.2 391.4,157.7 405.2,157.2 418.9,156.9 432.7,156.6 446.5,156.2 460.2,155.8 474.0,155.4" fill="none" stroke="var(--gray600)" stroke-width="1.3" stroke-dasharray="2,3"/><polyline points="6.0,129.4 19.8,127.9 33.5,126.3 47.3,124.4 61.1,122.7 74.8,121.1 88.6,119.9 102.4,119.0 116.1,117.8 129.9,116.9 143.6,116.0 157.4,115.3 171.2,114.6 184.9,113.9 198.7,113.0 212.5,111.7 226.2,110.4 240.0,109.2 253.8,108.6 267.5,107.7 281.3,106.9 295.1,106.3 308.8,105.3 322.6,103.8 336.4,103.5 350.1,103.1 363.9,102.5 377.6,101.8 391.4,101.1 405.2,100.4 418.9,100.0 432.7,100.0 446.5,99.6 460.2,99.0 474.0,98.7" fill="none" stroke="var(--amber)" stroke-width="1.3" stroke-dasharray="6,3"/><polyline points="6.0,81.2 19.8,78.3 33.5,75.2 47.3,71.4 61.1,67.9 74.8,65.5 88.6,65.3 102.4,65.8 116.1,65.3 129.9,65.8 143.6,66.7 157.4,67.9 171.2,68.8 184.9,70.0 198.7,69.9 212.5,67.9 226.2,65.6 240.0,64.2 253.8,65.5 267.5,65.2 281.3,65.5 295.1,66.3 308.8,65.3 322.6,62.3 336.4,64.8 350.1,66.2 363.9,66.9 377.6,67.0 391.4,66.9 405.2,66.7 418.9,68.4 432.7,71.1 446.5,71.9 460.2,71.9 474.0,72.7" fill="none" stroke="var(--purple)" stroke-width="1.3" stroke-dasharray="4,3"/><polyline points="6.0,47.7 19.8,50.5 33.5,46.1 47.3,34.5 61.1,34.5 74.8,42.8 88.6,64.2 102.4,69.7 116.1,61.5 129.9,69.7 143.6,75.7 157.4,79.6 171.2,76.8 184.9,81.8 198.7,68.6 212.5,48.8 226.2,44.4 240.0,50.5 253.8,77.4 267.5,63.1 281.3,68.0 295.1,74.1 308.8,56.0 322.6,34.0 336.4,88.4 350.1,79.6 363.9,73.0 377.6,68.6 391.4,65.3 405.2,64.7 418.9,84.5 432.7,96.6 446.5,79.6 460.2,71.9 474.0,80.7" fill="none" stroke="var(--txt)" stroke-width="1.7"/><line x1="212.5" y1="48.8" x2="212.5" y2="25.0" stroke="var(--sky)" stroke-width="1" stroke-dasharray="2,2" opacity="0.7"/><circle cx="212.5" cy="48.8" r="5.5" fill="var(--sky)" stroke="var(--card)" stroke-width="1.5"/><rect x="194.5" y="5.0" width="36.0" height="16" rx="4" fill="var(--card)"/><text x="212.5" y="16.0" font-size="12" font-weight="700" fill="var(--sky)" text-anchor="middle">매수</text><line x1="336.4" y1="88.4" x2="336.4" y2="180.0" stroke="var(--red)" stroke-width="1" stroke-dasharray="2,2" opacity="0.7"/><circle cx="336.4" cy="88.4" r="5.5" fill="var(--red)" stroke="var(--card)" stroke-width="1.5"/><rect x="318.4" y="180.0" width="36.0" height="16" rx="4" fill="var(--card)"/><text x="336.4" y="191.0" font-size="12" font-weight="700" fill="var(--red)" text-anchor="middle">손절</text><text x="6" y="214" font-size="13.5" fill="var(--txt)">2026-06-15</text><text x="474" y="214" font-size="13.5" fill="var(--txt)" text-anchor="end">2026-08-03</text></svg>
+        <div class="chart-card-stats">
+          <span>매수가 <span>674,000</span> <span class="sep">|</span> 청산가 <span>602,000</span> <span class="sep">|</span> 보유 <span>D+9</span> <span class="sep">|</span> <span class="t-neg-hi">전량매도</span></span>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-head"><span class="chart-card-name">기아 <span style="font-weight:400;color:var(--txt2);font-size:12.5px">2026-06-15 진입</span></span><span class="badge bdg-gray">추세이탈 -7.52%</span></div>
+        <svg viewBox="0 0 480 220" width="100%" height="220" style="display:block;max-width:100%"><polyline points="6.0,172.0 22.1,171.4 38.3,170.8 54.4,170.2 70.6,169.6 86.7,168.9 102.8,168.2 119.0,167.6 135.1,167.0 151.2,166.5 167.4,166.1 183.5,165.5 199.7,165.0 215.8,164.6 231.9,164.0 248.1,163.4 264.2,162.7 280.3,162.1 296.5,161.7 312.6,161.3 328.8,160.9 344.9,160.8 361.0,160.6 377.2,160.4 393.3,160.3 409.4,160.1 425.6,160.0 441.7,159.8 457.9,159.5 474.0,159.1" fill="none" stroke="var(--gray600)" stroke-width="1.3" stroke-dasharray="2,3"/><polyline points="6.0,87.2 22.1,86.4 38.3,85.6 54.4,84.9 70.6,84.2 86.7,83.3 102.8,82.3 119.0,81.4 135.1,80.9 151.2,80.5 167.4,80.6 183.5,80.1 199.7,79.8 215.8,79.7 231.9,79.0 248.1,78.3 264.2,77.4 280.3,76.8 296.5,76.6 312.6,76.6 328.8,76.9 344.9,78.0 361.0,79.0 377.2,79.9 393.3,81.0 409.4,81.8 425.6,82.8 441.7,83.5 457.9,84.0 474.0,84.1" fill="none" stroke="var(--amber)" stroke-width="1.3" stroke-dasharray="6,3"/><polyline points="6.0,59.2 22.1,58.3 38.3,56.9 54.4,56.3 70.6,55.8 86.7,54.0 102.8,52.2 119.0,50.9 135.1,50.9 151.2,51.9 167.4,55.5 183.5,55.1 199.7,56.1 215.8,58.0 231.9,56.7 248.1,55.3 264.2,53.2 280.3,52.5 296.5,54.0 312.6,56.4 328.8,59.6 344.9,66.4 361.0,72.2 377.2,77.2 393.3,83.0 409.4,86.7 425.6,90.8 441.7,93.5 457.9,94.9 474.0,94.2" fill="none" stroke="var(--purple)" stroke-width="1.3" stroke-dasharray="4,3"/><polyline points="6.0,40.8 22.1,50.0 38.3,43.5 54.4,50.3 70.6,51.5 86.7,37.0 102.8,34.9 119.0,38.2 135.1,51.5 151.2,61.0 167.4,89.8 183.5,51.5 199.7,65.2 215.8,76.2 231.9,44.1 248.1,42.0 264.2,34.0 280.3,45.6 296.5,67.9 312.6,79.4 328.8,89.8 344.9,131.4 361.0,127.0 377.2,125.2 393.3,137.6 409.4,121.9 425.6,129.6 441.7,119.2 457.9,108.2 474.0,88.1" fill="none" stroke="var(--txt)" stroke-width="1.7"/><line x1="248.1" y1="42.0" x2="248.1" y2="25.0" stroke="var(--sky)" stroke-width="1" stroke-dasharray="2,2" opacity="0.7"/><circle cx="248.1" cy="42.0" r="5.5" fill="var(--sky)" stroke="var(--card)" stroke-width="1.5"/><rect x="230.1" y="5.0" width="36.0" height="16" rx="4" fill="var(--card)"/><text x="248.1" y="16.0" font-size="12" font-weight="700" fill="var(--sky)" text-anchor="middle">매수</text><line x1="312.6" y1="79.4" x2="312.6" y2="180.0" stroke="var(--gray600)" stroke-width="1" stroke-dasharray="2,2" opacity="0.7"/><circle cx="312.6" cy="79.4" r="5.5" fill="var(--gray600)" stroke="var(--card)" stroke-width="1.5"/><rect x="281.6" y="180.0" width="62.0" height="16" rx="4" fill="var(--card)"/><text x="312.6" y="191.0" font-size="12" font-weight="700" fill="var(--gray600)" text-anchor="middle">추세이탈</text><text x="6" y="214" font-size="13.5" fill="var(--txt)">2026-05-21</text><text x="474" y="214" font-size="13.5" fill="var(--txt)" text-anchor="end">2026-07-03</text></svg>
+        <div class="chart-card-stats">
+          <span>매수가 <span>167,500</span> <span class="sep">|</span> 청산가 <span>154,900</span> <span class="sep">|</span> 보유 <span>D+4</span> <span class="sep">|</span> <span class="t-neg-hi">전량매도</span></span>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-head"><span class="chart-card-name">신한지주 <span style="font-weight:400;color:var(--txt2);font-size:12.5px">2026-03-19 진입</span></span><span class="badge bdg-amber">시간청산 +9.12%</span></div>
+        <svg viewBox="0 0 480 220" width="100%" height="220" style="display:block;max-width:100%"><polyline points="6.0,172.0 11.5,171.4 17.0,170.9 22.5,170.4 28.0,170.0 33.5,169.6 39.0,169.2 44.5,168.8 50.0,168.4 55.6,168.0 61.1,167.6 66.6,167.2 72.1,166.8 77.6,166.4 83.1,165.9 88.6,165.4 94.1,164.9 99.6,164.6 105.1,164.2 110.6,163.8 116.1,163.4 121.6,163.0 127.1,162.6 132.6,162.3 138.1,161.9 143.6,161.5 149.2,161.1 154.7,160.7 160.2,160.3 165.7,159.9 171.2,159.4 176.7,158.9 182.2,158.4 187.7,158.0 193.2,157.5 198.7,157.0 204.2,156.5 209.7,156.0 215.2,155.5 220.7,155.0 226.2,154.6 231.7,154.1 237.2,153.6 242.8,153.1 248.3,152.7 253.8,152.2 259.3,151.8 264.8,151.3 270.3,150.9 275.8,150.4 281.3,150.0 286.8,149.6 292.3,149.2 297.8,148.8 303.3,148.5 308.8,148.1 314.3,147.8 319.8,147.4 325.3,147.1 330.8,146.6 336.4,146.3 341.9,145.9 347.4,145.6 352.9,145.2 358.4,144.9 363.9,144.6 369.4,144.1 374.9,143.6 380.4,143.2 385.9,142.7 391.4,142.4 396.9,142.0 402.4,141.6 407.9,141.1 413.4,140.5 418.9,140.1 424.4,139.7 430.0,139.2 435.5,138.9 441.0,138.5 446.5,138.2 452.0,137.9 457.5,137.6 463.0,137.3 468.5,136.9 474.0,136.6" fill="none" stroke="var(--gray600)" stroke-width="1.3" stroke-dasharray="2,3"/><polyline points="6.0,118.1 11.5,116.9 17.0,115.9 22.5,115.0 28.0,114.6 33.5,113.9 39.0,113.3 44.5,112.9 50.0,112.5 55.6,112.0 61.1,111.5 66.6,111.0 72.1,110.6 77.6,110.1 83.1,109.4 88.6,108.6 94.1,107.7 99.6,107.4 105.1,107.0 110.6,106.6 116.1,106.0 121.6,105.5 127.1,105.2 132.6,105.0 138.1,104.5 143.6,104.1 149.2,103.7 154.7,103.3 160.2,102.9 165.7,102.3 171.2,101.6 176.7,100.8 182.2,100.1 187.7,99.4 193.2,98.5 198.7,97.7 204.2,97.0 209.7,96.2 215.2,95.5 220.7,94.8 226.2,94.1 231.7,93.4 237.2,92.7 242.8,92.0 248.3,91.3 253.8,90.7 259.3,90.2 264.8,89.7 270.3,89.2 275.8,88.7 281.3,88.2 286.8,87.8 292.3,87.6 297.8,87.2 303.3,86.9 308.8,86.8 314.3,86.6 319.8,86.4 325.3,86.2 330.8,85.7 336.4,85.4 341.9,85.2 347.4,85.1 352.9,85.0 358.4,84.9 363.9,84.6 369.4,84.1 374.9,83.1 380.4,82.8 385.9,82.2 391.4,81.9 396.9,81.6 402.4,81.1 407.9,80.3 413.4,79.5 418.9,78.8 424.4,78.4 430.0,77.9 435.5,77.7 441.0,77.4 446.5,77.3 452.0,77.3 457.5,77.5 463.0,77.3 468.5,77.2 474.0,77.0" fill="none" stroke="var(--amber)" stroke-width="1.3" stroke-dasharray="6,3"/><polyline points="6.0,74.4 11.5,72.9 17.0,72.4 22.5,72.1 28.0,74.2 33.5,74.8 39.0,75.7 44.5,77.5 50.0,79.0 55.6,79.7 61.1,80.1 66.6,80.8 72.1,81.7 77.6,82.1 83.1,81.3 88.6,80.2 94.1,78.7 99.6,79.8 105.1,80.8 110.6,81.0 116.1,80.9 121.6,80.7 127.1,81.4 132.6,82.9 138.1,82.8 143.6,82.9 149.2,83.1 154.7,82.9 160.2,83.1 165.7,81.7 171.2,80.5 176.7,78.8 182.2,77.3 187.7,76.0 193.2,74.3 198.7,72.8 204.2,71.5 209.7,70.2 215.2,69.1 220.7,68.5 226.2,67.5 231.7,66.6 237.2,65.9 242.8,65.2 248.3,64.5 253.8,63.9 259.3,64.0 264.8,64.2 270.3,64.0 275.8,64.0 281.3,64.3 286.8,64.7 292.3,65.5 297.8,65.8 303.3,66.6 308.8,67.8 314.3,68.8 319.8,69.6 325.3,70.1 330.8,69.5 336.4,69.6 341.9,70.0 347.4,71.1 352.9,71.8 358.4,72.7 363.9,72.4 369.4,71.0 374.9,67.5 380.4,67.5 385.9,66.2 391.4,66.0 396.9,66.2 402.4,65.5 407.9,63.1 413.4,60.6 418.9,59.4 424.4,59.0 430.0,58.6 435.5,59.3 441.0,59.9 446.5,61.1 452.0,62.4 457.5,64.6 463.0,65.1 468.5,65.7 474.0,66.0" fill="none" stroke="var(--purple)" stroke-width="1.3" stroke-dasharray="4,3"/><polyline points="6.0,59.6 11.5,58.3 17.0,68.0 22.5,68.6 28.0,93.9 33.5,80.8 39.0,84.3 44.5,94.9 50.0,92.6 55.6,86.5 61.1,84.0 66.6,87.5 72.1,90.1 77.6,86.2 83.1,74.0 88.6,69.2 94.1,64.8 99.6,90.4 105.1,90.1 110.6,83.3 116.1,79.2 121.6,78.9 127.1,88.5 132.6,97.4 138.1,81.1 143.6,84.6 149.2,84.3 154.7,80.8 160.2,85.6 165.7,68.6 171.2,68.9 176.7,62.2 182.2,63.5 187.7,63.5 193.2,58.7 198.7,58.3 204.2,59.3 209.7,58.0 215.2,58.7 220.7,62.5 226.2,58.3 231.7,58.0 237.2,59.0 242.8,58.3 248.3,58.0 253.8,58.3 259.3,64.4 264.8,66.7 270.3,61.6 275.8,64.4 281.3,67.0 286.8,68.6 292.3,73.4 297.8,68.3 303.3,73.7 308.8,80.1 314.3,77.6 319.8,77.3 325.3,74.7 330.8,63.8 336.4,70.8 341.9,74.0 347.4,81.1 352.9,78.5 358.4,81.7 363.9,69.6 369.4,57.7 374.9,34.0 380.4,67.3 385.9,54.2 391.4,63.8 396.9,68.0 402.4,59.3 407.9,40.1 413.4,36.6 418.9,48.1 424.4,55.5 430.0,55.1 435.5,66.0 441.0,65.4 446.5,71.8 452.0,75.7 457.5,84.9 463.0,69.6 468.5,71.5 474.0,69.6" fill="none" stroke="var(--txt)" stroke-width="1.7"/><line x1="88.6" y1="69.2" x2="88.6" y2="25.0" stroke="var(--sky)" stroke-width="1" stroke-dasharray="2,2" opacity="0.7"/><circle cx="88.6" cy="69.2" r="5.5" fill="var(--sky)" stroke="var(--card)" stroke-width="1.5"/><rect x="70.6" y="5.0" width="36.0" height="16" rx="4" fill="var(--card)"/><text x="88.6" y="16.0" font-size="12" font-weight="700" fill="var(--sky)" text-anchor="middle">매수</text><line x1="418.9" y1="48.1" x2="418.9" y2="180.0" stroke="var(--amber)" stroke-width="1" stroke-dasharray="2,2" opacity="0.7"/><circle cx="418.9" cy="48.1" r="5.5" fill="var(--amber)" stroke="var(--card)" stroke-width="1.5"/><rect x="387.9" y="180.0" width="62.0" height="16" rx="4" fill="var(--card)"/><text x="418.9" y="191.0" font-size="12" font-weight="700" fill="var(--amber)" text-anchor="middle">시간청산</text><text x="6" y="214" font-size="13.5" fill="var(--txt)">2026-02-25</text><text x="474" y="214" font-size="13.5" fill="var(--txt)" text-anchor="end">2026-07-01</text></svg>
+        <div class="chart-card-stats">
+          <span>매수가 <span>96,500</span> <span class="sep">|</span> 청산가 <span>103,100</span> <span class="sep">|</span> 보유 <span>D+60</span> <span class="sep">|</span> <span class="t-pos">1차TP(+10%) 경유</span></span>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-head"><span class="chart-card-name">삼성SDI <span style="font-weight:400;color:var(--txt2);font-size:12.5px">2026-05-22 진입</span></span><span class="badge bdg-teal">트레일링 -6.96%</span></div>
+        <svg viewBox="0 0 480 220" width="100%" height="220" style="display:block;max-width:100%"><polyline points="6.0,172.0 21.1,171.3 36.2,170.7 51.3,170.0 66.4,169.4 81.5,168.8 96.6,168.1 111.7,167.6 126.8,167.1 141.9,166.6 157.0,166.1 172.1,165.6 187.2,165.2 202.3,164.8 217.4,164.3 232.5,163.8 247.5,163.2 262.6,162.7 277.7,162.2 292.8,161.6 307.9,161.0 323.0,160.6 338.1,160.2 353.2,159.8 368.3,159.6 383.4,159.3 398.5,159.0 413.6,158.8 428.7,158.5 443.8,158.2 458.9,157.8 474.0,157.5" fill="none" stroke="var(--gray600)" stroke-width="1.3" stroke-dasharray="2,3"/><polyline points="6.0,142.5 21.1,140.5 36.2,138.4 51.3,136.4 66.4,134.5 81.5,132.8 96.6,131.0 111.7,129.7 126.8,128.4 141.9,127.0 157.0,125.9 172.1,124.8 187.2,123.9 202.3,123.1 217.4,122.1 232.5,120.8 247.5,119.6 262.6,118.5 277.7,117.1 292.8,115.6 307.9,114.4 323.0,113.6 338.1,112.8 353.2,112.3 368.3,112.2 383.4,112.1 398.5,112.1 413.6,112.1 428.7,111.8 443.8,111.4 458.9,111.0 474.0,110.7" fill="none" stroke="var(--amber)" stroke-width="1.3" stroke-dasharray="6,3"/><polyline points="6.0,88.5 21.1,83.9 36.2,79.4 51.3,75.6 66.4,72.2 81.5,69.8 96.6,67.3 111.7,67.0 126.8,66.6 141.9,66.1 157.0,66.4 172.1,66.8 187.2,68.0 202.3,69.7 217.4,69.6 232.5,68.4 247.5,67.6 262.6,67.2 277.7,65.3 292.8,63.1 307.9,62.4 323.0,63.5 338.1,64.4 353.2,66.5 368.3,70.6 383.4,73.9 398.5,77.6 413.6,80.8 428.7,82.3 443.8,83.2 458.9,84.2 474.0,85.0" fill="none" stroke="var(--purple)" stroke-width="1.3" stroke-dasharray="4,3"/><polyline points="6.0,34.0 21.1,40.2 36.2,36.5 51.3,39.1 66.4,40.5 81.5,46.3 96.6,44.2 111.7,64.1 126.8,62.3 141.9,61.6 157.0,69.6 172.1,70.0 187.2,79.4 202.3,85.6 217.4,68.9 232.5,57.6 247.5,59.4 262.6,63.8 277.7,47.1 292.8,42.7 307.9,55.8 323.0,74.0 338.1,72.1 353.2,86.3 368.3,109.9 383.4,105.5 398.5,112.3 413.6,111.5 428.7,96.8 443.8,91.7 458.9,93.2 474.0,92.8" fill="none" stroke="var(--txt)" stroke-width="1.7"/><line x1="232.5" y1="57.6" x2="232.5" y2="25.0" stroke="var(--sky)" stroke-width="1" stroke-dasharray="2,2" opacity="0.7"/><circle cx="232.5" cy="57.6" r="5.5" fill="var(--sky)" stroke="var(--card)" stroke-width="1.5"/><rect x="214.5" y="5.0" width="36.0" height="16" rx="4" fill="var(--card)"/><text x="232.5" y="16.0" font-size="12" font-weight="700" fill="var(--sky)" text-anchor="middle">매수</text><line x1="323.0" y1="74.0" x2="323.0" y2="180.0" stroke="var(--teal)" stroke-width="1" stroke-dasharray="2,2" opacity="0.7"/><circle cx="323.0" cy="74.0" r="5.5" fill="var(--teal)" stroke="var(--card)" stroke-width="1.5"/><rect x="292.0" y="180.0" width="62.0" height="16" rx="4" fill="var(--card)"/><text x="323.0" y="191.0" font-size="12" font-weight="700" fill="var(--teal)" text-anchor="middle">트레일링</text><text x="6" y="214" font-size="13.5" fill="var(--txt)">2026-04-29</text><text x="474" y="214" font-size="13.5" fill="var(--txt)" text-anchor="end">2026-06-17</text></svg>
+        <div class="chart-card-stats">
+          <span>매수가 <span>647,000</span> <span class="sep">|</span> 청산가 <span>602,000</span> <span class="sep">|</span> 보유 <span>D+6</span> <span class="sep">|</span> <span class="t-neg-hi">전량매도</span></span>
+        </div>
+      </div>    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ 1. 전략상세 ═══════════════ -->
+<div class="panel" id="p1">
+  <div class="sc">
+    <div class="sc-title">매수(진입) 조건</div>
+    <div class="rule-box">
+      <div class="rb-title">① EMA래더 완전정배열 전환일</div>
+      <div class="rb-body">종목의 <code>EMA5 &gt; EMA20 &gt; EMA50 &gt; EMA100 &gt; EMA200 &gt; EMA400</code>이 전부 순서대로 정배열되는 첫날(전날엔 5개 인접쌍 중 하나라도 미충족). 매일 상태를 유지 중인 날이 아니라 <b>새로 전환되는 날만</b> 신호로 인정 — "4개 이상 정배열"처럼 기준을 완화하면 오히려 성과가 나빠짐이 확인됨(1차 신호품질 스캔).</div>
+    </div>
+    <div class="rule-box">
+      <div class="rb-title">② 시장국면(KOSPI)</div>
+      <div class="rb-body">KOSPI 종가 &gt; EMA100, EMA100이 10거래일 전보다 상승 — 이 상태가 <b>10거래일 이상 지속</b>되어야 진입 허용. 막 전환된 직후의 휩소 구간을 배제하는 목적(눌림목 전략과 동일 원리).</div>
+    </div>
+  </div>
+
+  <div class="sc">
+    <div class="sc-title">매도(청산) 조건 <span class="sub">넷 중 무엇이든 먼저 도달하는 조건 적용</span></div>
+    <div class="rule-box">
+      <div class="rb-title">① 손절</div>
+      <div class="rb-body">매입가 대비 <code>-10%</code></div>
+    </div>
+    <div class="rule-box">
+      <div class="rb-title">② 추세이탈(TREND_BREAK)</div>
+      <div class="rb-body">종가가 <code>EMA100</code> 아래로 하향 — EMA20/50 등 빠른 이평선보다 EMA100처럼 느린 기준이 휩소(잦은 오탈출)를 줄여 Sharpe가 더 우수함이 그리드서치로 확인됨.</div>
+    </div>
+    <div class="rule-box">
+      <div class="rb-title">③ 트레일링</div>
+      <div class="rb-body">보유중 고점 대비 <code>-12%</code></div>
+    </div>
+    <div class="rule-box">
+      <div class="rb-title">④ 시간청산</div>
+      <div class="rb-body"><code>60거래일</code> 경과</div>
+    </div>
+    <div class="rule-box">
+      <div class="rb-title">부분익절(최종전략)</div>
+      <div class="rb-body">수익률 <code>+10%</code> 도달 시 보유수량 <code>50%</code> 매도 확정, 잔량은 위 청산규칙 그대로 유지. TP+20%안이 Sharpe는 근소 우위였으나 승률·중앙값이 계속 마이너스 구조라, 승률·중앙값이 안정적으로 플러스인 TP+10%안을 최종 채택.</div>
+    </div>
+  </div>
+
+  <div class="ai-sc">
+    <div class="ai-title">💡 설계 원칙 <span class="badge bdg-teal ai-badge">4가지 핵심</span></div>
+    <div class="ai-list">
+      <div class="ai-item"><span class="ai-dot ai-dot-teal"></span><span><b>"전부 정배열"이 핵심, 완화하면 역효과</b> — 6개 EMA 중 4개만 맞아도 정배열로 인정하는 느슨한 기준은 완전정배열보다 성과가 낮았음. 개별 EMA쌍 골든크로스(특히 EMA100/200)는 오히려 베이스라인보다 열세인 지연지표로 확인돼 전부 기각.</span></div>
+      <div class="ai-item"><span class="ai-dot ai-dot-amber"></span><span><b>느린 이평일수록 청산기준으로 우수</b> — 추세이탈 기준을 EMA20/50/100 중 비교한 결과 가장 느린 EMA100이 휩소를 줄여 Sharpe 최우수. 눌림목 전략에서 EMA50이 EMA5/20보다 나았던 것과 같은 패턴.</span></div>
+      <div class="ai-item"><span class="ai-dot ai-dot-red"></span><span><b>"소수 대박" 손익구조 — 승률만 보면 안 됨</b> — TP 없는 baseline은 승률48%·중앙값마저 음수(-1.61%)로, 절반 이상이 소액손실이고 소수 대박 트레이드가 평균을 끌어올리는 구조. 괴리율(승률80%)·눌림목(승률56%)과는 손익분포 성격이 근본적으로 다름.</span></div>
+      <div class="ai-item"><span class="ai-dot ai-dot-purple"></span><span><b>Sharpe 최고치보다 승률·중앙값 안정성 우선</b> — TP20%가 Sharpe는 근소 높았지만(0.385) 승률49%·중앙값음수 구조가 IS/OOS 내내 유지됨. TP10%는 Sharpe가 근소 낮지만(0.371) 승률56%·중앙값+4%대 양수가 IS/OOS 양쪽에서 일관 — 통계적 최적치가 항상 실전 채택 기준은 아니라는 원칙(눌림목·괴리율과 같은 결).</span></div>
+    </div>
+  </div>
+
+  <div class="sc">
+    <div class="sc-title">검증 연혁</div>
+    <div class="hist-item"><span class="hist-v">1</span><span>청산규칙 없는 1차 신호품질 스캔 — 완전정배열 전환일만 베이스라인(무신호) 대비 뚜렷한 우위(+40일 승률63%·Sharpe0.388 vs 베이스라인 57%·0.287). 개별 EMA쌍 골든크로스는 전부 기각.</span></div>
+    <div class="hist-item"><span class="hist-v">2</span><span>청산규칙 그리드서치 — TREND_BREAK 기준 EMA는 100이 최우수, SL10%/TRAIL12% 채택. TP 없는 조합은 승률48%·중앙값음수 확인.</span></div>
+    <div class="hist-item"><span class="hist-v">3</span><span>시장국면 필터 적용 — Sharpe 0.286→0.353 개선(진입 756→421건).</span></div>
+    <div class="hist-item"><span class="hist-v">4</span><span>TP 오버레이 비교(TP10% vs TP20%) + IS/OOS 검증 — TP10%(실전형) 최종 채택.</span></div>
+  </div>
+</div>
+
+<!-- ═══════════════ 2. 요약 ═══════════════ -->
+<div class="panel" id="p2">
+  <div class="kpi-row">
+    <div class="kpi-card kpi-teal"><div class="num">421</div><div class="lbl">진입건수</div></div>
+    <div class="kpi-card kpi-red"><div class="num">+6.26%</div><div class="lbl">평균수익</div></div>
+    <div class="kpi-card kpi-sky"><div class="num">56%</div><div class="lbl">승률</div></div>
+    <div class="kpi-card kpi-purple"><div class="num">0.371</div><div class="lbl">Sharpe</div></div>
+    <div class="kpi-card kpi-amber"><div class="num">16%</div><div class="lbl">손절비율</div></div>
+  </div>
+
+  <div class="ai-sc">
+    <div class="ai-title">💡 종합 인사이트</div>
+    <div class="ai-list">
+      <div class="ai-item"><span class="ai-dot ai-dot-gray"></span><span><b>현재(2026-08-10) 신규 진입 없음</b> — KOSPI가 하락/횡보 국면(상승지속 0거래일)이라 시장국면 조건 미충족. 완전정배열 8종목(우리금융지주·KB금융·KT&G·삼성화재·신한지주·하나금융지주·삼성에스디에스·S-Oil)이 있으나 전부 "대기" 상태.</span></div>
+      <div class="ai-item"><span class="ai-dot ai-dot-teal"></span><span><b>세번째 확정 매매전략</b> — 괴리율(하락장·평균회귀, 승률80%)·눌림목(상승장·추세추종, 승률56%)에 이어 EMA래더(추세추종, 승률56%)까지 3대 전략 체제 완성. 눌림목과 승률·Sharpe 수준은 비슷하나 진입빈도가 더 낮고(연~70건 vs 눌림목 연~140건) 손익분포가 더 "소수 대박형"에 가까움.</span></div>
+      <div class="ai-item"><span class="ai-dot ai-dot-amber"></span><span><b>구(舊) stock-tech-analysis 스킬 완전 재구축</b> — 2026-06-22에 만들어졌던 지지저항 SVG+MA/RSI/MACD/BB 리포트 도구가 백테스트 검증 없는 관행적 기준이라는 지적을 계기로 스킬·스크립트를 삭제하고, 이번에 TOP50×6년 백테스트로 처음부터 재구축.</span></div>
+      <div class="ai-item"><span class="ai-dot ai-dot-red"></span><span><b>기각된 실험들</b> — 개별 EMA쌍 골든크로스(5개 전부), "4개이상 정배열" 완화기준, TREND_BREAK을 EMA20/50으로 사용, TP20%안 — 전부 완전정배열+EMA100+TP10% 조합보다 성과 열세로 기각.</span></div>
+      <div class="ai-item"><span class="ai-dot ai-dot-purple"></span><span><b>남은 과제</b> — 슬리피지·매매수수료 미반영, 코스닥 소형주 표본 부족(TOP50 중 코스닥은 알테오젠 1종목뿐), 3대 전략 간 신호 중복 여부 미검토.</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ 3. 백테스트결과 ═══════════════ -->
+<div class="panel" id="p3">
+  <div class="sc">
+    <div class="sc-title">최종 확정 성과 <span class="sub">TOP50 × 6년(calendarDays 2200), 시장국면필터 적용 n=421</span></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th class="l">전략</th><th>n</th><th>평균</th><th>중앙값</th><th>승률</th><th>Sharpe</th></tr></thead>
+      <tbody>
+        <tr><td class="l">baseline(전량매도만)</td><td>421</td><td class="t-pos">+8.99%</td><td class="t-neg-hi">-1.61%</td><td>48%</td><td>0.353</td></tr>
+        <tr><td class="l"><b>TP+10%/50%매도(최종전략)</b></td><td>421</td><td class="t-pos">+6.26%</td><td class="t-pos">+4.42%</td><td>56%</td><td>0.371</td></tr>
+      </tbody>
+    </table></div>
+    <div class="sc-note">IS/OOS 스냅샷(60/40분할, ~2025-12-02 기준): IS(n256) 평균+6.86%/중앙값+4.37%/승률57%/Sharpe0.431 → OOS(n165) 평균+5.33%/중앙값+4.50%/승률55%/Sharpe0.293</div>
+  </div>
+
+  <div class="sc">
+    <div class="sc-title">그리드1: TREND_BREAK EMA × SL × TRAIL <span class="sub">상위 10개 조합(maxHold=60)</span></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th class="l">조합</th><th>n</th><th>평균</th><th>중앙값</th><th>승률</th><th>Sharpe</th></tr></thead>
+      <tbody>
+        <tr><td class="l"><b>EMA100/SL10/TRAIL12(채택)</b></td><td>756</td><td class="t-pos">+7.13%</td><td class="t-neg-hi">-2.82%</td><td>43%</td><td>0.286</td></tr>
+        <tr><td class="l">EMA100/SL12/TRAIL12</td><td>756</td><td class="t-pos">+7.24%</td><td class="t-neg-hi">-2.74%</td><td>43%</td><td>0.286</td></tr>
+        <tr><td class="l">EMA100/SL8/TRAIL12</td><td>756</td><td class="t-pos">+6.80%</td><td class="t-neg-hi">-3.11%</td><td>41%</td><td>0.280</td></tr>
+        <tr><td class="l">EMA100/SL10/TRAIL10</td><td>757</td><td class="t-pos">+6.18%</td><td class="t-neg-hi">-2.64%</td><td>42%</td><td>0.272</td></tr>
+        <tr><td class="l">EMA100/SL12/TRAIL10</td><td>757</td><td class="t-pos">+6.18%</td><td class="t-neg-hi">-2.64%</td><td>42%</td><td>0.272</td></tr>
+        <tr><td class="l">EMA100/SL8/TRAIL10</td><td>757</td><td class="t-pos">+5.91%</td><td class="t-neg-hi">-2.93%</td><td>41%</td><td>0.267</td></tr>
+        <tr><td class="l">EMA100/SL8/TRAIL8</td><td>758</td><td class="t-pos">+5.72%</td><td class="t-neg-hi">-2.11%</td><td>42%</td><td>0.260</td></tr>
+        <tr><td class="l">EMA100/SL10/TRAIL8</td><td>758</td><td class="t-pos">+5.72%</td><td class="t-neg-hi">-2.11%</td><td>42%</td><td>0.260</td></tr>
+        <tr><td class="l">EMA100/SL12/TRAIL8</td><td>758</td><td class="t-pos">+5.72%</td><td class="t-neg-hi">-2.11%</td><td>42%</td><td>0.260</td></tr>
+        <tr><td class="l">EMA50/SL10/TRAIL12</td><td>760</td><td class="t-pos">+5.23%</td><td class="t-neg-hi">-2.67%</td><td>33%</td><td>0.230</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="sc">
+    <div class="sc-title">그리드2: 시장국면 필터 on/off</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th class="l">조합</th><th>n</th><th>평균</th><th>중앙값</th><th>승률</th><th>Sharpe</th></tr></thead>
+      <tbody>
+        <tr><td class="l">필터없음</td><td>756</td><td class="t-pos">+7.13%</td><td class="t-neg-hi">-2.82%</td><td>43%</td><td>0.286</td></tr>
+        <tr><td class="l"><b>국면필터적용(채택)</b></td><td>421</td><td class="t-pos">+8.99%</td><td class="t-neg-hi">-1.61%</td><td>48%</td><td>0.353</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="sc">
+    <div class="sc-title">그리드3: 부분익절(TP) 오버레이 비교</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th class="l">조합</th><th>n</th><th>평균</th><th>중앙값</th><th>승률</th><th>Sharpe</th></tr></thead>
+      <tbody>
+        <tr><td class="l">TP없음(baseline)</td><td>421</td><td class="t-pos">+8.99%</td><td class="t-neg-hi">-1.61%</td><td>48%</td><td>0.353</td></tr>
+        <tr><td class="l"><b>TP+10%/50%매도(채택)</b></td><td>421</td><td class="t-pos">+6.26%</td><td class="t-pos">+4.42%</td><td>56%</td><td>0.371</td></tr>
+        <tr><td class="l">TP+15%/50%매도</td><td>419</td><td class="t-pos">+6.79%</td><td class="t-neg-hi">-0.95%</td><td>50%</td><td>0.376</td></tr>
+        <tr><td class="l">TP+20%/50%매도(Sharpe최고)</td><td>420</td><td class="t-pos">+7.37%</td><td class="t-neg-hi">-1.41%</td><td>49%</td><td>0.385</td></tr>
+      </tbody>
+    </table></div>
+    <div class="sc-note">TP20%가 Sharpe는 최고치이나 승률·중앙값은 계속 음수 구조 — TP10%(실전형)를 최종 채택.</div>
+  </div>
+
+  <div class="sc">
+    <div class="sc-title">1차 신호품질 스캔 <span class="sub">청산규칙 없음, +40거래일 forward return, TOP50×6년</span></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th class="l">신호</th><th>n</th><th>평균</th><th>중앙값</th><th>승률</th><th>Sharpe</th></tr></thead>
+      <tbody>
+        <tr><td class="l"><b>완전정배열(채택)</b></td><td>743</td><td class="t-pos">+10.52%</td><td class="t-pos">+4.61%</td><td>63%</td><td>0.388</td></tr>
+        <tr><td class="l">4개이상 정배열</td><td>519</td><td class="t-pos">+6.00%</td><td class="t-pos">+1.14%</td><td>53%</td><td>0.264</td></tr>
+        <tr><td class="l">EMA5/20 골든크로스</td><td>1635</td><td class="t-pos">+6.11%</td><td class="t-pos">+1.95%</td><td>57%</td><td>0.287</td></tr>
+        <tr><td class="l">EMA20/50 골든크로스</td><td>501</td><td class="t-pos">+6.10%</td><td class="t-pos">+1.39%</td><td>54%</td><td>0.252</td></tr>
+        <tr><td class="l">EMA50/100 골든크로스</td><td>236</td><td class="t-pos">+3.73%</td><td class="t-pos">+0.94%</td><td>53%</td><td>0.214</td></tr>
+        <tr><td class="l">EMA100/200 골든크로스</td><td>123</td><td class="t-pos">+2.68%</td><td class="t-neg-hi">-0.50%</td><td>47%</td><td>0.155</td></tr>
+        <tr><td class="l">EMA200/400 골든크로스</td><td>69</td><td class="t-pos">+4.33%</td><td class="t-pos">+0.17%</td><td>51%</td><td>0.250</td></tr>
+        <tr><td class="l">베이스라인(무신호)</td><td>10156</td><td class="t-pos">+6.47%</td><td class="t-pos">+2.23%</td><td>57%</td><td>0.287</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ═══════════════ 4. 최근신호 ═══════════════ -->
+<div class="panel" id="p4">
+  <div class="kpi-row">
+    <div class="kpi-card kpi-teal"><div class="num">421</div><div class="lbl">전체 진입건수</div></div>
+    <div class="kpi-card kpi-sky"><div class="num">30</div><div class="lbl">최신 표시건수</div></div>
+    <div class="kpi-card kpi-amber"><div class="num">2026-07-08</div><div class="lbl">최근 진입일</div></div>
+    <div class="kpi-card kpi-purple"><div class="num">56%</div><div class="lbl">전체 승률</div></div>
+  </div>
+  <div class="sc">
+    <div class="sc-title">최근 진입건 <span class="sub">전체 421건 중 최신 30건 (시장국면필터 적용, TP10%/50%매도 기준)</span></div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th class="l">진입일</th><th class="l">종목</th><th>진입가</th><th class="l">진행상황</th></tr></thead>
+        <tbody>
+<tr><td class="l">2026-07-08</td><td class="l">S-Oil</td><td>131,600</td><td class="l"><span class="badge bdg-teal">트레일링</span> D+13, <span class="t-pos">+4.26%</span> <span class="badge bdg-sky">TP</span></td></tr>
+<tr><td class="l">2026-07-06</td><td class="l">삼성화재</td><td>674,000</td><td class="l"><span class="badge bdg-red">손절</span> D+9, <span class="t-neg-hi">-10.68%</span></td></tr>
+<tr><td class="l">2026-07-02</td><td class="l">KB금융</td><td>165,000</td><td class="l"><span class="badge bdg-teal">트레일링</span> D+18, <span class="t-pos">+4.39%</span> <span class="badge bdg-sky">TP</span></td></tr>
+<tr><td class="l">2026-07-01</td><td class="l">LS ELECTRIC</td><td>263,500</td><td class="l"><span class="badge bdg-red">손절</span> D+1, <span class="t-neg-hi">-10.25%</span></td></tr>
+<tr><td class="l">2026-06-17</td><td class="l">HD현대일렉트릭</td><td>1,120,000</td><td class="l"><span class="badge bdg-red">손절</span> D+4, <span class="t-neg-hi">-15.27%</span></td></tr>
+<tr><td class="l">2026-06-17</td><td class="l">LS ELECTRIC</td><td>255,000</td><td class="l"><span class="badge bdg-red">손절</span> D+5, <span class="t-neg-hi">-11.96%</span></td></tr>
+<tr><td class="l">2026-06-16</td><td class="l">LIG디펜스앤에어로스페이스</td><td>1,002,000</td><td class="l"><span class="badge bdg-red">손절</span> D+2, <span class="t-neg-hi">-11.78%</span></td></tr>
+<tr><td class="l">2026-06-16</td><td class="l">효성중공업</td><td>3,892,000</td><td class="l"><span class="badge bdg-red">손절</span> D+6, <span class="t-neg-hi">-13.85%</span></td></tr>
+<tr><td class="l">2026-06-16</td><td class="l">현대모비스</td><td>660,000</td><td class="l"><span class="badge bdg-red">손절</span> D+4, <span class="t-neg-hi">-13.79%</span></td></tr>
+<tr><td class="l">2026-06-15</td><td class="l">하나금융지주</td><td>129,300</td><td class="l"><span class="badge bdg-red">손절</span> D+6, <span class="t-neg-hi">-10.67%</span></td></tr>
+<tr><td class="l">2026-06-15</td><td class="l">HD현대중공업</td><td>714,000</td><td class="l"><span class="badge bdg-red">손절</span> D+5, <span class="t-neg-hi">-10.92%</span></td></tr>
+<tr><td class="l">2026-06-15</td><td class="l">기아</td><td>167,500</td><td class="l"><span class="badge bdg-gray">추세이탈</span> D+4, <span class="t-neg-hi">-7.52%</span></td></tr>
+<tr><td class="l">2026-06-12</td><td class="l">두산</td><td>1,896,000</td><td class="l"><span class="badge bdg-red">손절</span> D+2, <span class="t-neg-hi">-10.39%</span></td></tr>
+<tr><td class="l">2026-06-12</td><td class="l">한미반도체</td><td>361,000</td><td class="l"><span class="badge bdg-red">손절</span> D+3, <span class="t-neg-hi">-11.50%</span></td></tr>
+<tr><td class="l">2026-06-12</td><td class="l">KB금융</td><td>161,200</td><td class="l"><span class="badge bdg-gray">추세이탈</span> D+10, <span class="t-neg-hi">-7.38%</span></td></tr>
+<tr><td class="l">2026-06-09</td><td class="l">KT&G</td><td>184,300</td><td class="l"><span class="badge bdg-gray">추세이탈</span> D+11, <span class="t-neg-hi">-8.52%</span></td></tr>
+<tr><td class="l">2026-06-05</td><td class="l">하나금융지주</td><td>123,600</td><td class="l"><span class="badge bdg-gray">추세이탈</span> D+1, <span class="t-neg-hi">-9.06%</span></td></tr>
+<tr><td class="l">2026-06-04</td><td class="l">신한지주</td><td>100,100</td><td class="l"><span class="badge bdg-teal">트레일링</span> D+15, <span class="t-neg-hi">-5.59%</span></td></tr>
+<tr><td class="l">2026-06-04</td><td class="l">KB금융</td><td>164,200</td><td class="l"><span class="badge bdg-gray">추세이탈</span> D+16, <span class="t-neg-hi">-9.07%</span></td></tr>
+<tr><td class="l">2026-05-29</td><td class="l">현대글로비스</td><td>242,500</td><td class="l"><span class="badge bdg-gray">추세이탈</span> D+2, <span class="t-neg-hi">-8.66%</span></td></tr>
+<tr><td class="l">2026-05-29</td><td class="l">LG에너지솔루션</td><td>458,000</td><td class="l"><span class="badge bdg-gray">추세이탈</span> D+4, <span class="t-neg-hi">-9.61%</span></td></tr>
+<tr><td class="l">2026-05-26</td><td class="l">LIG디펜스앤에어로스페이스</td><td>913,000</td><td class="l"><span class="badge bdg-red">손절</span> D+3, <span class="t-neg-hi">-12.27%</span></td></tr>
+<tr><td class="l">2026-05-26</td><td class="l">HD현대</td><td>289,500</td><td class="l"><span class="badge bdg-red">손절</span> D+8, <span class="t-neg-hi">-14.34%</span></td></tr>
+<tr><td class="l">2026-05-26</td><td class="l">KB금융</td><td>157,300</td><td class="l"><span class="badge bdg-gray">추세이탈</span> D+22, <span class="t-neg-hi">-5.09%</span></td></tr>
+<tr><td class="l">2026-05-22</td><td class="l">삼성SDI</td><td>647,000</td><td class="l"><span class="badge bdg-teal">트레일링</span> D+6, <span class="t-neg-hi">-6.96%</span></td></tr>
+<tr><td class="l">2026-05-21</td><td class="l">삼성에스디에스</td><td>185,300</td><td class="l"><span class="badge bdg-teal">트레일링</span> D+7, <span class="t-pos">+51.65%</span> <span class="badge bdg-sky">TP</span></td></tr>
+<tr><td class="l">2026-05-21</td><td class="l">두산</td><td>1,600,000</td><td class="l"><span class="badge bdg-teal">트레일링</span> D+7, <span class="t-pos">+15.59%</span> <span class="badge bdg-sky">TP</span></td></tr>
+<tr><td class="l">2026-05-21</td><td class="l">효성중공업</td><td>3,929,000</td><td class="l"><span class="badge bdg-red">손절</span> D+8, <span class="t-neg-hi">-11.22%</span></td></tr>
+<tr><td class="l">2026-05-21</td><td class="l">LS ELECTRIC</td><td>271,500</td><td class="l"><span class="badge bdg-teal">트레일링</span> D+4, <span class="t-neg-hi">-9.21%</span></td></tr>
+<tr><td class="l">2026-05-21</td><td class="l">HD현대중공업</td><td>672,000</td><td class="l"><span class="badge bdg-teal">트레일링</span> D+8, <span class="t-pos">+3.87%</span> <span class="badge bdg-sky">TP</span></td></tr>
+
+        </tbody>
+      </table>
+    </div>
+    <div class="sc-note">TP 배지는 수익률 +10% 도달로 50% 부분매도가 반영된 트레이드를 뜻합니다. 위 표는 시장국면필터 적용 기준입니다.</div>
+  </div>
+</div>
+
+</div></div>
+
+<script>
+function openSettingsModal(){ document.getElementById('settingsModal').classList.add('modal-open'); syncThemeOptUI(); }
+function closeSettingsModal(){ document.getElementById('settingsModal').classList.remove('modal-open'); }
+function setTheme(t){
+  document.documentElement.setAttribute('data-theme', t);
+  try{ localStorage.setItem('theme', t); }catch(e){}
+  syncThemeOptUI();
+}
+function syncThemeOptUI(){
+  const cur = document.documentElement.getAttribute('data-theme');
+  document.getElementById('theme-opt-dark')?.classList.toggle('on', cur === 'dark');
+  document.getElementById('theme-opt-light')?.classList.toggle('on', cur === 'light');
+}
+function showTab(i){
+  document.querySelectorAll('.panel').forEach((p,j)=>p.classList.toggle('on',j===i));
+  document.querySelectorAll('.tab-btn').forEach((t,j)=>t.classList.toggle('on',j===i));
+}
+document.querySelectorAll('.tab-btn[data-tab]').forEach(btn=>{
+  btn.addEventListener('click',()=>showTab(parseInt(btn.dataset.tab)));
+  btn.addEventListener('touchend',e=>{e.preventDefault();showTab(parseInt(btn.dataset.tab));});
+});
+</script>
+</body>
+</html>
