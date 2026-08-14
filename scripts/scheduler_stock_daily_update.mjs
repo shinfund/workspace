@@ -1,11 +1,14 @@
 /**
- * stock_daily_update.mjs — 장마감 후 주식 일간 자동 업데이트
+ * scheduler_stock_daily_update.mjs — 장마감 후 주식 일간 자동 업데이트 (스케줄러 전용)
+ *
+ * 주의: Windows 작업 스케줄러(Stock_DailyUpdate 태스크)가 평일 15:40 자동 호출하는 스크립트.
+ *       일반 채팅 요청("거래대금 순위 분석해줘" 등)에서는 절대 직접 실행하지 말 것 — kis_api.mjs 사용.
  *
  * Phase 1 [병렬]: KIS 당일 + KRX 20거래일 데이터 수집
  * Phase 2:        거래대금DB 노션 업로드 (보통주 TOP10)
  * Phase 3:        이슈DB 업로드 (거래대금 TOP10 전체)
  *
- * 사용: node stock_daily_update.mjs [--date YYYY-MM-DD] [--dry-run]
+ * 사용: node scheduler_stock_daily_update.mjs [--date YYYY-MM-DD] [--dry-run]
  * 스케줄: 평일 15:40 자동 실행
  */
 

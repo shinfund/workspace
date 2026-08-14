@@ -1,5 +1,5 @@
 /**
- * lotto_auto_update.mjs
+ * scheduler_lotto_auto_update.mjs (스케줄러 전용 — Lotto_WeeklyUpdate 태스크가 scheduler_lotto_update_weekly.ps1 통해 자동 호출)
  * 1) 최신 엑셀에서 현재 최신 회차 확인
  * 2) lottery.io.kr에서 다음 회차 데이터 수집
  * 3) 엑셀에 행 추가 후 버전 파일로 저장

@@ -1,5 +1,5 @@
-# stock_daily_update.ps1
-# KRX trading day 15:40 scheduler launcher
+# scheduler_stock_daily_update.ps1
+# KRX trading day 15:40 scheduler launcher (scheduler-only — do not invoke from ad-hoc chat requests)
 
 $env:NOTION_TOKEN      = [System.Environment]::GetEnvironmentVariable("NOTION_TOKEN",      "User")
 $env:MY_ANTHROPIC_API_KEY = [System.Environment]::GetEnvironmentVariable("MY_ANTHROPIC_API_KEY", "User")
@@ -49,7 +49,7 @@ if ($holidays -contains $today) {
 
 Add-Content $logFile "[$stamp] === Launcher start ==="
 
-node "C:\Users\shinf\workspace\scripts\stock_daily_update.mjs"
+node "C:\Users\shinf\workspace\scripts\scheduler_stock_daily_update.mjs"
 
 $exitCode = $LASTEXITCODE
 $stamp2   = Get-Date -Format "HH:mm:ss"

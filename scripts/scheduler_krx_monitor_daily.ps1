@@ -1,4 +1,4 @@
-# krx_monitor_daily.ps1
+# scheduler_krx_monitor_daily.ps1
 # Daily monitor: checks KRX previous trading day data, notifies once per date
 
 $API_KEY    = "1f471918ea495531eb3d5a2b59c1c7323f9af53aa6c957ea3b47127d766f47f8"

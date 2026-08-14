@@ -1,10 +1,10 @@
-﻿# lotto_update_weekly.ps1 — 매주 월요일 자동 실행
+﻿# scheduler_lotto_update_weekly.ps1 — 매주 월요일 자동 실행
 
 $SCRIPT_DIR = "C:\Users\shinf\workspace\scripts"
 $LOG_FILE   = "$SCRIPT_DIR\lotto_update_log.txt"
 $timestamp  = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 
-$result = & node "$SCRIPT_DIR\lotto_auto_update.mjs" 2>&1 | ConvertFrom-Json
+$result = & node "$SCRIPT_DIR\scheduler_lotto_auto_update.mjs" 2>&1 | ConvertFrom-Json
 Add-Content $LOG_FILE "[$timestamp] $($result | ConvertTo-Json -Compress)"
 
 if ($result.status -eq 'success') {
