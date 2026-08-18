@@ -1,13 +1,14 @@
 // EMA200 기준선 파동(波動) 전략 백테스트 — 스킬: stock-baseline (2026-08-13 신규 확정, 4번째 매매전략)
-// 사용법: node scripts/project_baseline_strategy_backtest.mjs [--min-streak N] [--z N] [--max-buy-legs N] [--recover-timeout N] [--post-recover-hold N] [--baseline-confirm N] [--baseline-buffer N] [--max-hold N] [--calendar-days N] [--stocks 코드:이름:시장,...]
+// 사용법: node scripts/project_baseline_strategy_backtest.mjs [--min-streak N] [--z N] [--max-buy-legs N] [--recover-timeout N] [--post-recover-hold N] [--baseline-confirm N] [--baseline-buffer N] [--exit-mode wave|full1] [--max-hold N] [--calendar-days N] [--stocks 코드:이름:시장,...]
 //
-// 컨셉: EMA200을 "기준선"으로 삼아, 기준선을 하향돌파한 뒤 일정 기간(기본 20거래일) 눌린 종목이
-//       단기(5EMA) 반등을 시작하는 시점에 진입한다. 기준선 회복(첫 상향돌파) 이후에는 5EMA
-//       상향/하향 교차를 "파동"(상승1파→2파→3파...)으로 카운트하며, 눌림목(5EMA 하향이탈)마다
-//       매도하지 않고 계속 보유한다 — 매도는 오직 기준선(EMA200) 재하향돌파 시점에만 전량 실행한다.
+// 컨셉: EMA200을 "기준선"으로 삼아, 기준선을 하향돌파한 뒤 일정 기간(기본 16거래일) 눌린 종목이
+//       단기(5EMA) 반등을 시작하는 시점에 진입한다. 기준선 회복(첫 상향돌파) 이후에는 매수 없이
+//       계속 보유하다가, 회복 후 첫 5EMA 하향돌파(첫 눌림목) 시점에 잔량을 전량 매도한다
+//       (`--exit-mode full1`, 기본값, 2026-08-18 확정). 파동(1파→2파→3파)별로 나눠 파는 기존 방식은
+//       `--exit-mode wave`로 코드에 남아있음(비교용, 아래 청산 항목 참조).
 //
 // 진입 (2026-08-13 분할매수로 확정, 2026-08-14 반등신호 조건 vlow로 전환 — 사용자 요청 + Claude 추천 반영):
-//   ① 종가가 EMA200 아래로 연속 `--min-streak`(기본20)거래일 이상 머문 상태(기준선 하향돌파 후 경과)
+//   ① 종가가 EMA200 아래로 연속 `--min-streak`(기본16, 2026-08-18 20→16 스윕 후 변경)거래일 이상 머문 상태(기준선 하향돌파 후 경과)
 //   ② 그 상태에서 EMA200 대비 괴리율(dev200)의 롤링(250거래일) Z-score <= `--z`(기본-1) — "괴리율" 조건
 //   ③ 반등 신호(2026-08-14 확정, `--rebound-mode vlow` 기본값): 기준선 아래 구간에서 종가가 "새로운
 //   최저점"을 갱신한 뒤, 그 이후 첫 EMA5 상향돌파(전일 종가<EMA5, 당일 종가>=EMA5)만 신호로 인정.
@@ -40,9 +41,12 @@
 //   ① 기준선(EMA200) 첫 상향돌파 확인 → "회복" 상태 진입, 이 시점부터 파동 카운트 시작(상승1파)
 //   ② 회복 이후 기준선(EMA200) 재하향돌파 시 그 즉시 잔량 전량 매도(BASELINE_BREAK, 사용자 명시
 //      안전장치) — 어느 파동 단계에 있든 최우선으로 잔량을 정리.
-//   ③ 파동별 분할매도(사용자 확정, 2026-08-13): 1파 하향돌파(첫 5EMA 이탈) 시 50% 매도 → 2파
-//      하향돌파(재상향돌파 후 다시 5EMA 이탈) 시 잔량의 50%(전체25%) 매도 → 3파 하향돌파 시 잔량 전량
-//      매도(여기서 트레이드 종료, 4파는 구조상 발생하지 않음)
+//   ③ 청산(회복 후 첫 눌림, `--exit-mode full1` 기본값, 2026-08-18 확정): 회복 후 5EMA 하향돌파가
+//      처음 발생하는 시점에 잔량 전량 매도(WAVE1_FULL, 여기서 트레이드 종료). 기존 파동별 분할매도
+//      (`--exit-mode wave`: 1파 50%→2파 잔량50%(전체25%)→3파 잔량전량)와 비교 스윕한 결과, 3파까지
+//      완주하는 17%(+29.16%)의 상단이익을 일부 포기하는데도 전체 가중평균·중앙값·회복도달률·평균
+//      보유일수(자본회전) 전부 근소 우위(+8.31%→+8.49%, 회복 후 재차 눌림에 다시 노출되지 않는 효과)
+//      라 기본값으로 채택.
 //   ④ 시간청산(Claude 추천, 2026-08-13 2단계로 분리): 진단 결과 "회복까지" 소요기간(중앙값57일·p90 102일)과
 //      "회복 후 파동청산까지" 소요기간(중앙값3일·p90 20일)이 전혀 달라 단일 --max-hold(기존120일)로는
 //      두 성격이 다른 구간이 뒤섞여 있었음. 이를 회복 전 `--recover-timeout`(기본120거래일)과 회복 후
@@ -134,7 +138,7 @@ function parseArgs() {
   // 손실을 최소화하는 2회를 최종 채택(3회 대비 배치율+13%p, 리스크지표는 3회가 근소 우위인 절충).
   // "잔여매수를 회복시점에 캐치업" 방식도 검토했으나 회복일은 이미 저점대비 많이 오른 시점이라 캐치업
   // 매수가 평단가를 크게 악화시켜(가중평균 +9.20%→+2.01%) 폐기.
-  const o = { stocks: DEFAULT_STOCKS, minStreak: 20, z: -1.25, maxHold: 180, calendarDays: 2555, maxBuyLegs: 2, recoverTimeout: 120, postRecoverHold: 60, baselineConfirm: 1, baselineBuffer: 0, baselinePartialPct: 100, catchUpBuy: false, reboundMode: 'vlow' };
+  const o = { stocks: DEFAULT_STOCKS, minStreak: 16, z: -1.25, maxHold: 180, calendarDays: 2555, maxBuyLegs: 2, recoverTimeout: 120, postRecoverHold: 60, baselineConfirm: 1, baselineBuffer: 0, baselinePartialPct: 100, catchUpBuy: false, reboundMode: 'vlow', exitMode: 'full1', baselineBreak: true };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--calendar-days') o.calendarDays = parseInt(argv[++i]);
     if (argv[i] === '--min-streak') o.minStreak = parseInt(argv[++i]);
@@ -147,7 +151,9 @@ function parseArgs() {
     if (argv[i] === '--baseline-buffer') o.baselineBuffer = parseFloat(argv[++i]);
     if (argv[i] === '--baseline-partial-pct') o.baselinePartialPct = parseFloat(argv[++i]);
     if (argv[i] === '--catch-up-buy') o.catchUpBuy = true;
+    if (argv[i] === '--no-baseline-break') o.baselineBreak = false; // 2026-08-18 비교용: 회복 후 기준선 재하향돌파 매도(②)를 아예 제거하고 5EMA 홀딩(③)만 남긴 변형
     if (argv[i] === '--rebound-mode') o.reboundMode = argv[++i]; // 'cross'(기존, EMA5 상향돌파마다) | 'vlow'(최저점 갱신 후 첫 상향돌파만)
+    if (argv[i] === '--exit-mode') o.exitMode = argv[++i]; // 'wave'(기존, 1파50%→2파25%→3파전량) | 'full1'(회복 후 홀딩, 첫 5EMA 하향돌파에 전량매도)
     if (argv[i] === '--stocks') {
       o.stocks = argv[++i].split(',').map(s => {
         const [code, name, market] = s.split(':');
@@ -363,28 +369,34 @@ function simulateTrade(seq, i0, opts) {
       // 2026-08-13 조정 가능하게 확장: --baseline-buffer(%, 기준선 아래 버퍼폭)와 --baseline-confirm
       // (연속확인일수)로 노이즈성 순간 이탈에 대한 민감도를 조정할 수 있게 함(기본값은 기존과 동일 —
       // 버퍼0%·확인1일 = 종가가 EMA200 밑으로 내려간 당일 즉시매도)
-      const baselineThreshold = ema200 * (1 - opts.baselineBuffer / 100);
-      if (close < baselineThreshold) {
-        belowBaselineStreak += 1;
-      } else {
-        belowBaselineStreak = 0;
+      if (opts.baselineBreak) {
+        const baselineThreshold = ema200 * (1 - opts.baselineBuffer / 100);
+        if (close < baselineThreshold) {
+          belowBaselineStreak += 1;
+        } else {
+          belowBaselineStreak = 0;
+        }
+        if (belowBaselineStreak >= opts.baselineConfirm) {
+          // 2026-08-13 부분매도 변형 추가: --baseline-partial-pct(기본100=현행 전량매도)를 100 미만으로
+          // 주면 그날 잔량의 해당 비율만 정리 — 계속 기준선 아래면 매일(확인일수 재충족마다) 같은 비율씩
+          // 추가 정리(기하급수적 청산), 중간에 기준선 위로 복귀하면 남은 잔량은 파동 로직으로 복귀
+          const sellFrac = Math.min(1, opts.baselinePartialPct / 100);
+          const w = openWeight * sellFrac;
+          legs.push({ weight: w, ret, reason: 'BASELINE_BREAK', day: d, date: seq[j].date });
+          openWeight -= w;
+          belowBaselineStreak = 0;
+          if (openWeight <= 1e-9) { openWeight = 0; break; }
+          continue;
+        }
       }
-      if (belowBaselineStreak >= opts.baselineConfirm) {
-        // 2026-08-13 부분매도 변형 추가: --baseline-partial-pct(기본100=현행 전량매도)를 100 미만으로
-        // 주면 그날 잔량의 해당 비율만 정리 — 계속 기준선 아래면 매일(확인일수 재충족마다) 같은 비율씩
-        // 추가 정리(기하급수적 청산), 중간에 기준선 위로 복귀하면 남은 잔량은 파동 로직으로 복귀
-        const sellFrac = Math.min(1, opts.baselinePartialPct / 100);
-        const w = openWeight * sellFrac;
-        legs.push({ weight: w, ret, reason: 'BASELINE_BREAK', day: d, date: seq[j].date });
-        openWeight -= w;
-        belowBaselineStreak = 0;
-        if (openWeight <= 1e-9) { openWeight = 0; break; }
-        continue;
-      }
-      // ③ 파동별 분할매도
+      // ③ 파동별 분할매도(exitMode='wave', 기본값) | 회복 후 홀딩, 첫 5EMA 하향돌파에 전량매도(exitMode='full1')
       if (inWaveUp && close < ema5) {
         inWaveUp = false;
-        if (waveCount === 1) {
+        if (opts.exitMode === 'full1') {
+          legs.push({ weight: openWeight, ret, reason: 'WAVE1_FULL', day: d, date: seq[j].date });
+          openWeight = 0;
+          break;
+        } else if (waveCount === 1) {
           const w = openWeight * 0.5;
           legs.push({ weight: w, ret, reason: 'WAVE1', day: d, date: seq[j].date });
           openWeight -= w;
