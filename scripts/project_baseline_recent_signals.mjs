@@ -308,19 +308,15 @@ function statusInfo(row) {
   let primary;
   let closeDate = null;
   if (row.status === 'OPEN') {
-    // 2026-08-18: 회복(기준선 상향돌파) 여부를 "보유중" 옆에 보조문구로만 표기하던 방식 대신, 별도의
-    // "기준선돌파" 상태(뱃지)로 명확히 구분(사용자 요청 — 보유중/기준선돌파를 서로 다른 상태로 인지하고
-    // 싶어함). 회복 전은 기존과 동일하게 보유중.
-    primary = row.recovered ? { cls: 'bdg-amber', label: '기준선돌파' } : { cls: 'bdg-teal', label: '보유중' };
+    primary = { cls: 'bdg-teal', label: '보유중' };
   } else {
     primary = REASON_LABEL[row.finalReason] || { cls: 'bdg-gray', label: row.finalReason };
     closeDate = row.legs?.length ? row.legs[row.legs.length - 1].date : null;
   }
-  // 회복 시점 날짜는 상태 뱃지 옆에 표기(OPEN 상태에서 뱃지가 이미 "기준선돌파"이므로 날짜만 붙이면 됨).
-  // CLOSED 건도 회복을 거쳐 청산된 경우(예: 회복 후 재하향돌파로 BASELINE_BREAK) 회복 시점을 함께
-  // 보여주는 게 유의미해서 계속 표기(현대차 사례 — 사용자 피드백, 2026-08-18)
-  const recoverTag = row.recovered && row.recoverDate
-    ? `<span style="color:var(--txt3);font-size:12.5px">&nbsp;${row.status === 'OPEN' ? row.recoverDate : `기준선돌파 ${row.recoverDate}`}</span>` : '';
+  // 2026-08-18: "보유중"은 진행형 상태, "기준선돌파(회복)"는 시점(이벤트)이라 서로 대체 관계가 아니라는
+  // 사용자 판단에 따라 별도 뱃지로 바꾸는 시도는 되돌리고, "보유중" 상태 뱃지는 유지한 채 회복 시점을
+  // 보조 문구("기준선돌파 날짜")로만 표기(OPEN·CLOSED 공통 — 현대차 사례 포함)
+  const recoverTag = row.recovered && row.recoverDate ? `기준선돌파 ${row.recoverDate}` : '';
   const subBadges = '';
   let note = '';
   if (row.status === 'OPEN') {
@@ -328,7 +324,21 @@ function statusInfo(row) {
     else note = `<span style="color:var(--txt3);font-size:12.5px">(회복후 보유100% · 1파 진행중)</span>`;
   }
   const day = row.status === 'OPEN' ? row.day : row.finalDay;
-  return { primary, subBadges, note, day, closeDate, recoverTag };
+  return { primary, subBadges, note, day, closeDate, recoverTag, isOpen: row.status === 'OPEN' };
+}
+
+// 2026-08-18: 상태 뱃지+회복시점+청산일자를 시간순으로 배열 — OPEN 상태에서 회복한 경우 "기준선돌파
+// 날짜"(이벤트, 먼저 발생) → "보유중"(현재 상태) 순으로 읽히게(사용자 요청: 오늘 막 회복했으면 "기준선돌파
+// →보유중"처럼 보여야 함). CLOSED는 최종 상태(뱃지)가 헤드라인이라 기존처럼 뱃지 먼저, 그 뒤에 회복시점·
+// 청산일자를 시간순으로 표기.
+function badgeGroup(s) {
+  const wrap = text => `<span style="color:var(--txt3);font-size:12.5px">${text}</span>`;
+  const badge = `<span class="badge ${s.primary.cls}">${s.primary.label}</span>`;
+  const parts = s.isOpen && s.recoverTag
+    ? [wrap(s.recoverTag), badge]
+    : [badge, s.recoverTag ? wrap(s.recoverTag) : '', s.closeDate ? wrap(s.closeDate) : ''];
+  if (s.subBadges) parts.push(s.subBadges.trim());
+  return parts.filter(Boolean).join('&nbsp;');
 }
 
 // 2026-08-14: max-buy-legs(2회) 상한과 무관하게 조건①②③ 충족일 전체를 표시 — 실제 체결된 건(굵게)과
@@ -351,8 +361,7 @@ function signalDatesLabel(signalDates) {
 // 뱃지보다 정보량이 많음(예상종목 탭과 표현방식 통일)
 function tableRowHtml(row, seq) {
   const s = statusInfo(row);
-  const closeDateTag = s.closeDate ? `<span style="color:var(--txt3);font-size:12.5px">&nbsp;${s.closeDate}</span>` : '';
-  const statusCell = `<span class="badge ${s.primary.cls}">${s.primary.label}</span>${s.recoverTag}${closeDateTag}${s.subBadges ? ' ' + s.subBadges.trim() : ''}`;
+  const statusCell = badgeGroup(s);
   const noteCell = s.note ? s.note.replace(/^<span/, '<span').trim() : '<span class="t-flat">&mdash;</span>';
   const signalCell = row.signalDates && row.signalDates.length ? signalDatesLabel(row.signalDates).replace(/^<div[^>]*>|<\/div>$/g, '') : '<span class="t-flat">&mdash;</span>';
   const cur = seq[seq.length - 1];
@@ -403,9 +412,8 @@ function signalChartCardHtml(row, seq, entryIdx) {
   const s = statusInfo(row);
   const cur = seq[seq.length - 1];
   const recovLabel = row.recovered ? `회복(D+${row.recoverDay})` : '회복전';
-  const closeDateTag = s.closeDate ? `<span style="color:var(--txt3);font-size:12.5px">&nbsp;${s.closeDate}</span>` : '';
   return `      <div class="chart-card">
-        <div class="chart-card-head"><span class="chart-card-name">${esc(row.name)}</span><span class="badge ${s.primary.cls}">${s.primary.label}</span>${s.recoverTag}${closeDateTag}${s.subBadges.trim()}</div>
+        <div class="chart-card-head"><span class="chart-card-name">${esc(row.name)}</span>${badgeGroup(s)}</div>
         ${svg}
         <div class="chart-card-stats">
           <span>진입일 ${row.date} <span class="sep">|</span> 진입가 <span>${fmtV(row.entryClose)}</span> <span class="sep">|</span> 현재가 <span>${fmtV(cur.close)}</span></span>
