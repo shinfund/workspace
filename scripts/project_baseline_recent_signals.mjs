@@ -313,6 +313,10 @@ function statusInfo(row) {
     primary = REASON_LABEL[row.finalReason] || { cls: 'bdg-gray', label: row.finalReason };
     closeDate = row.legs?.length ? row.legs[row.legs.length - 1].date : null;
   }
+  // 2026-08-18: 회복(기준선 상향돌파) 시점도 청산일자처럼 상태 옆에 날짜로 표기(사용자 요청) — 보유중
+  // 뱃지 자체는 유지하고 그 옆에 "기준선돌파 날짜"만 보조 표기(회복 전은 표기 없음)
+  const recoverTag = row.status === 'OPEN' && row.recovered && row.recoverDate
+    ? `<span style="color:var(--txt3);font-size:12.5px">&nbsp;기준선돌파 ${row.recoverDate}</span>` : '';
   const subBadges = '';
   let note = '';
   if (row.status === 'OPEN') {
@@ -320,7 +324,7 @@ function statusInfo(row) {
     else note = `<span style="color:var(--txt3);font-size:12.5px">(회복후 보유100% · 1파 진행중)</span>`;
   }
   const day = row.status === 'OPEN' ? row.day : row.finalDay;
-  return { primary, subBadges, note, day, closeDate };
+  return { primary, subBadges, note, day, closeDate, recoverTag };
 }
 
 // 2026-08-14: max-buy-legs(2회) 상한과 무관하게 조건①②③ 충족일 전체를 표시 — 실제 체결된 건(굵게)과
@@ -344,7 +348,7 @@ function signalDatesLabel(signalDates) {
 function tableRowHtml(row, seq) {
   const s = statusInfo(row);
   const closeDateTag = s.closeDate ? `<span style="color:var(--txt3);font-size:12.5px">&nbsp;${s.closeDate}</span>` : '';
-  const statusCell = `<span class="badge ${s.primary.cls}">${s.primary.label}</span>${closeDateTag}${s.subBadges ? ' ' + s.subBadges.trim() : ''}`;
+  const statusCell = `<span class="badge ${s.primary.cls}">${s.primary.label}</span>${closeDateTag}${s.recoverTag}${s.subBadges ? ' ' + s.subBadges.trim() : ''}`;
   const noteCell = s.note ? s.note.replace(/^<span/, '<span').trim() : '<span class="t-flat">&mdash;</span>';
   const signalCell = row.signalDates && row.signalDates.length ? signalDatesLabel(row.signalDates).replace(/^<div[^>]*>|<\/div>$/g, '') : '<span class="t-flat">&mdash;</span>';
   const cur = seq[seq.length - 1];
@@ -397,7 +401,7 @@ function signalChartCardHtml(row, seq, entryIdx) {
   const recovLabel = row.recovered ? `회복(D+${row.recoverDay})` : '회복전';
   const closeDateTag = s.closeDate ? `<span style="color:var(--txt3);font-size:12.5px">&nbsp;${s.closeDate}</span>` : '';
   return `      <div class="chart-card">
-        <div class="chart-card-head"><span class="chart-card-name">${esc(row.name)}</span><span class="badge ${s.primary.cls}">${s.primary.label}</span>${closeDateTag}${s.subBadges.trim()}</div>
+        <div class="chart-card-head"><span class="chart-card-name">${esc(row.name)}</span><span class="badge ${s.primary.cls}">${s.primary.label}</span>${closeDateTag}${s.recoverTag}${s.subBadges.trim()}</div>
         ${svg}
         <div class="chart-card-stats">
           <span>진입일 ${row.date} <span class="sep">|</span> 진입가 <span>${fmtV(row.entryClose)}</span> <span class="sep">|</span> 현재가 <span>${fmtV(cur.close)}</span></span>
@@ -498,7 +502,8 @@ async function main() {
       // 반영 안 됨) — 수익률(ret)은 이미 avgCost(=buyLog 가격 단순평균, 균등 50%씩 매수라 단순평균=평단가)
       // 기준으로 계산되고 있었으므로 표시값만 buyLog 평균으로 맞춤(2회 매수면 1,2차 평균)
       const avgEntryClose = e.status.buyLog.reduce((a, b) => a + b.price, 0) / e.status.buyLog.length;
-      rows.push({ date: e.date, name: r.name, code: r.code, entryClose: avgEntryClose, buyDates, signalDates, ...e.status });
+      const recoverDate = e.status.recovered && e.status.recoverDay != null ? r.seq[e.i + e.status.recoverDay].date : null;
+      rows.push({ date: e.date, name: r.name, code: r.code, entryClose: avgEntryClose, buyDates, signalDates, recoverDate, ...e.status });
       rowMeta.push({ seq: r.seq, entryIdx: e.i });
     }
   }
