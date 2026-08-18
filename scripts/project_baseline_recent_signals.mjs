@@ -308,17 +308,19 @@ function statusInfo(row) {
   let primary;
   let closeDate = null;
   if (row.status === 'OPEN') {
-    primary = { cls: 'bdg-teal', label: '보유중' };
+    // 2026-08-18: 회복(기준선 상향돌파) 여부를 "보유중" 옆에 보조문구로만 표기하던 방식 대신, 별도의
+    // "기준선돌파" 상태(뱃지)로 명확히 구분(사용자 요청 — 보유중/기준선돌파를 서로 다른 상태로 인지하고
+    // 싶어함). 회복 전은 기존과 동일하게 보유중.
+    primary = row.recovered ? { cls: 'bdg-amber', label: '기준선돌파' } : { cls: 'bdg-teal', label: '보유중' };
   } else {
     primary = REASON_LABEL[row.finalReason] || { cls: 'bdg-gray', label: row.finalReason };
     closeDate = row.legs?.length ? row.legs[row.legs.length - 1].date : null;
   }
-  // 2026-08-18: 회복(기준선 상향돌파) 시점도 청산일자처럼 상태 옆에 날짜로 표기(사용자 요청) — 보유중
-  // 뱃지 자체는 유지하고 그 옆에 "기준선돌파 날짜"만 보조 표기(회복 전은 표기 없음). CLOSED 건도 회복을
-  // 거쳐 청산된 경우(예: 회복 후 재하향돌파로 BASELINE_BREAK) 회복 시점을 함께 보여주는 게 유의미해서
-  // OPEN 한정 조건을 제거(현대차 사례 — 사용자 피드백, 2026-08-18)
+  // 회복 시점 날짜는 상태 뱃지 옆에 표기(OPEN 상태에서 뱃지가 이미 "기준선돌파"이므로 날짜만 붙이면 됨).
+  // CLOSED 건도 회복을 거쳐 청산된 경우(예: 회복 후 재하향돌파로 BASELINE_BREAK) 회복 시점을 함께
+  // 보여주는 게 유의미해서 계속 표기(현대차 사례 — 사용자 피드백, 2026-08-18)
   const recoverTag = row.recovered && row.recoverDate
-    ? `<span style="color:var(--txt3);font-size:12.5px">&nbsp;기준선돌파 ${row.recoverDate}</span>` : '';
+    ? `<span style="color:var(--txt3);font-size:12.5px">&nbsp;${row.status === 'OPEN' ? row.recoverDate : `기준선돌파 ${row.recoverDate}`}</span>` : '';
   const subBadges = '';
   let note = '';
   if (row.status === 'OPEN') {
