@@ -304,7 +304,13 @@ const REASON_LABEL = {
 
 // 2026-08-18: CLOSED 상태(기준선이탈매도·1파매도 등)는 발생일자가 없으면 표에서 언제 청산됐는지
 // 알 수 없다는 피드백 → legs의 마지막 항목(청산 확정 레그) 날짜를 뱃지에 같이 표기
-function statusInfo(row) {
+// 2026-08-18(정정): "기준선돌파" 태그를 recovered=true인 한 영구히 표시했더니, 며칠 전 회복한 종목의
+// "상태"에 오늘도 계속 "기준선돌파"가 붙어 마치 오늘 막 돌파한 것처럼 보이는 문제 발생(사용자 지적).
+// "기준선돌파"는 그 날짜의 상태이지 오늘의 상태가 아님 — 회복일이 데이터상 마지막 거래일(오늘/최신가
+// 기준일=todayDate)과 같을 때만("오늘 막 돌파") 태그를 붙이고, 그 다음날부터는 그냥 "보유중"만 표기.
+// CLOSED는 정의상 회복(recoverDay) 이후 최소 하루 뒤에 청산되므로 이 조건에서 태그가 뜨는 일이 없음
+// (=청산된 건은 항상 뱃지+청산일자만 표기, 회복시점은 별도 표기하지 않음).
+function statusInfo(row, todayDate) {
   let primary;
   let closeDate = null;
   if (row.status === 'OPEN') {
@@ -313,10 +319,7 @@ function statusInfo(row) {
     primary = REASON_LABEL[row.finalReason] || { cls: 'bdg-gray', label: row.finalReason };
     closeDate = row.legs?.length ? row.legs[row.legs.length - 1].date : null;
   }
-  // 2026-08-18: "보유중"은 진행형 상태, "기준선돌파(회복)"는 시점(이벤트)이라 서로 대체 관계가 아니라는
-  // 사용자 판단에 따라 별도 뱃지로 바꾸는 시도는 되돌리고, "보유중" 상태 뱃지는 유지한 채 회복 시점을
-  // 보조 문구("기준선돌파 날짜")로만 표기(OPEN·CLOSED 공통 — 현대차 사례 포함)
-  const recoverTag = row.recovered && row.recoverDate ? `기준선돌파 ${row.recoverDate}` : '';
+  const recoverTag = row.status === 'OPEN' && row.recovered && row.recoverDate === todayDate ? `기준선돌파 ${row.recoverDate}` : '';
   const subBadges = '';
   let note = '';
   if (row.status === 'OPEN') {
@@ -324,19 +327,18 @@ function statusInfo(row) {
     else note = `<span style="color:var(--txt3);font-size:12.5px">(회복후 보유100% · 1파 진행중)</span>`;
   }
   const day = row.status === 'OPEN' ? row.day : row.finalDay;
-  return { primary, subBadges, note, day, closeDate, recoverTag, isOpen: row.status === 'OPEN' };
+  return { primary, subBadges, note, day, closeDate, recoverTag };
 }
 
-// 2026-08-18: 상태 뱃지+회복시점+청산일자를 시간순으로 배열 — OPEN 상태에서 회복한 경우 "기준선돌파
-// 날짜"(이벤트, 먼저 발생) → "보유중"(현재 상태) 순으로 읽히게(사용자 요청: 오늘 막 회복했으면 "기준선돌파
-// →보유중"처럼 보여야 함). CLOSED는 최종 상태(뱃지)가 헤드라인이라 기존처럼 뱃지 먼저, 그 뒤에 회복시점·
-// 청산일자를 시간순으로 표기.
+// 2026-08-18: 상태 뱃지+회복시점+청산일자를 시간순으로 배열 — OPEN 상태에서 "오늘" 막 회복한 경우에만
+// "기준선돌파 날짜"(이벤트) → "보유중"(현재 상태) 순으로 보여줌(recoverTag는 statusInfo에서 오늘 회복한
+// 경우로 이미 필터링됨). CLOSED는 recoverTag가 항상 빈 값이라 뱃지+청산일자만 표기.
 function badgeGroup(s) {
   const wrap = text => `<span style="color:var(--txt3);font-size:12.5px">${text}</span>`;
   const badge = `<span class="badge ${s.primary.cls}">${s.primary.label}</span>`;
-  const parts = s.isOpen && s.recoverTag
+  const parts = s.recoverTag
     ? [wrap(s.recoverTag), badge]
-    : [badge, s.recoverTag ? wrap(s.recoverTag) : '', s.closeDate ? wrap(s.closeDate) : ''];
+    : [badge, s.closeDate ? wrap(s.closeDate) : ''];
   if (s.subBadges) parts.push(s.subBadges.trim());
   return parts.filter(Boolean).join('&nbsp;');
 }
@@ -360,11 +362,11 @@ function signalDatesLabel(signalDates) {
 // 현재가 기준) 컬럼 추가. 부호(+/-)가 그대로 기준선 위/아래를 나타내고 수치까지 보여줘 별도 위/아래
 // 뱃지보다 정보량이 많음(예상종목 탭과 표현방식 통일)
 function tableRowHtml(row, seq) {
-  const s = statusInfo(row);
+  const cur = seq[seq.length - 1];
+  const s = statusInfo(row, cur.date);
   const statusCell = badgeGroup(s);
   const noteCell = s.note ? s.note.replace(/^<span/, '<span').trim() : '<span class="t-flat">&mdash;</span>';
   const signalCell = row.signalDates && row.signalDates.length ? signalDatesLabel(row.signalDates).replace(/^<div[^>]*>|<\/div>$/g, '') : '<span class="t-flat">&mdash;</span>';
-  const cur = seq[seq.length - 1];
   return `          <tr><td class="l">${row.date}</td><td class="l">${esc(row.name)}</td><td>${fmtV(cur.close)}</td><td class="${retClass(cur.dev200)}">${fmt(cur.dev200)}</td><td>${fmtV(row.entryClose)}</td><td class="l">${statusCell}</td><td class="c">D+${s.day}</td><td class="${retClass(row.ret)}">${fmt(row.ret)}</td><td class="l">${noteCell}</td><td class="l">${signalCell}</td></tr>`;
 }
 
@@ -409,8 +411,8 @@ function signalChartCardHtml(row, seq, entryIdx) {
   const chartRows = seq.slice(windowStart, seq.length);
   const localEntryIdx = entryIdx - windowStart;
   const svg = buildChartSvg(chartRows, { entryIdx: localEntryIdx, buyLog: row.buyLog, windowStart, entryIdxGlobal: entryIdx });
-  const s = statusInfo(row);
   const cur = seq[seq.length - 1];
+  const s = statusInfo(row, cur.date);
   const recovLabel = row.recovered ? `회복(D+${row.recoverDay})` : '회복전';
   return `      <div class="chart-card">
         <div class="chart-card-head"><span class="chart-card-name">${esc(row.name)}</span>${badgeGroup(s)}</div>
