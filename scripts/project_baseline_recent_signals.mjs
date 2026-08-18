@@ -314,8 +314,10 @@ function statusInfo(row) {
     closeDate = row.legs?.length ? row.legs[row.legs.length - 1].date : null;
   }
   // 2026-08-18: 회복(기준선 상향돌파) 시점도 청산일자처럼 상태 옆에 날짜로 표기(사용자 요청) — 보유중
-  // 뱃지 자체는 유지하고 그 옆에 "기준선돌파 날짜"만 보조 표기(회복 전은 표기 없음)
-  const recoverTag = row.status === 'OPEN' && row.recovered && row.recoverDate
+  // 뱃지 자체는 유지하고 그 옆에 "기준선돌파 날짜"만 보조 표기(회복 전은 표기 없음). CLOSED 건도 회복을
+  // 거쳐 청산된 경우(예: 회복 후 재하향돌파로 BASELINE_BREAK) 회복 시점을 함께 보여주는 게 유의미해서
+  // OPEN 한정 조건을 제거(현대차 사례 — 사용자 피드백, 2026-08-18)
+  const recoverTag = row.recovered && row.recoverDate
     ? `<span style="color:var(--txt3);font-size:12.5px">&nbsp;기준선돌파 ${row.recoverDate}</span>` : '';
   const subBadges = '';
   let note = '';
@@ -348,7 +350,7 @@ function signalDatesLabel(signalDates) {
 function tableRowHtml(row, seq) {
   const s = statusInfo(row);
   const closeDateTag = s.closeDate ? `<span style="color:var(--txt3);font-size:12.5px">&nbsp;${s.closeDate}</span>` : '';
-  const statusCell = `<span class="badge ${s.primary.cls}">${s.primary.label}</span>${closeDateTag}${s.recoverTag}${s.subBadges ? ' ' + s.subBadges.trim() : ''}`;
+  const statusCell = `<span class="badge ${s.primary.cls}">${s.primary.label}</span>${s.recoverTag}${closeDateTag}${s.subBadges ? ' ' + s.subBadges.trim() : ''}`;
   const noteCell = s.note ? s.note.replace(/^<span/, '<span').trim() : '<span class="t-flat">&mdash;</span>';
   const signalCell = row.signalDates && row.signalDates.length ? signalDatesLabel(row.signalDates).replace(/^<div[^>]*>|<\/div>$/g, '') : '<span class="t-flat">&mdash;</span>';
   const cur = seq[seq.length - 1];
@@ -401,7 +403,7 @@ function signalChartCardHtml(row, seq, entryIdx) {
   const recovLabel = row.recovered ? `회복(D+${row.recoverDay})` : '회복전';
   const closeDateTag = s.closeDate ? `<span style="color:var(--txt3);font-size:12.5px">&nbsp;${s.closeDate}</span>` : '';
   return `      <div class="chart-card">
-        <div class="chart-card-head"><span class="chart-card-name">${esc(row.name)}</span><span class="badge ${s.primary.cls}">${s.primary.label}</span>${closeDateTag}${s.recoverTag}${s.subBadges.trim()}</div>
+        <div class="chart-card-head"><span class="chart-card-name">${esc(row.name)}</span><span class="badge ${s.primary.cls}">${s.primary.label}</span>${s.recoverTag}${closeDateTag}${s.subBadges.trim()}</div>
         ${svg}
         <div class="chart-card-stats">
           <span>진입일 ${row.date} <span class="sep">|</span> 진입가 <span>${fmtV(row.entryClose)}</span> <span class="sep">|</span> 현재가 <span>${fmtV(cur.close)}</span></span>
