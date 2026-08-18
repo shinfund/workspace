@@ -1,6 +1,6 @@
 // EMA200 기준선 파동 전략(stock-baseline) — "최근신호"·"예상종목" 탭용 라이브 데이터 생성 스크립트 (2026-08-13)
 // project_baseline_strategy_backtest.mjs(확정 진입·청산 로직)와 동일한 규칙을 실시간(오늘 기준)으로 적용해
-// ①최근 365일 내 발생한 진입 신호의 현재 상태(보유중/청산완료)와 ②아직 신호는 안 났지만 조건①(20거래일↑
+// ①최근 365일 내 발생한 진입 신호의 현재 상태(보유중/청산완료)와 ②아직 신호는 안 났지만 조건①(16거래일↑
 // 기준선 이탈)을 충족한 관찰(워치) 후보종목을 산출해 HTML 조각 + JSON으로 출력한다.
 // 사용법: node scripts/project_baseline_recent_signals.mjs [--days 365] [--chart-cap 10] [--watch-cap 8]
 import https from 'https';
@@ -40,7 +40,7 @@ const DEFAULT_STOCKS = [
   { code: '086280', name: '현대글로비스' }, { code: '010950', name: 'S-Oil' },
 ];
 
-const ROLL = 250, MIN_STREAK = 20, Z_THRESHOLD = -1.25;
+const ROLL = 250, MIN_STREAK = 16, Z_THRESHOLD = -1.25;
 const FAST_PERIOD = 5, BASE_PERIOD = 200;
 const MAX_BUY_LEGS = 2, RECOVER_TIMEOUT = 120, POST_RECOVER_HOLD = 60;
 const CALENDAR_DAYS = 2555; // ROLL(250) 워밍업 + minStreak + 7년치 확보(백테스트와 동일)
@@ -229,19 +229,9 @@ function simulateLiveStatus(seq, i0) {
       }
       if (inWaveUp && close < ema5) {
         inWaveUp = false;
-        if (waveCount === 1) {
-          const w = openWeight * 0.5;
-          legs.push({ weight: w, ret, reason: 'WAVE1', day: d, date: seq[j].date });
-          openWeight -= w;
-        } else if (waveCount === 2) {
-          const w = openWeight * 0.5;
-          legs.push({ weight: w, ret, reason: 'WAVE2', day: d, date: seq[j].date });
-          openWeight -= w;
-        } else {
-          legs.push({ weight: openWeight, ret, reason: 'WAVE3', day: d, date: seq[j].date });
-          openWeight = 0;
-          return { status: 'CLOSED', ret: legs.reduce((a, l) => a + l.weight * l.ret, 0), legs, finalDay: d, finalReason: 'WAVE3', buyCount, buyLog, signalLog, recovered, waveCount, minRet, recoverDay, entryDate: seq[i0].date };
-        }
+        legs.push({ weight: openWeight, ret, reason: 'WAVE1_FULL', day: d, date: seq[j].date });
+        openWeight = 0;
+        return { status: 'CLOSED', ret: legs.reduce((a, l) => a + l.weight * l.ret, 0), legs, finalDay: d, finalReason: 'WAVE1_FULL', buyCount, buyLog, signalLog, recovered, waveCount, minRet, recoverDay, entryDate: seq[i0].date };
       } else if (!inWaveUp && close >= ema5) {
         inWaveUp = true;
         waveCount += 1;
@@ -309,29 +299,28 @@ const REASON_LABEL = {
   BASELINE_BREAK: { cls: 'bdg-red', label: '기준선이탈매도' },
   RECOVER_TIMEOUT: { cls: 'bdg-purple', label: '회복실패시간청산' },
   TIME: { cls: 'bdg-purple', label: '회복후시간청산' },
-  WAVE3: { cls: 'bdg-gray', label: '3파완주매도' },
+  WAVE1_FULL: { cls: 'bdg-sky', label: '1파매도(전량)' },
 };
 
+// 2026-08-18: CLOSED 상태(기준선이탈매도·1파매도 등)는 발생일자가 없으면 표에서 언제 청산됐는지
+// 알 수 없다는 피드백 → legs의 마지막 항목(청산 확정 레그) 날짜를 뱃지에 같이 표기
 function statusInfo(row) {
-  const legs = row.legs || [];
-  const hasWave1 = legs.some(l => l.reason === 'WAVE1');
-  const hasWave2 = legs.some(l => l.reason === 'WAVE2');
   let primary;
+  let closeDate = null;
   if (row.status === 'OPEN') {
     primary = { cls: 'bdg-teal', label: '보유중' };
   } else {
     primary = REASON_LABEL[row.finalReason] || { cls: 'bdg-gray', label: row.finalReason };
+    closeDate = row.legs?.length ? row.legs[row.legs.length - 1].date : null;
   }
-  const subBadges = (hasWave1 ? '<span class="badge bdg-sky">1파매도</span> ' : '') + (hasWave2 ? '<span class="badge bdg-amber">2파매도</span> ' : '');
+  const subBadges = '';
   let note = '';
   if (row.status === 'OPEN') {
     if (!row.recovered) note = `<span style="color:var(--txt3);font-size:12.5px">(회복 전 · 매수${row.buyCount}/${MAX_BUY_LEGS}회)</span>`;
-    else if (hasWave2) note = `<span style="color:var(--txt3);font-size:12.5px">(2파매도완료(잔량25%) · ${row.waveCount}파 진행중)</span>`;
-    else if (hasWave1) note = `<span style="color:var(--txt3);font-size:12.5px">(1파매도완료(잔량50%) · ${row.waveCount}파 진행중)</span>`;
     else note = `<span style="color:var(--txt3);font-size:12.5px">(회복후 보유100% · 1파 진행중)</span>`;
   }
   const day = row.status === 'OPEN' ? row.day : row.finalDay;
-  return { primary, subBadges, note, day };
+  return { primary, subBadges, note, day, closeDate };
 }
 
 // 2026-08-14: max-buy-legs(2회) 상한과 무관하게 조건①②③ 충족일 전체를 표시 — 실제 체결된 건(굵게)과
@@ -349,13 +338,17 @@ function signalDatesLabel(signalDates) {
 }
 
 // 2026-08-14: "진행상황" 단일 컬럼에 상태·경과일·수익률·매수현황·신호일자가 다 뭉쳐 있어 컬럼 분리(사용자 요청)
+// 2026-08-18: "상태" 뱃지만으로는 현재 기준선(EMA200) 위/아래 위치를 알기 어렵다는 피드백 → 괴리율(dev200,
+// 현재가 기준) 컬럼 추가. 부호(+/-)가 그대로 기준선 위/아래를 나타내고 수치까지 보여줘 별도 위/아래
+// 뱃지보다 정보량이 많음(예상종목 탭과 표현방식 통일)
 function tableRowHtml(row, seq) {
   const s = statusInfo(row);
-  const statusCell = `<span class="badge ${s.primary.cls}">${s.primary.label}</span>${s.subBadges ? ' ' + s.subBadges.trim() : ''}`;
+  const closeDateTag = s.closeDate ? `<span style="color:var(--txt3);font-size:12.5px">&nbsp;${s.closeDate}</span>` : '';
+  const statusCell = `<span class="badge ${s.primary.cls}">${s.primary.label}</span>${closeDateTag}${s.subBadges ? ' ' + s.subBadges.trim() : ''}`;
   const noteCell = s.note ? s.note.replace(/^<span/, '<span').trim() : '<span class="t-flat">&mdash;</span>';
   const signalCell = row.signalDates && row.signalDates.length ? signalDatesLabel(row.signalDates).replace(/^<div[^>]*>|<\/div>$/g, '') : '<span class="t-flat">&mdash;</span>';
-  const curClose = seq[seq.length - 1].close;
-  return `          <tr><td class="l">${row.date}</td><td class="l">${esc(row.name)}</td><td>${fmtV(curClose)}</td><td>${fmtV(row.entryClose)}</td><td class="l">${statusCell}</td><td class="c">D+${s.day}</td><td class="${retClass(row.ret)}">${fmt(row.ret)}</td><td class="l">${noteCell}</td><td class="l">${signalCell}</td></tr>`;
+  const cur = seq[seq.length - 1];
+  return `          <tr><td class="l">${row.date}</td><td class="l">${esc(row.name)}</td><td>${fmtV(cur.close)}</td><td class="${retClass(cur.dev200)}">${fmt(cur.dev200)}</td><td>${fmtV(row.entryClose)}</td><td class="l">${statusCell}</td><td class="c">D+${s.day}</td><td class="${retClass(row.ret)}">${fmt(row.ret)}</td><td class="l">${noteCell}</td><td class="l">${signalCell}</td></tr>`;
 }
 
 function buildChartSvg(rows, markers) {
@@ -378,7 +371,11 @@ function buildChartSvg(rows, markers) {
   if (markers?.buyLog) {
     for (const b of markers.buyLog) {
       if (b.day === 0) continue; // 최초 매수는 entryIdx 점으로 이미 표시
-      const idx = markers.entryIdx + b.day - markers.windowStart;
+      // 2026-08-18 버그수정: markers.entryIdx는 이미 windowStart 기준 로컬 인덱스라 여기서 windowStart를
+      // 다시 빼면 이중차감되어 인덱스가 음수로 튀어 range체크(idx>=0)에서 항상 걸러짐 — 2차 이상
+      // 추가매수 마커가 전혀 표시되지 않던 원인. b.day는 진입일 기준 경과거래일수 = 행 오프셋과 동일하므로
+      // entryIdx에 그대로 더하기만 하면 됨.
+      const idx = markers.entryIdx + b.day;
       if (idx >= 0 && idx < n) svg += `<circle cx="${xAt(idx).toFixed(1)}" cy="${yAt(rows[idx].close).toFixed(1)}" r="3.5" fill="var(--purple)" stroke="var(--card)" stroke-width="1"/>`;
     }
   }
@@ -395,14 +392,18 @@ function signalChartCardHtml(row, seq, entryIdx) {
   const s = statusInfo(row);
   const cur = seq[seq.length - 1];
   const recovLabel = row.recovered ? `회복(D+${row.recoverDay})` : '회복전';
+  const closeDateTag = s.closeDate ? `<span style="color:var(--txt3);font-size:12.5px">&nbsp;${s.closeDate}</span>` : '';
   return `      <div class="chart-card">
-        <div class="chart-card-head"><span class="chart-card-name">${esc(row.name)}</span><span class="badge ${s.primary.cls}">${s.primary.label}</span>${s.subBadges.trim()}</div>
+        <div class="chart-card-head"><span class="chart-card-name">${esc(row.name)}</span><span class="badge ${s.primary.cls}">${s.primary.label}</span>${closeDateTag}${s.subBadges.trim()}</div>
         ${svg}
         <div class="chart-card-stats">
           <span>진입일 ${row.date} <span class="sep">|</span> 진입가 <span>${fmtV(row.entryClose)}</span> <span class="sep">|</span> 현재가 <span>${fmtV(cur.close)}</span></span>
         </div>
         <div class="chart-card-stats">
           <span>D+${s.day} <span class="sep">|</span> 수익률(가중) <span class="${retClass(row.ret)}">${fmt(row.ret)}</span> <span class="sep">|</span> 매수 ${row.buyCount}/${MAX_BUY_LEGS}회</span>
+        </div>
+        <div class="chart-card-stats">
+          <span>EMA200괴리 <span class="${retClass(cur.dev200)}">${fmt(cur.dev200)}</span> <span class="sep">|</span> 기준선(EMA200) <span>${fmtV(cur.ema200)}</span></span>
         </div>
         <div class="chart-card-stats">
           <span>${recovLabel}</span>
@@ -490,7 +491,11 @@ async function main() {
       const buyDays = new Set(e.status.buyLog.map(b => b.day));
       const signalDates = (e.status.signalLog || e.status.buyLog).map((b, idx) => ({ leg: idx + 1, date: r.seq[e.i + b.day].date, price: b.price, executed: buyDays.has(b.day) }));
       const buyDates = e.status.buyLog.map((b, idx) => ({ leg: idx + 1, date: r.seq[e.i + b.day].date, price: b.price }));
-      rows.push({ date: e.date, name: r.name, code: r.code, entryClose: r.seq[e.i].close, buyDates, signalDates, ...e.status });
+      // 2026-08-18 버그수정: "진입가"가 항상 1차 매수가만 표시되고 있었음(2회 분할매수 시에도 평단가
+      // 반영 안 됨) — 수익률(ret)은 이미 avgCost(=buyLog 가격 단순평균, 균등 50%씩 매수라 단순평균=평단가)
+      // 기준으로 계산되고 있었으므로 표시값만 buyLog 평균으로 맞춤(2회 매수면 1,2차 평균)
+      const avgEntryClose = e.status.buyLog.reduce((a, b) => a + b.price, 0) / e.status.buyLog.length;
+      rows.push({ date: e.date, name: r.name, code: r.code, entryClose: avgEntryClose, buyDates, signalDates, ...e.status });
       rowMeta.push({ seq: r.seq, entryIdx: e.i });
     }
   }
