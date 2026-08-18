@@ -1,5 +1,5 @@
 // EMA200 기준선 파동(波動) 전략 백테스트 — 스킬: stock-baseline (2026-08-13 신규 확정, 4번째 매매전략)
-// 사용법: node scripts/project_baseline_strategy_backtest.mjs [--min-streak N] [--z N] [--max-buy-legs N] [--recover-timeout N] [--post-recover-hold N] [--baseline-confirm N] [--baseline-buffer N] [--exit-mode wave|full1] [--max-hold N] [--calendar-days N] [--stocks 코드:이름:시장,...]
+// 사용법: node scripts/project_baseline_strategy_backtest.mjs [--min-streak N] [--z N] [--max-buy-legs N] [--recover-timeout N] [--post-recover-hold N] [--baseline-confirm N] [--baseline-buffer N] [--exit-mode wave|full1] [--max-hold N] [--calendar-days N] [--max-days-since-low N] [--max-signal-occurrence N] [--stocks 코드:이름:시장,...]
 //
 // 컨셉: EMA200을 "기준선"으로 삼아, 기준선을 하향돌파한 뒤 일정 기간(기본 16거래일) 눌린 종목이
 //       단기(5EMA) 반등을 시작하는 시점에 진입한다. 기준선 회복(첫 상향돌파) 이후에는 매수 없이
@@ -138,7 +138,21 @@ function parseArgs() {
   // 손실을 최소화하는 2회를 최종 채택(3회 대비 배치율+13%p, 리스크지표는 3회가 근소 우위인 절충).
   // "잔여매수를 회복시점에 캐치업" 방식도 검토했으나 회복일은 이미 저점대비 많이 오른 시점이라 캐치업
   // 매수가 평단가를 크게 악화시켜(가중평균 +9.20%→+2.01%) 폐기.
-  const o = { stocks: DEFAULT_STOCKS, minStreak: 16, z: -1.25, maxHold: 180, calendarDays: 2555, maxBuyLegs: 2, recoverTimeout: 120, postRecoverHold: 60, baselineConfirm: 1, baselineBuffer: 0, baselinePartialPct: 100, catchUpBuy: false, reboundMode: 'vlow', exitMode: 'full1', baselineBreak: true };
+  // maxDaysSinceLow: 2026-08-18 신규(사용자 요청) — 회복실패(RECOVER_TIMEOUT) 트레이드 공통점 분석에서 발견.
+  // 최저점 갱신 후 EMA5 상향돌파(반등신호)까지 걸린 거래일수가 짧을수록(1~3일) 회복실패율22%, 길수록(3~7일)
+  // 37%로 뚜렷이 높아짐(275건 사후분석) — "느리게 반등하는 신호"는 힘없는 데드캣 바운스일 가능성이 높다는
+  // 뜻. EMA5·EMA200 두 이평선만으로 계산 가능한 유일하게 깔끔한(monotonic) 사전필터라 옵션으로 추가.
+  // 기본값 null(필터 없음, 기존 동작 유지) — 스윕 후 채택 여부 결정.
+  // maxSignalOccurrence: 2026-08-18 신규(사용자 요청) — "매수신호가 반복적으로(3회 이상) 나오는 종목도
+  // 걸러낼 수 있는지" 연구 결과 반영. 종목당 누적 신호 발생 순번(occIdx, 시간순 1부터)으로 나눠보면
+  // 1~5번째 신호는 회복실패율 21~26%로 큰 차이가 없다가 6번째 이후부터 36%로 뚜렷이 뛰어오름(275건 기준) —
+  // 같은 종목에서 되돌림-반등 신호가 여러 번 반복된다는 것 자체가 만성적으로 구조가 무너지고 있다는 신호로
+  // 해석됨. occIdx는 미래 신호를 미리 아는 lookahead 없이(그 시점까지의 누적횟수만으로) 계산되므로 실전
+  // 적용 가능한 인과적(causal) 필터. 참고: "그 종목이 전체 기간에 총 몇 번 신호를 냈는지"(totalOcc, 미래
+  // 포함) 기준으로 보면 8회 이상인 종목군의 회복실패율이 41%까지 뛰는 훨씬 강한 패턴이 있었으나, 이는
+  // 미래 신호 횟수를 미리 아는 lookahead라 실전 필터로는 쓸 수 없고 종목선정(스크리닝) 참고용으로만 유효.
+  // 기본값 null(필터 없음, 기존 동작 유지) — 스윕 후 채택 여부 결정.
+  const o = { stocks: DEFAULT_STOCKS, minStreak: 16, z: -1.25, maxHold: 180, calendarDays: 2555, maxBuyLegs: 2, recoverTimeout: 120, postRecoverHold: 60, baselineConfirm: 1, baselineBuffer: 0, baselinePartialPct: 100, catchUpBuy: false, reboundMode: 'vlow', exitMode: 'full1', baselineBreak: true, maxDaysSinceLow: null, maxSignalOccurrence: null, preRecoverEma5ExitFrom: null };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--calendar-days') o.calendarDays = parseInt(argv[++i]);
     if (argv[i] === '--min-streak') o.minStreak = parseInt(argv[++i]);
@@ -154,6 +168,9 @@ function parseArgs() {
     if (argv[i] === '--no-baseline-break') o.baselineBreak = false; // 2026-08-18 비교용: 회복 후 기준선 재하향돌파 매도(②)를 아예 제거하고 5EMA 홀딩(③)만 남긴 변형
     if (argv[i] === '--rebound-mode') o.reboundMode = argv[++i]; // 'cross'(기존, EMA5 상향돌파마다) | 'vlow'(최저점 갱신 후 첫 상향돌파만)
     if (argv[i] === '--exit-mode') o.exitMode = argv[++i]; // 'wave'(기존, 1파50%→2파25%→3파전량) | 'full1'(회복 후 홀딩, 첫 5EMA 하향돌파에 전량매도)
+    if (argv[i] === '--max-days-since-low') o.maxDaysSinceLow = parseInt(argv[++i]); // 2026-08-18: 최저점→EMA5상향돌파 소요일수 상한(초과 시 신호 무시). null=필터없음
+    if (argv[i] === '--max-signal-occurrence') o.maxSignalOccurrence = parseInt(argv[++i]); // 2026-08-18: 종목당 누적 신호 발생 횟수 상한(N번째 초과 신호는 무시). null=필터없음
+    if (argv[i] === '--pre-recover-ema5-exit-from') o.preRecoverEma5ExitFrom = parseInt(argv[++i]); // 2026-08-18: N번째 신호부터 회복 대기 없이 EMA5 첫 하향돌파(첫 반등 종료) 즉시 전량매도. null=비활성
     if (argv[i] === '--stocks') {
       o.stocks = argv[++i].split(',').map(s => {
         const [code, name, market] = s.split(':');
@@ -269,24 +286,30 @@ function buildCrossSignal(seq) {
 // 첫 EMA5 상향돌파만 신호로 인정한다 — minStreak 미달 구간의 신호는 기존과 동일하게 외부(streakOk)에서
 // 걸러지므로 별도 처리 불필요. 저점 기준은 저가(intraday low) 대신 종가를 유지(재검증 결과 저가 기준은
 // 잦은 휩쏘로 신호가 오히려 늘어나 vlow 전환 취지에 역행 — 삼성중공업 실측 대조로 확인, 2026-08-14).
+// 2026-08-18: daysSinceLow(최저점 갱신일→상향돌파 신호일 경과 거래일수)도 함께 반환 — 회복실패
+// 사후분석에서 발견된 유일하게 깔끔한(monotonic) EMA5·EMA200 파생 사전필터(--max-days-since-low)의 근거값.
 function buildVLowSignal(seq) {
   const sig = new Array(seq.length).fill(false);
+  const daysSinceLow = new Array(seq.length).fill(null);
   let runningLow = null;
+  let runningLowIdx = null;
   let awaitingBounce = false;
   for (let i = 0; i < seq.length; i++) {
     const belowBase = seq[i].close < seq[i].ema200;
-    if (!belowBase) { runningLow = null; awaitingBounce = false; continue; }
+    if (!belowBase) { runningLow = null; runningLowIdx = null; awaitingBounce = false; continue; }
     if (runningLow === null || seq[i].close < runningLow) {
       runningLow = seq[i].close;
+      runningLowIdx = i;
       awaitingBounce = true;
     }
     const crossUp5 = i > 0 && seq[i - 1].close < seq[i - 1].ema5 && seq[i].close >= seq[i].ema5;
     if (crossUp5 && awaitingBounce) {
       sig[i] = true;
+      daysSinceLow[i] = i - runningLowIdx;
       awaitingBounce = false;
     }
   }
-  return sig;
+  return { sig, daysSinceLow };
 }
 
 // dev200 기준 롤링 Z-score (위치%ile은 스킬 결론(Z-score 단독으로 충분)에 따라 생략)
@@ -302,7 +325,7 @@ function rollingZ(seq, j) {
 // 회복(기준선 첫 상향돌파) 후: 매수 중단, 평단가 기준으로 1파 하향돌파→50%매도, 2파 하향돌파→잔량50%
 // (전체25%)매도, 3파 하향돌파→잔량 전량매도(트레이드 종료). 기준선 재하향돌파는 파동단계 무관 잔량 전량 즉시매도.
 // 손절은 자동 규칙에 없음(사용자 지시: 수동 판단 영역) — minRet(평단가 대비 최대낙폭)만 참고용으로 기록.
-function simulateTrade(seq, i0, opts) {
+function simulateTrade(seq, i0, opts, occIdx) {
   let buyCount = 1;             // 최초 매수(i0) 포함 누적 매수 횟수
   let costSum = seq[i0].close;  // 매수가 합산(균등 25%씩이므로 단순평균으로 평단가 산출)
   let openWeight = 1.0;
@@ -315,6 +338,13 @@ function simulateTrade(seq, i0, opts) {
   const legs = [];
   const buyLog = [{ day: 0, price: seq[i0].close }];
   const signalLog = [{ day: 0, price: seq[i0].close }]; // 2026-08-14: max-buy-legs 상한과 무관하게 조건①②③ 충족일 전부 기록(참고용)
+  // preRecoverEma5Exit: 2026-08-18 신규(사용자 요청) — "종목당 누적신호 N회 이상부터는 회복(EMA200 재돌파)을
+  // 기다리지 말고, 진입 직후 EMA5 위에서 유지되다가 처음 하향돌파하는 즉시(=첫 반등 시) 잔량 전량매도"하는
+  // 방어적 청산으로 전환. 같은 종목에서 신호가 반복될수록(특히 occIdx>=3부터) RECOVER_TIMEOUT(최장120일,
+  // 평균-10%)에 갇힐 확률이 올라간다는 사후분석에 따른 대응 — 회복까지 버티지 않고 첫 반등에 바로 이익/손실을
+  // 확정지어 장기 시간청산 리스크를 줄이는 취지. --pre-recover-ema5-exit-from N 으로 활성화(기본 null=비활성).
+  const preRecoverEma5ExitActive = opts.preRecoverEma5ExitFrom != null && occIdx != null && occIdx >= opts.preRecoverEma5ExitFrom;
+  let wasAboveEma5 = seq[i0].close >= seq[i0].ema5; // 진입일(정의상 EMA5 상향돌파일) 기준 true
 
   for (let d = 1; d <= opts.maxHold; d++) {
     const j = i0 + d;
@@ -331,6 +361,21 @@ function simulateTrade(seq, i0, opts) {
         buyCount += 1;
         costSum += close;
         buyLog.push({ day: d, price: close });
+      }
+
+      if (preRecoverEma5ExitActive) {
+        const nowAboveEma5 = close >= ema5;
+        const avgCostEarly = costSum / buyCount;
+        const retEarly = (close - avgCostEarly) / avgCostEarly * 100;
+        if (retEarly < minRet) minRet = retEarly;
+        // "반등시 매도" = 손실 중 EMA5 이탈(=아직 반등 실패, 노이즈성 휩쏘)까지 팔아버리면 오히려 승률·수익률이
+        // 급락함을 1차 검증(2026-08-18)에서 확인 — retEarly>0(진입가 대비 실제 이익 구간)일 때 EMA5 하향돌파로
+        // "반등"이 끝난 경우에만 확정매도, 손실 중 이탈은 그냥 통과(기존 회복대기 로직 유지)
+        if (wasAboveEma5 && !nowAboveEma5 && retEarly > 0) {
+          legs.push({ weight: openWeight, ret: retEarly, reason: 'EARLY_EMA5_BREAK', day: d, date: seq[j].date });
+          return { legs, weightedRet: retEarly, finalDay: d, entryDate: seq[i0].date, recovered, maxWaveReached: 0, minRet, buyCount, buyLog, signalLog, recoverDay };
+        }
+        wasAboveEma5 = nowAboveEma5;
       }
     }
 
@@ -463,15 +508,22 @@ async function backtestStock(stock, opts) {
     streak[i] = seq[i].close < seq[i].ema200 ? (i > 0 ? streak[i - 1] + 1 : 1) : 0;
   }
 
-  const bounceSig = opts.reboundMode === 'vlow' ? buildVLowSignal(seq) : buildCrossSignal(seq);
-  for (let i = 0; i < seq.length; i++) seq[i].bounce = bounceSig[i];
+  let bounceSig, daysSinceLow;
+  if (opts.reboundMode === 'vlow') {
+    ({ sig: bounceSig, daysSinceLow } = buildVLowSignal(seq));
+  } else {
+    bounceSig = buildCrossSignal(seq);
+    daysSinceLow = new Array(seq.length).fill(null);
+  }
+  for (let i = 0; i < seq.length; i++) { seq[i].bounce = bounceSig[i]; seq[i].daysSinceLow = daysSinceLow[i]; }
 
   const flags = new Array(seq.length).fill(false);
   for (let i = ROLL - 1; i < seq.length; i++) {
     if (i === 0) continue;
     const streakOk = streak[i] >= opts.minStreak;
     const z = rollingZ(seq, i);
-    flags[i] = streakOk && seq[i].bounce && z <= opts.z;
+    const daysSinceLowOk = opts.maxDaysSinceLow == null || seq[i].daysSinceLow == null || seq[i].daysSinceLow <= opts.maxDaysSinceLow;
+    flags[i] = streakOk && seq[i].bounce && z <= opts.z && daysSinceLowOk;
   }
   const events = [];
   for (let i = ROLL - 1; i < seq.length; i++) {
@@ -479,9 +531,12 @@ async function backtestStock(stock, opts) {
   }
 
   const trades = [];
-  for (const i0 of events) {
-    const t = simulateTrade(seq, i0, opts);
-    if (t) trades.push({ name: stock.name, entryZ: rollingZ(seq, i0), ...t });
+  for (let k = 0; k < events.length; k++) {
+    const occIdx = k + 1; // 종목 내 누적 신호 순번(시간순, lookahead 없음)
+    if (opts.maxSignalOccurrence != null && occIdx > opts.maxSignalOccurrence) continue;
+    const i0 = events[k];
+    const t = simulateTrade(seq, i0, opts, occIdx);
+    if (t) trades.push({ name: stock.name, entryZ: rollingZ(seq, i0), occIdx, ...t });
   }
   return { ...stock, trades, totalEvents: events.length };
 }
@@ -579,7 +634,9 @@ async function main() {
   const opts = parseArgs();
   console.error(`[EMA200 기준선 파동 전략 백테스트] ${opts.stocks.length}종목, 최소스트릭${opts.minStreak}거래일/Z<=${opts.z}/회복전타임아웃${opts.recoverTimeout}일/회복후보유${opts.postRecoverHold}일/분할매수최대${opts.maxBuyLegs}회 (손절은 수동판단 영역이라 자동규칙 제외)`);
   const reboundDesc = opts.reboundMode === 'vlow' ? '최저점갱신 후 첫 EMA5 상향돌파' : 'EMA5 상향돌파 재충족마다';
-  console.error(`진입: 종가<EMA200 연속${opts.minStreak}거래일↑ 구간에서 (dev200 롤링Z<=${opts.z} AND ${reboundDesc}) 충족마다 ${(100 / opts.maxBuyLegs).toFixed(0)}%씩 최대${opts.maxBuyLegs}회 분할매수(회복 전까지만)`);
+  const daysSinceLowDesc = opts.maxDaysSinceLow != null ? ` AND 최저점→상향돌파 ${opts.maxDaysSinceLow}거래일 이내` : '';
+  const occDesc = opts.maxSignalOccurrence != null ? ` (종목당 누적신호 ${opts.maxSignalOccurrence}회 초과분 제외)` : '';
+  console.error(`진입: 종가<EMA200 연속${opts.minStreak}거래일↑ 구간에서 (dev200 롤링Z<=${opts.z} AND ${reboundDesc}${daysSinceLowDesc}) 충족마다 ${(100 / opts.maxBuyLegs).toFixed(0)}%씩 최대${opts.maxBuyLegs}회 분할매수(회복 전까지만)${occDesc}`);
   console.error(`청산: ①회복전${opts.recoverTimeout}거래일 내 미회복시 조기청산(RECOVER_TIMEOUT) ②기준선재하향돌파시 잔량전량(BASELINE_BREAK) ③1파하향돌파 50%매도→④2파하향돌파 잔량50%(전체25%)매도→⑤3파하향돌파 잔량전량매도 ⑥회복후${opts.postRecoverHold}거래일 시간청산(TIME)`);
 
   const results = await batchAll(opts.stocks, s => backtestStock(s, opts));
@@ -602,6 +659,25 @@ async function main() {
   console.log(`\n[레그(leg)별 발생 빈도 / 가중치 합]`);
   for (const [reason, cnt] of Object.entries(s.reasonCount)) {
     console.log(`  ${reason.padEnd(14)}: ${cnt}건  (가중치 합 ${s.reasonWeight[reason].toFixed(2)})`);
+  }
+
+  // 2026-08-18: --pre-recover-ema5-exit-from 또는 --max-signal-occurrence 적용 시, 그 기준(occIdx)
+  // 미만/이상 구간을 나눠서 실제로 해당 그룹에만 영향이 있었는지·효과가 있었는지 진단(기준 없으면 3회로 참고 출력)
+  const occThreshold = opts.preRecoverEma5ExitFrom ?? opts.maxSignalOccurrence ?? 3;
+  {
+    const below = pooled.filter(t => t.occIdx < occThreshold);
+    const atOrAbove = pooled.filter(t => t.occIdx >= occThreshold);
+    console.log(`\n[누적신호 순번(occIdx) ${occThreshold}회 기준 분리 진단]`);
+    for (const [label, g] of [[`occIdx<${occThreshold}(영향없음)`, below], [`occIdx>=${occThreshold}(정책적용)`, atOrAbove]]) {
+      if (!g.length) { console.log(`  ${label}: 해당 없음`); continue; }
+      const avg = mean(g.map(t => t.weightedRet));
+      const win = g.filter(t => t.weightedRet > 0).length / g.length * 100;
+      // "회복실패"는 !recovered(=EMA200 재돌파 전 종료)를 세는데, EARLY_EMA5_BREAK로 일부러 회복 전에
+      // 수익 실현하고 나온 트레이드도 !recovered로 잡혀 진짜 실패(RECOVER_TIMEOUT)와 섞이므로 별도 표기
+      const timeoutFail = g.filter(t => t.legs.some(l => l.reason === 'RECOVER_TIMEOUT')).length;
+      const notRecovered = g.filter(t => !t.recovered).length;
+      console.log(`  ${label}: n=${g.length}  가중평균 ${avg >= 0 ? '+' : ''}${avg.toFixed(2)}%  승률${win.toFixed(0)}%  RECOVER_TIMEOUT(진짜실패) ${timeoutFail}건(${(timeoutFail / g.length * 100).toFixed(0)}%)  회복전종료(전체, 조기익절 포함) ${notRecovered}건(${(notRecovered / g.length * 100).toFixed(0)}%)`);
+    }
   }
   console.log(`\n[기준선(EMA200) 회복 도달 여부]`);
   console.log(`  회복(종가≥EMA200 재돌파) 도달: ${s.recoveredCount}건 (${(s.recoveredCount / s.n * 100).toFixed(0)}%)`);
