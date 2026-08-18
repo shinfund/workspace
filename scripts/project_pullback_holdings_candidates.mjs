@@ -203,7 +203,10 @@ function candidateCardHtml(r) {
         <div class="chart-card-stats">
           <span>최근 신고가 대비 눌림폭 <span>${r.pullbackPct.toFixed(2)}%</span> <span class="sep">|</span> 되돌림밴드(ATR&times;0.4) 대비 <span>${r.normDepth.toFixed(2)}배</span></span>
         </div>
-        <div class="chart-card-legend"><span><i style="background:var(--purple)"></i>EMA50</span><span><i style="background:var(--amber)"></i>EMA100</span></div>
+        <div class="chart-card-stats">
+          <span>기준선(EMA50) <span>${fmtV(r.ema50)}</span></span>
+        </div>
+        <div class="chart-card-legend"><span><i style="background:var(--purple)"></i>기준선(EMA50)</span><span><i style="background:var(--amber)"></i>EMA100</span></div>
       </div>`;
 }
 function candidateRowHtml(r) {
@@ -224,9 +227,9 @@ function holdingCardHtml(r) {
           <span>현재가 <span>${fmtV(r.close)}</span> <span class="sep">|</span> 평단대비 <span class="${devClass(r.unrealizedRet)}">${fmt(r.unrealizedRet)}</span></span>
         </div>
         <div class="chart-card-stats">
-          <span>EMA50대비 <span class="${devClass(dev50)}">${fmt(dev50)}</span> <span class="sep">|</span> 추세 <span>${trendLbl}</span></span>
+          <span>EMA50대비 <span class="${devClass(dev50)}">${fmt(dev50)}</span> <span class="sep">|</span> 추세 <span>${trendLbl}</span> <span class="sep">|</span> 기준선(EMA50) <span>${fmtV(r.ema50)}</span></span>
         </div>
-        <div class="chart-card-legend"><span><i style="background:var(--${v.cls})"></i>판단 <span style="color:var(--${v.cls})">${v.label}</span></span><span><i style="background:var(--txt2)"></i>평단 <span>${fmtV(r.avgPrice)}</span></span><span><i style="background:var(--coral)"></i>손절선(-8%) <span>${fmtV(slPrice)}</span></span></div>
+        <div class="chart-card-legend"><span><i style="background:var(--purple)"></i>기준선(EMA50)</span><span><i style="background:var(--amber)"></i>EMA100</span><span><i style="background:var(--${v.cls})"></i>판단 <span style="color:var(--${v.cls})">${v.label}</span></span><span><i style="background:var(--txt2)"></i>평단 <span>${fmtV(r.avgPrice)}</span></span><span><i style="background:var(--coral)"></i>손절선(-8%) <span>${fmtV(slPrice)}</span></span></div>
       </div>`;
 }
 function holdingRowHtml(r) {
