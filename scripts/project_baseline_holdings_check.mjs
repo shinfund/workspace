@@ -4,7 +4,11 @@
 // 보유 중인 종목이라도 기준선 전략의 규칙을 오늘 시점에 대입하면 어떤 상태인지 참고용으로 보여준다.
 // 스킬: stock-baseline(신규) / holdings-report(노션 연동 부분 공유)
 // 사용법: node scripts/project_baseline_holdings_check.mjs
+// 2026-08-18: 보유종목 탭 차트(SVG) HTML도 함께 생성하도록 확장(holdings_table_rows.html/holdings_chart_cards.html) —
+// 기존엔 콘솔 요약만 출력해 앱 표는 매번 수기 반영했는데, 표만 갱신하고 차트를 갱신 못 해 매도 완료된 종목이
+// 차트에 남아있는 등 불일치가 생기는 문제가 있어 표+차트를 한 번에 생성하도록 보강.
 import https from 'https';
+import fs from 'fs';
 
 const YF_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -163,7 +167,53 @@ async function analyzeHolding(h) {
   const belowBaseline = cur.close < cur.ema200;
   const unrealizedRet = h.avgPrice ? (cur.close - h.avgPrice) / h.avgPrice * 100 : null;
   const aboveEma5 = cur.close >= cur.ema5;
-  return { ...h, market, close: cur.close, ema5: cur.ema5, ema200: cur.ema200, dev200: cur.dev200, z200: zs.z, curStreak, belowBaseline, aboveEma5, unrealizedRet, date: cur.date };
+  return { ...h, market, close: cur.close, ema5: cur.ema5, ema200: cur.ema200, dev200: cur.dev200, z200: zs.z, curStreak, belowBaseline, aboveEma5, unrealizedRet, date: cur.date, seq: seq.slice(-CHART_POINTS) };
+}
+const CHART_POINTS = 260;
+
+function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function fmtV(v) { return v == null ? '─' : Math.round(v).toLocaleString('ko-KR'); }
+function retClass(v) { if (v == null) return ''; if (v <= -20) return 't-neg-hi'; return v < 0 ? 't-neg' : 't-pos'; }
+
+function tableRowHtml(r, v) {
+  return `          <tr><td class="l">${esc(r.name)}</td><td class="c">${r.market || '─'}</td><td class="${retClass(r.unrealizedRet)}">${fmt(r.unrealizedRet)}</td><td class="${retClass(r.dev200)}">${fmt(r.dev200)}</td><td>${r.z200.toFixed(2)}</td><td class="c">${r.curStreak}일</td><td class="c"><span class="badge bdg-${v.cls}">${esc(v.label)}</span></td></tr>`;
+}
+
+function buildChartSvg(rows, avgPrice) {
+  const x0 = 6, x1 = 474, yTop = 12, yBot = 208;
+  const n = rows.length;
+  const xAt = i => x0 + (x1 - x0) * i / (n - 1);
+  const allVals = [];
+  rows.forEach(r => allVals.push(r.close, r.ema5, r.ema200));
+  if (avgPrice) allVals.push(avgPrice);
+  const lo = Math.min(...allVals), hi = Math.max(...allVals);
+  const pad = (hi - lo) * 0.05 || hi * 0.02;
+  const yLo = lo - pad, yHi = hi + pad;
+  const yAt = v => yBot - (yBot - yTop) * (v - yLo) / (yHi - yLo);
+  const poly = (key, color, dash, width) => `<polyline points="${rows.map((r, i) => `${xAt(i).toFixed(1)},${yAt(r[key]).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--${color})" stroke-width="${width}"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
+  let svg = poly('ema200', 'amber', '6,3', 1.8) + poly('ema5', 'sky', '2,2', 1.8) + poly('close', 'txt', null, 1.7);
+  if (avgPrice) {
+    const ay = yAt(avgPrice).toFixed(1);
+    svg += `<line x1="${x0}" y1="${ay}" x2="${x1}" y2="${ay}" stroke="var(--txt2)" stroke-width="1" stroke-dasharray="2,3"/>`;
+  }
+  svg += `<circle cx="${xAt(n - 1).toFixed(1)}" cy="${yAt(rows[n - 1].close).toFixed(1)}" r="4.5" fill="var(--red)" stroke="var(--card)" stroke-width="1.3"/>`;
+  svg += `<text x="${x0}" y="214" font-size="13.5" fill="var(--txt)">${rows[0].date}</text><text x="${x1}" y="214" font-size="13.5" fill="var(--txt)" text-anchor="end">${rows[n - 1].date}</text>`;
+  return `<svg viewBox="0 0 480 220" width="100%" height="220" style="display:block;max-width:100%">\n    ${svg}\n  </svg>`;
+}
+
+function chartCardHtml(r, v) {
+  const svg = buildChartSvg(r.seq, r.avgPrice);
+  return `      <div class="chart-card">
+        <div class="chart-card-head"><span class="chart-card-name">${esc(r.name)}</span><span class="badge bdg-${v.cls}">${esc(v.label)}</span></div>
+        ${svg}
+        <div class="chart-card-stats">
+          <span>현재가 <span>${fmtV(r.close)}</span> <span class="sep">|</span> 평단대비 <span class="${retClass(r.unrealizedRet)}">${fmt(r.unrealizedRet)}</span></span>
+        </div>
+        <div class="chart-card-stats">
+          <span>EMA200(기준선)대비 <span class="${retClass(r.dev200)}">${fmt(r.dev200)}</span> <span class="sep">|</span> 롤링Z <span>${r.z200.toFixed(2)}</span> <span class="sep">|</span> 이탈 <b>${r.curStreak}거래일째</b></span>
+        </div>
+        <div class="chart-card-legend"><span><i style="border-color:var(--txt)"></i>종가</span><span><i class="dash" style="border-color:var(--sky)"></i>EMA5</span><span><i class="dash" style="border-color:var(--amber)"></i>EMA200(기준선)</span><span><i style="background:var(--txt2)"></i>평단 <span>${fmtV(r.avgPrice)}</span></span></div>
+      </div>`;
 }
 
 function verdict(r) {
@@ -183,11 +233,20 @@ async function main() {
   const results = await batchAll(holdings, analyzeHolding);
 
   console.log(`\n━━━ 보유종목 × 기준선(EMA200) 전략 상태 점검 ━━━\n`);
+  const okResults = [];
   for (const r of results) {
     if (r.error) { console.log(`${r.name}: ${r.error}`); continue; }
     const v = verdict(r);
     console.log(`${r.name.padEnd(12)} 시장${(r.market||'─').padEnd(6)} 평단대비${fmt(r.unrealizedRet).padStart(9)}  EMA200괴리${fmt(r.dev200).padStart(9)}  Z${r.z200.toFixed(2).padStart(6)}  스트릭${String(r.curStreak).padStart(4)}일  판단: ${v.label}`);
+    okResults.push({ r, v });
   }
-  console.log('\n' + JSON.stringify({ holdings: results.map(r => ({ ...r, verdict: verdict(r) })) }, null, 2));
+
+  const tableHtml = okResults.map(({ r, v }) => tableRowHtml(r, v)).join('\n');
+  const chartHtml = okResults.map(({ r, v }) => chartCardHtml(r, v)).join('\n');
+  fs.writeFileSync('holdings_table_rows2.html', tableHtml, 'utf-8');
+  fs.writeFileSync('holdings_chart_cards2.html', chartHtml, 'utf-8');
+  console.error(`[산출완료] table→holdings_table_rows2.html, charts→holdings_chart_cards2.html`);
+
+  console.log('\n' + JSON.stringify({ holdings: results.map(({ seq, ...r }) => ({ ...r, verdict: verdict(r) })) }, null, 2));
 }
 main().catch(e => { console.error('오류:', e.message); process.exit(1); });
