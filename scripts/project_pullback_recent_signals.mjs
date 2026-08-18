@@ -293,8 +293,9 @@ function tableRowHtml(row, seq) {
   const s = statusInfo(row);
   const statusCell = `<span class="badge ${s.primary.cls}">${s.primary.label}</span>${s.subBadges ? ' ' + s.subBadges.trim() : ''}`;
   const noteCell = s.note ? s.note.trim() : '<span class="t-flat">&mdash;</span>';
-  const curClose = seq[seq.length - 1].close;
-  return `          <tr><td class="l">${row.date}</td><td class="l">${esc(row.name)}</td><td>${fmtV(curClose)}</td><td>${fmtV(row.entryClose)}</td><td class="l">${statusCell}</td><td class="c">D+${s.day}</td><td class="${retClass(row.ret)}">${fmt(row.ret)}</td><td class="l">${noteCell}</td></tr>`;
+  const cur = seq[seq.length - 1];
+  const emaDisparity = (cur.close - cur.maShort) / cur.maShort * 100;
+  return `          <tr><td class="l">${row.date}</td><td class="l">${esc(row.name)}</td><td>${fmtV(cur.close)}</td><td class="${retClass(emaDisparity)}">${fmt(emaDisparity)}</td><td>${fmtV(row.entryClose)}</td><td class="l">${statusCell}</td><td class="c">D+${s.day}</td><td class="${retClass(row.ret)}">${fmt(row.ret)}</td><td class="l">${noteCell}</td></tr>`;
 }
 
 function buildChartSvg(rows, markers) {
@@ -308,7 +309,7 @@ function buildChartSvg(rows, markers) {
   const yLo = lo - pad, yHi = hi + pad;
   const yAt = v => yBot - (yBot - yTop) * (v - yLo) / (yHi - yLo);
   const poly = (key, color, dash, width) => `<polyline points="${rows.map((r, i) => `${xAt(i).toFixed(1)},${yAt(r[key]).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--${color})" stroke-width="${width}"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
-  let svg = poly('maLong', 'amber', '6,3', 1.8) + poly('maShort', 'sky', '2,2', 1.8) + poly('close', 'txt', null, 1.7);
+  let svg = poly('maLong', 'amber', '6,3', 1.3) + poly('maShort', 'purple', '2,2', 1.8) + poly('close', 'txt', null, 1.7);
   if (markers?.entryIdx != null && markers.entryIdx >= 0) {
     const ei = markers.entryIdx;
     svg += `<line x1="${xAt(ei).toFixed(1)}" y1="${yTop}" x2="${xAt(ei).toFixed(1)}" y2="${yBot}" stroke="var(--txt2)" stroke-width="1" stroke-dasharray="2,3"/>`;
@@ -327,6 +328,7 @@ function chartCardHtml(row, seq, entryIdx) {
   const svg = buildChartSvg(chartRows, { entryIdx: localEntryIdx });
   const s = statusInfo(row);
   const cur = seq[seq.length - 1];
+  const emaDisparity = (cur.close - cur.maShort) / cur.maShort * 100;
   return `      <div class="chart-card">
         <div class="chart-card-head"><span class="chart-card-name">${esc(row.name)}</span><span class="badge ${s.primary.cls}">${s.primary.label}</span>${s.subBadges.trim()}</div>
         ${svg}
@@ -336,7 +338,10 @@ function chartCardHtml(row, seq, entryIdx) {
         <div class="chart-card-stats">
           <span>D+${s.day} <span class="sep">|</span> 수익률 <span class="${retClass(row.ret)}">${fmt(row.ret)}</span></span>
         </div>
-        <div class="chart-card-legend"><span><i style="background:var(--sky600)"></i>진입시점</span><span><i style="background:var(--${s.primary.cls === 'bdg-red' ? 'red' : s.primary.cls === 'bdg-purple' ? 'purple' : s.primary.cls === 'bdg-teal' ? 'teal' : s.primary.cls === 'bdg-amber' ? 'amber' : 'gray600'})"></i>상태 <span>${s.primary.label}</span></span></div>
+        <div class="chart-card-stats">
+          <span>EMA50대비 <span class="${retClass(emaDisparity)}">${fmt(emaDisparity)}</span> <span class="sep">|</span> 기준선(EMA50) <span>${fmtV(cur.maShort)}</span></span>
+        </div>
+        <div class="chart-card-legend"><span><i style="background:var(--sky600)"></i>진입시점</span><span><i style="background:var(--purple)"></i>기준선(EMA50)</span><span><i style="background:var(--amber)"></i>EMA100</span><span><i style="background:var(--${s.primary.cls === 'bdg-red' ? 'red' : s.primary.cls === 'bdg-purple' ? 'purple' : s.primary.cls === 'bdg-teal' ? 'teal' : s.primary.cls === 'bdg-amber' ? 'amber' : 'gray600'})"></i>상태 <span>${s.primary.label}</span></span></div>
       </div>`;
 }
 
@@ -375,12 +380,13 @@ async function main() {
   const open = rows.filter(x => x.status === 'OPEN');
   const wins = closed.filter(x => x.ret > 0).length;
 
+  const CHART_COUNT = 10;
   const tableHtml = rows.map((row, i) => tableRowHtml(row, sortedMeta[i].seq)).join('\n');
-  const chartCardsHtml = rows.map((row, i) => chartCardHtml(row, sortedMeta[i].seq, sortedMeta[i].entryIdx)).join('\n');
+  const chartCardsHtml = rows.slice(0, CHART_COUNT).map((row, i) => chartCardHtml(row, sortedMeta[i].seq, sortedMeta[i].entryIdx)).join('\n');
   const fs = await import('fs');
   fs.writeFileSync('pullback_signals_table.html', tableHtml, 'utf-8');
   fs.writeFileSync('pullback_signals_charts.html', chartCardsHtml, 'utf-8');
-  console.error(`[산출완료] table→pullback_signals_table.html, charts→pullback_signals_charts.html`);
+  console.error(`[산출완료] table→pullback_signals_table.html(전체 ${rows.length}건), charts→pullback_signals_charts.html(최신 ${Math.min(CHART_COUNT, rows.length)}건)`);
 
   const out = {
     generatedAt: new Date().toISOString(),
