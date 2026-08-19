@@ -589,12 +589,11 @@ async function runMarket(universe, opts, todayDate, cutoffDate) {
   };
 }
 
-// 2026-08-19: 예상종목(워치) 탭은 "최근신호"와 달리 코스피/코스닥 분리 대상이 아니라(사용자 요청 범위 밖),
-// 코스피+코스닥 유니버스를 합쳐 하나의 Z-score 순위로 계속 보여준다(기존 동작 그대로 유지).
-function computeWatch(allValid, allOpenNames, opts) {
+// 2026-08-19: 예상종목(워치) 탭도 최근신호와 동일하게 코스피/코스닥 각 시장 단위로 분리 산출한다.
+function computeWatch(valid, openNames, opts) {
   const watchCandidates = [];
-  for (const r of allValid) {
-    if (allOpenNames.has(r.name)) continue;
+  for (const r of valid) {
+    if (openNames.has(r.name)) continue;
     const seq = r.seq;
     const last = seq.length - 1;
     const curStreak = r.streak[last];
@@ -629,19 +628,22 @@ async function main() {
 
   const ks = await runMarket(kospiUniverse, opts, todayDate, cutoffDate);
   const kq = await runMarket(kosdaqUniverse, opts, todayDate, cutoffDate);
-  const watch = computeWatch([...ks.valid, ...kq.valid], new Set([...ks.openNames, ...kq.openNames]), opts);
+  const watchKs = computeWatch(ks.valid, ks.openNames, opts);
+  const watchKq = computeWatch(kq.valid, kq.openNames, opts);
 
   fs.writeFileSync('baseline_signals_table_ks.html', ks.tableHtml, 'utf-8');
   fs.writeFileSync('baseline_signals_charts_ks.html', ks.chartCardsHtml, 'utf-8');
   fs.writeFileSync('baseline_signals_table_kq.html', kq.tableHtml, 'utf-8');
   fs.writeFileSync('baseline_signals_charts_kq.html', kq.chartCardsHtml, 'utf-8');
-  fs.writeFileSync('baseline_watch_charts.html', watch.watchChartsHtml, 'utf-8');
-  fs.writeFileSync('baseline_watch_table.html', watch.watchTableHtml, 'utf-8');
-  console.error(`[산출완료] 최근신호 *_ks/kq.html 4개(코스피/코스닥 분리) + 예상종목 2개(통합 유지)`);
+  fs.writeFileSync('baseline_watch_table_ks.html', watchKs.watchTableHtml, 'utf-8');
+  fs.writeFileSync('baseline_watch_charts_ks.html', watchKs.watchChartsHtml, 'utf-8');
+  fs.writeFileSync('baseline_watch_table_kq.html', watchKq.watchTableHtml, 'utf-8');
+  fs.writeFileSync('baseline_watch_charts_kq.html', watchKq.watchChartsHtml, 'utf-8');
+  console.error(`[산출완료] 최근신호·예상종목 각 *_ks/kq.html(코스피/코스닥 분리), 총 8개 fragment 생성`);
 
   console.log(JSON.stringify({
     generatedAt: new Date().toISOString(), cutoffDate,
-    kospi: { signals: ks.stats }, kosdaq: { signals: kq.stats }, watch: watch.stats,
+    kospi: { signals: ks.stats, watch: watchKs.stats }, kosdaq: { signals: kq.stats, watch: watchKq.stats },
   }, null, 2));
 }
 
