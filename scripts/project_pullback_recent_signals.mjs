@@ -313,7 +313,7 @@ function buildChartSvg(rows, markers) {
   if (markers?.entryIdx != null && markers.entryIdx >= 0) {
     const ei = markers.entryIdx;
     const entryY = yAt(rows[ei].close).toFixed(1);
-    svg += `<line x1="${x0}" y1="${entryY}" x2="${x1}" y2="${entryY}" stroke="var(--sky600)" stroke-width="1" stroke-dasharray="4,3" opacity="0.55"/>`;
+    svg += `<line x1="${x0}" y1="${entryY}" x2="${x1}" y2="${entryY}" stroke="var(--sky600)" stroke-width="1.6" stroke-dasharray="5,3" opacity="0.85"/>`;
     svg += `<line x1="${xAt(ei).toFixed(1)}" y1="${yTop}" x2="${xAt(ei).toFixed(1)}" y2="${yBot}" stroke="var(--txt2)" stroke-width="1" stroke-dasharray="2,3"/>`;
     svg += `<circle cx="${xAt(ei).toFixed(1)}" cy="${entryY}" r="4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1.2"/>`;
   }
