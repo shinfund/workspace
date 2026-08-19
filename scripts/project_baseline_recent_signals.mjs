@@ -12,53 +12,44 @@ const YF_HEADERS = {
   'Accept': 'application/json', 'Accept-Language': 'ko-KR,ko;q=0.9',
 };
 
-const UNIVERSE_SIZE = 50;
+const KOSPI_SIZE = 50, KOSDAQ_SIZE = 20;
 
-// KRX 조회 실패 시에만 사용하는 폴백 유니버스(2026-08-03 KIS 기준 스냅샷, 우선주 제외)
-const FALLBACK_STOCKS = [
-  { code: '005930', name: '삼성전자' }, { code: '000660', name: 'SK하이닉스' },
-  { code: '402340', name: 'SK스퀘어' }, { code: '009150', name: '삼성전기' },
-  { code: '005380', name: '현대차' }, { code: '373220', name: 'LG에너지솔루션' },
-  { code: '207940', name: '삼성바이오로직스' }, { code: '032830', name: '삼성생명' },
-  { code: '105560', name: 'KB금융' }, { code: '028260', name: '삼성물산' },
-  { code: '000270', name: '기아' }, { code: '329180', name: 'HD현대중공업' },
-  { code: '055550', name: '신한지주' }, { code: '012450', name: '한화에어로스페이스' },
-  { code: '068270', name: '셀트리온' }, { code: '012330', name: '현대모비스' },
-  { code: '034020', name: '두산에너빌리티' }, { code: '034730', name: 'SK' },
-  { code: '086790', name: '하나금융지주' }, { code: '035420', name: 'NAVER' },
-  { code: '006400', name: '삼성SDI' }, { code: '000810', name: '삼성화재' },
-  { code: '010120', name: 'LS ELECTRIC' }, { code: '009540', name: 'HD한국조선해양' },
-  { code: '066570', name: 'LG전자' }, { code: '042660', name: '한화오션' },
-  { code: '005490', name: 'POSCO홀딩스' }, { code: '267260', name: 'HD현대일렉트릭' },
-  { code: '316140', name: '우리금융지주' }, { code: '298040', name: '효성중공업' },
-  { code: '015760', name: '한국전력' }, { code: '010130', name: '고려아연' },
-  { code: '042700', name: '한미반도체' }, { code: '011200', name: 'HMM' },
-  { code: '096770', name: 'SK이노베이션' }, { code: '006800', name: '미래에셋증권' },
-  { code: '033780', name: 'KT&G' }, { code: '000150', name: '두산' },
-  { code: '010140', name: '삼성중공업' }, { code: '051910', name: 'LG화학' },
-  { code: '017670', name: 'SK텔레콤' }, { code: '035720', name: '카카오' },
-  { code: '196170', name: '알테오젠', market: 'KOSDAQ' }, { code: '024110', name: '기업은행' },
-  { code: '018260', name: '삼성에스디에스' }, { code: '267250', name: 'HD현대' },
-  { code: '079550', name: 'LIG디펜스앤에어로스페이스' }, { code: '003550', name: 'LG' },
-  { code: '086280', name: '현대글로비스' }, { code: '010950', name: 'S-Oil' },
+// KRX 조회 실패 시에만 사용하는 폴백 유니버스(2026-08-19 KRX 기준 스냅샷, ETF·우선주 제외)
+// 2026-08-19: 코스피/코스닥은 시장 성격(변동성 등)이 달라 "최근신호" 탭을 KS/KQ 두 탭으로 분리하면서
+// 유니버스도 통합랭킹(top50) 대신 코스피 전용 TOP50 / 코스닥 전용 TOP20으로 나눴다(사용자 확정 —
+// 진단 결과 TOP20이 컷오프 전 구간 중 가중평균 최고(+15.60%, n=122)라 표본을 더 늘릴 이유가 없었음).
+// FALLBACK_KOSDAQ은 TOP30까지 넉넉히 보관하고 실제 사용 시 KOSDAQ_SIZE만큼만 잘라 쓴다.
+const FALLBACK_KOSPI = [
+  { code: '005930', name: '삼성전자' }, { code: '000660', name: 'SK하이닉스' }, { code: '402340', name: 'SK스퀘어' }, { code: '009150', name: '삼성전기' }, { code: '005380', name: '현대차' }, { code: '373220', name: 'LG에너지솔루션' }, { code: '207940', name: '삼성바이오로직스' }, { code: '032830', name: '삼성생명' }, { code: '028260', name: '삼성물산' }, { code: '012450', name: '한화에어로스페이스' }, { code: '105560', name: 'KB금융' }, { code: '000270', name: '기아' }, { code: '034020', name: '두산에너빌리티' }, { code: '329180', name: 'HD현대중공업' }, { code: '055550', name: '신한지주' }, { code: '012330', name: '현대모비스' }, { code: '068270', name: '셀트리온' }, { code: '034730', name: 'SK' }, { code: '006400', name: '삼성SDI' }, { code: '086790', name: '하나금융지주' }, { code: '035420', name: 'NAVER' }, { code: '066570', name: 'LG전자' }, { code: '010120', name: 'LS ELECTRIC' }, { code: '042660', name: '한화오션' }, { code: '267260', name: 'HD현대일렉트릭' }, { code: '000810', name: '삼성화재' }, { code: '298040', name: '효성중공업' }, { code: '009540', name: 'HD한국조선해양' }, { code: '005490', name: 'POSCO홀딩스' }, { code: '010130', name: '고려아연' }, { code: '316140', name: '우리금융지주' }, { code: '096770', name: 'SK이노베이션' }, { code: '042700', name: '한미반도체' }, { code: '017670', name: 'SK텔레콤' }, { code: '011200', name: 'HMM' }, { code: '015760', name: '한국전력' }, { code: '006800', name: '미래에셋증권' }, { code: '000150', name: '두산' }, { code: '051910', name: 'LG화학' }, { code: '010140', name: '삼성중공업' }, { code: '018260', name: '삼성에스디에스' }, { code: '267250', name: 'HD현대' }, { code: '033780', name: 'KT&G' }, { code: '003550', name: 'LG' }, { code: '079550', name: 'LIG디펜스앤에어로스페이스' }, { code: '035720', name: '카카오' }, { code: '010950', name: 'S-Oil' }, { code: '024110', name: '기업은행' }, { code: '064350', name: '현대로템' }, { code: '086280', name: '현대글로비스' },
+];
+const FALLBACK_KOSDAQ = [
+  { code: '196170', name: '알테오젠', market: 'KOSDAQ' }, { code: '086520', name: '에코프로', market: 'KOSDAQ' }, { code: '247540', name: '에코프로비엠', market: 'KOSDAQ' }, { code: '277810', name: '레인보우로보틱스', market: 'KOSDAQ' }, { code: '036930', name: '주성엔지니어링', market: 'KOSDAQ' }, { code: '028300', name: 'HLB', market: 'KOSDAQ' }, { code: '240810', name: '원익IPS', market: 'KOSDAQ' }, { code: '058470', name: '리노공업', market: 'KOSDAQ' }, { code: '039030', name: '이오테크닉스', market: 'KOSDAQ' }, { code: '087010', name: '펩트론', market: 'KOSDAQ' }, { code: '298380', name: '에이비엘바이오', market: 'KOSDAQ' }, { code: '000250', name: '삼천당제약', market: 'KOSDAQ' }, { code: '141080', name: '리가켐바이오', market: 'KOSDAQ' }, { code: '222800', name: '심텍', market: 'KOSDAQ' }, { code: '214450', name: '파마리서치', market: 'KOSDAQ' }, { code: '108490', name: '로보티즈', market: 'KOSDAQ' }, { code: '319660', name: '피에스케이', market: 'KOSDAQ' }, { code: '095340', name: 'ISC', market: 'KOSDAQ' }, { code: '403870', name: 'HPSP', market: 'KOSDAQ' }, { code: '440110', name: '파두', market: 'KOSDAQ' }, { code: '214370', name: '케어젠', market: 'KOSDAQ' }, { code: '310210', name: '보로노이', market: 'KOSDAQ' }, { code: '145020', name: '휴젤', market: 'KOSDAQ' }, { code: '084370', name: '유진테크', market: 'KOSDAQ' }, { code: '131290', name: '티에스이', market: 'KOSDAQ' }, { code: '257720', name: '실리콘투', market: 'KOSDAQ' }, { code: '095610', name: '테스', market: 'KOSDAQ' }, { code: '080220', name: '제주반도체', market: 'KOSDAQ' }, { code: '319400', name: '현대무벡스', market: 'KOSDAQ' }, { code: '064760', name: '티씨케이', market: 'KOSDAQ' },
 ];
 
-// 매 실행마다 KRX 전일 시총 기준 TOP50(ETF·우선주 제외)을 새로 산출한다(2026-08-19, 고정 리스트 폐지).
+// 매 실행마다 KRX 전일 시총 기준으로 코스피/코스닥을 각각 새로 산출한다(2026-08-19, 통합랭킹 폐지).
 // project_baseline_strategy_backtest.mjs의 백테스트는 재현성을 위해 2026-08-03 스냅샷 유니버스를 계속 유지한다.
-async function buildTop50Universe() {
+async function buildKospiUniverse() {
   try {
-    const { kospi, kosdaq, basDt } = await fetchKrxUniverse();
-    const top50 = [...kospi, ...kosdaq]
-      .sort((a, b) => b._mktcap - a._mktcap)
-      .slice(0, UNIVERSE_SIZE)
-      .map(s => s.시장 === 'KOSDAQ'
-        ? { code: s.종목코드, name: s.종목명, market: 'KOSDAQ' }
-        : { code: s.종목코드, name: s.종목명 });
-    console.error(`[유니버스] KRX 시총 TOP${UNIVERSE_SIZE} 산출 완료(기준일 ${basDt})`);
-    return top50;
+    const { kospi, basDt } = await fetchKrxUniverse();
+    const top = kospi.sort((a, b) => b._mktcap - a._mktcap).slice(0, KOSPI_SIZE)
+      .map(s => ({ code: s.종목코드, name: s.종목명 }));
+    console.error(`[유니버스] 코스피 시총 TOP${KOSPI_SIZE} 산출 완료(기준일 ${basDt})`);
+    return top;
   } catch (e) {
-    console.error(`[유니버스] KRX 조회 실패(${e.message}) → 폴백 스냅샷 사용`);
-    return FALLBACK_STOCKS;
+    console.error(`[유니버스] KRX 조회 실패(${e.message}) → 코스피 폴백 스냅샷 사용`);
+    return FALLBACK_KOSPI;
+  }
+}
+async function buildKosdaqUniverse() {
+  try {
+    const { kosdaq, basDt } = await fetchKrxUniverse();
+    const top = kosdaq.sort((a, b) => b._mktcap - a._mktcap).slice(0, KOSDAQ_SIZE)
+      .map(s => ({ code: s.종목코드, name: s.종목명, market: 'KOSDAQ' }));
+    console.error(`[유니버스] 코스닥 시총 TOP${KOSDAQ_SIZE} 산출 완료(기준일 ${basDt})`);
+    return top;
+  } catch (e) {
+    console.error(`[유니버스] KRX 조회 실패(${e.message}) → 코스닥 폴백 스냅샷 사용`);
+    return FALLBACK_KOSDAQ.slice(0, KOSDAQ_SIZE);
   }
 }
 
@@ -535,37 +526,31 @@ function watchChartCardHtml(r) {
       </div>`;
 }
 
-async function main() {
-  const opts = parseArgs();
-  console.error(`[기준선 전략 최근신호/예상종목 산출] recentDays=${opts.recentDays} chartCap=${opts.chartCap} watchCap=${opts.watchCap}`);
+// 종목당 실제로는 동시에 1사이클만 보유 가능(재진입 없음)하므로, 같은 종목이 아직 보유중인 동안
+// 발생한 후속 rising-edge는 "새 진입"이 아니라 같은 사이클의 잡음(휩쏘)이다 — 시계열 순서대로
+// 걸으며 이전 사이클이 청산(CLOSED)되기 전까지 발생한 신규 신호는 건너뛴다(중복표시 방지).
+function primaryEntriesForStock(seq, entries) {
+  const primary = [];
+  let nextAllowedIdx = -Infinity;
+  for (const e of entries) {
+    if (e.i < nextAllowedIdx) continue;
+    const status = simulateLiveStatus(seq, e.i);
+    primary.push({ ...e, status });
+    nextAllowedIdx = status.status === 'OPEN' ? Infinity : e.i + status.finalDay + 1;
+  }
+  return primary;
+}
 
-  const todayDate = kstTodayDate();
-  const universe = await buildTop50Universe();
+// 2026-08-19: 코스피/코스닥 분리 — 유니버스 로드부터 최근신호·예상종목 fragment 생성까지 전체
+// 파이프라인을 시장 하나 단위로 실행하는 함수로 뽑아, main()에서 코스피/코스닥 각각 1회씩 호출한다.
+async function runMarket(universe, opts, todayDate, cutoffDate) {
   const kisMap = await fetchKisPriceMap(universe);
   const loaded = await batchAll(universe, s => loadStock(s, kisMap, todayDate));
   const valid = loaded.filter(r => !r.error);
   const errors = loaded.filter(r => r.error).map(r => `${r.name}: ${r.error}`);
   if (errors.length) console.error(`[조회실패] ${errors.join(', ')}`);
 
-  const cutoffMs = Date.now() - opts.recentDays * 24 * 3600 * 1000;
-  const cutoffDate = new Date(cutoffMs).toISOString().slice(0, 10);
-
   // ── 최근신호 ──────────────────────────────────────────
-  // 종목당 실제로는 동시에 1사이클만 보유 가능(재진입 없음)하므로, 같은 종목이 아직 보유중인 동안
-  // 발생한 후속 rising-edge는 "새 진입"이 아니라 같은 사이클의 잡음(휩쏘)이다 — 시계열 순서대로
-  // 걸으며 이전 사이클이 청산(CLOSED)되기 전까지 발생한 신규 신호는 건너뛴다(중복표시 방지).
-  function primaryEntriesForStock(seq, entries) {
-    const primary = [];
-    let nextAllowedIdx = -Infinity;
-    for (const e of entries) {
-      if (e.i < nextAllowedIdx) continue;
-      const status = simulateLiveStatus(seq, e.i);
-      primary.push({ ...e, status });
-      nextAllowedIdx = status.status === 'OPEN' ? Infinity : e.i + status.finalDay + 1;
-    }
-    return primary;
-  }
-
   const rows = [];
   const rowMeta = [];
   for (const r of valid) {
@@ -597,13 +582,19 @@ async function main() {
   const chartMetaForCards = sortedMeta.slice(0, opts.chartCap);
   const chartCardsHtml = chartRowsForCards.map((row, i) => signalChartCardHtml(row, chartMetaForCards[i].seq, chartMetaForCards[i].entryIdx)).join('\n');
 
-  // ── 예상종목(워치 후보) ────────────────────────────────
-  // 오늘 이미 신규 신호가 뜬 종목(streak[last]는 회복 로직상 0이 될 수 있어 자연 제외됨)은
-  // 최근신호에 이미 포함되므로 워치 리스트에서 자연히 배제된다.
-  const openNames = new Set(open.map(r => r.name)); // 이미 이 전략으로 보유중인 종목은 워치 리스트에서 제외(중복 방지)
+  return {
+    valid, tableHtml, chartCardsHtml,
+    openNames: new Set(open.map(r => r.name)), // 이미 이 전략으로 보유중인 종목(예상종목 탭에서 중복 배제용)
+    stats: { total: sortedRows.length, openCount: open.length, closedCount: closed.length, closedWinRate: closed.length ? (wins / closed.length * 100) : null },
+  };
+}
+
+// 2026-08-19: 예상종목(워치) 탭은 "최근신호"와 달리 코스피/코스닥 분리 대상이 아니라(사용자 요청 범위 밖),
+// 코스피+코스닥 유니버스를 합쳐 하나의 Z-score 순위로 계속 보여준다(기존 동작 그대로 유지).
+function computeWatch(allValid, allOpenNames, opts) {
   const watchCandidates = [];
-  for (const r of valid) {
-    if (openNames.has(r.name)) continue;
+  for (const r of allValid) {
+    if (allOpenNames.has(r.name)) continue;
     const seq = r.seq;
     const last = seq.length - 1;
     const curStreak = r.streak[last];
@@ -613,23 +604,44 @@ async function main() {
   }
   watchCandidates.sort((a, b) => a.curZ - b.curZ);
   const watchTop = watchCandidates.slice(0, opts.watchCap);
-  const watchChartsHtml = watchTop.map(watchChartCardHtml).join('\n');
-  const watchTableHtml = watchTop.map(watchRowHtml).join('\n');
   const watchZHitCount = watchCandidates.filter(r => r.curZ <= Z_THRESHOLD).length;
+  return {
+    watchChartsHtml: watchTop.map(watchChartCardHtml).join('\n'),
+    watchTableHtml: watchTop.map(watchRowHtml).join('\n'),
+    stats: {
+      total: watchCandidates.length, zHitCount: watchZHitCount, notYetCount: watchCandidates.length - watchZHitCount,
+      watchNames: watchTop.map(r => ({ name: r.name, streak: r.curStreak, z: r.curZ })),
+    },
+  };
+}
 
-  const fs2 = fs;
-  fs2.writeFileSync('baseline_signals_table.html', tableHtml, 'utf-8');
-  fs2.writeFileSync('baseline_signals_charts.html', chartCardsHtml, 'utf-8');
-  fs2.writeFileSync('baseline_watch_charts.html', watchChartsHtml, 'utf-8');
-  fs2.writeFileSync('baseline_watch_table.html', watchTableHtml, 'utf-8');
-  console.error(`[산출완료] table→baseline_signals_table.html, charts→baseline_signals_charts.html, watch→baseline_watch_charts.html, watchTable→baseline_watch_table.html`);
+async function main() {
+  const opts = parseArgs();
+  console.error(`[기준선 전략 최근신호/예상종목 산출] recentDays=${opts.recentDays} chartCap=${opts.chartCap} watchCap=${opts.watchCap}`);
+
+  const todayDate = kstTodayDate();
+  const cutoffMs = Date.now() - opts.recentDays * 24 * 3600 * 1000;
+  const cutoffDate = new Date(cutoffMs).toISOString().slice(0, 10);
+
+  const kospiUniverse = await buildKospiUniverse();
+  const kosdaqUniverse = await buildKosdaqUniverse();
+  console.error(`[기준선] 코스피 ${kospiUniverse.length}종목 / 코스닥 ${kosdaqUniverse.length}종목 스캔 시작`);
+
+  const ks = await runMarket(kospiUniverse, opts, todayDate, cutoffDate);
+  const kq = await runMarket(kosdaqUniverse, opts, todayDate, cutoffDate);
+  const watch = computeWatch([...ks.valid, ...kq.valid], new Set([...ks.openNames, ...kq.openNames]), opts);
+
+  fs.writeFileSync('baseline_signals_table_ks.html', ks.tableHtml, 'utf-8');
+  fs.writeFileSync('baseline_signals_charts_ks.html', ks.chartCardsHtml, 'utf-8');
+  fs.writeFileSync('baseline_signals_table_kq.html', kq.tableHtml, 'utf-8');
+  fs.writeFileSync('baseline_signals_charts_kq.html', kq.chartCardsHtml, 'utf-8');
+  fs.writeFileSync('baseline_watch_charts.html', watch.watchChartsHtml, 'utf-8');
+  fs.writeFileSync('baseline_watch_table.html', watch.watchTableHtml, 'utf-8');
+  console.error(`[산출완료] 최근신호 *_ks/kq.html 4개(코스피/코스닥 분리) + 예상종목 2개(통합 유지)`);
 
   console.log(JSON.stringify({
     generatedAt: new Date().toISOString(), cutoffDate,
-    signals: { total: sortedRows.length, openCount: open.length, closedCount: closed.length, closedWinRate: closed.length ? (wins / closed.length * 100) : null },
-    watch: { total: watchCandidates.length, zHitCount: watchZHitCount, notYetCount: watchCandidates.length - watchZHitCount },
-    watchNames: watchTop.map(r => ({ name: r.name, streak: r.curStreak, z: r.curZ })),
-    signalNames: sortedRows.map(r => ({ date: r.date, name: r.name, status: r.status, ret: r.ret })),
+    kospi: { signals: ks.stats }, kosdaq: { signals: kq.stats }, watch: watch.stats,
   }, null, 2));
 }
 
