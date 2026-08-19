@@ -381,12 +381,12 @@ function buildChartSvg(rows, markers) {
   const yLo = lo - pad, yHi = hi + pad;
   const yAt = v => yBot - (yBot - yTop) * (v - yLo) / (yHi - yLo);
   const poly = (key, color, dash, width) => `<polyline points="${rows.map((r, i) => `${xAt(i).toFixed(1)},${yAt(r[key]).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--${color})" stroke-width="${width}"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
-  let svg = poly('ema200', 'amber', '6,3', 1.8) + poly('ema5', 'sky', '2,2', 1.8) + poly('close', 'txt', null, 1.7);
+  let svg = poly('ema200', 'amber', '6,3', 1.8) + poly('ema5', 'sky', '6,3', 1.8) + poly('close', 'txt', null, 1.7);
   if (markers?.entryIdx != null && markers.entryIdx >= 0) {
     const ei = markers.entryIdx;
     const entryY = yAt(rows[ei].close).toFixed(1);
-    svg += `<line x1="${x0}" y1="${entryY}" x2="${x1}" y2="${entryY}" stroke="var(--sky600)" stroke-width="1" stroke-dasharray="5,3" opacity="0.85"/>`;
-    svg += `<line x1="${xAt(ei).toFixed(1)}" y1="${yTop}" x2="${xAt(ei).toFixed(1)}" y2="${yBot}" stroke="var(--txt2)" stroke-width="1" stroke-dasharray="2,3"/>`;
+    svg += `<line x1="${x0}" y1="${entryY}" x2="${x1}" y2="${entryY}" stroke="var(--sky600)" stroke-width="1" stroke-dasharray="2,2" opacity="0.85"/>`;
+    svg += `<line x1="${xAt(ei).toFixed(1)}" y1="${yTop}" x2="${xAt(ei).toFixed(1)}" y2="${yBot}" stroke="var(--txt2)" stroke-width="1" stroke-dasharray="2,2"/>`;
     svg += `<circle cx="${xAt(ei).toFixed(1)}" cy="${entryY}" r="4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1.2"/>`;
   }
   if (markers?.buyLog) {
@@ -399,8 +399,8 @@ function buildChartSvg(rows, markers) {
       const idx = markers.entryIdx + b.day;
       if (idx >= 0 && idx < n) {
         const buyY = yAt(rows[idx].close).toFixed(1);
-        svg += `<line x1="${x0}" y1="${buyY}" x2="${x1}" y2="${buyY}" stroke="var(--purple)" stroke-width="1" stroke-dasharray="5,3" opacity="0.85"/>`;
-        svg += `<line x1="${xAt(idx).toFixed(1)}" y1="${yTop}" x2="${xAt(idx).toFixed(1)}" y2="${yBot}" stroke="var(--txt2)" stroke-width="1" stroke-dasharray="2,3"/>`;
+        svg += `<line x1="${x0}" y1="${buyY}" x2="${x1}" y2="${buyY}" stroke="var(--purple)" stroke-width="1" stroke-dasharray="2,2" opacity="0.85"/>`;
+        svg += `<line x1="${xAt(idx).toFixed(1)}" y1="${yTop}" x2="${xAt(idx).toFixed(1)}" y2="${yBot}" stroke="var(--txt2)" stroke-width="1" stroke-dasharray="2,2"/>`;
         svg += `<circle cx="${xAt(idx).toFixed(1)}" cy="${buyY}" r="3.5" fill="var(--purple)" stroke="var(--card)" stroke-width="1"/>`;
       }
     }
@@ -436,7 +436,7 @@ function signalChartCardHtml(row, seq, entryIdx) {
         <div class="chart-card-stats">
           <span>신호일 ${(row.signalDates || []).map(b => b.executed ? `${b.leg}차 ${b.date}(${fmtV(b.price)})` : `<span style="opacity:.65">${b.leg}차(신호만) ${b.date}(${fmtV(b.price)})</span>`).join(' <span class="sep">|</span> ')}</span>
         </div>
-        <div class="chart-card-legend"><span><i style="background:var(--sky600)"></i>진입/추가매수</span><span><i style="background:var(--${s.primary.cls === 'bdg-red' ? 'red' : s.primary.cls === 'bdg-purple' ? 'purple' : s.primary.cls === 'bdg-teal' ? 'teal' : 'gray600'})"></i>상태 <span>${s.primary.label}</span></span></div>
+        <div class="chart-card-legend"><span><i class="dash" style="border-color:var(--sky)"></i>EMA5</span><span><i class="dash" style="border-color:var(--amber)"></i>EMA200(기준선)</span><span><i style="background:var(--sky600)"></i>1차 진입가</span>${row.buyCount >= 2 ? '<span><i style="background:var(--purple)"></i>2차 진입가</span>' : ''}<span><i style="background:var(--${s.primary.cls === 'bdg-red' ? 'red' : s.primary.cls === 'bdg-purple' ? 'purple' : s.primary.cls === 'bdg-teal' ? 'teal' : 'gray600'})"></i>상태 <span>${s.primary.label}</span></span></div>
       </div>`;
 }
 

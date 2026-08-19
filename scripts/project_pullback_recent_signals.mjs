@@ -309,12 +309,12 @@ function buildChartSvg(rows, markers) {
   const yLo = lo - pad, yHi = hi + pad;
   const yAt = v => yBot - (yBot - yTop) * (v - yLo) / (yHi - yLo);
   const poly = (key, color, dash, width) => `<polyline points="${rows.map((r, i) => `${xAt(i).toFixed(1)},${yAt(r[key]).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--${color})" stroke-width="${width}"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
-  let svg = poly('maLong', 'amber', '6,3', 1.3) + poly('maShort', 'purple', '2,2', 1.8) + poly('close', 'txt', null, 1.7);
+  let svg = poly('maLong', 'gray600', '6,3', 1.3) + poly('maShort', 'teal', '6,3', 1.3) + poly('close', 'txt', null, 1.7);
   if (markers?.entryIdx != null && markers.entryIdx >= 0) {
     const ei = markers.entryIdx;
     const entryY = yAt(rows[ei].close).toFixed(1);
-    svg += `<line x1="${x0}" y1="${entryY}" x2="${x1}" y2="${entryY}" stroke="var(--sky600)" stroke-width="1" stroke-dasharray="5,3" opacity="0.85"/>`;
-    svg += `<line x1="${xAt(ei).toFixed(1)}" y1="${yTop}" x2="${xAt(ei).toFixed(1)}" y2="${yBot}" stroke="var(--txt2)" stroke-width="1" stroke-dasharray="2,3"/>`;
+    svg += `<line x1="${x0}" y1="${entryY}" x2="${x1}" y2="${entryY}" stroke="var(--sky600)" stroke-width="1" stroke-dasharray="2,2" opacity="0.85"/>`;
+    svg += `<line x1="${xAt(ei).toFixed(1)}" y1="${yTop}" x2="${xAt(ei).toFixed(1)}" y2="${yBot}" stroke="var(--txt2)" stroke-width="1" stroke-dasharray="2,2"/>`;
     svg += `<circle cx="${xAt(ei).toFixed(1)}" cy="${entryY}" r="4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1.2"/>`;
   }
   svg += `<circle cx="${xAt(n - 1).toFixed(1)}" cy="${yAt(rows[n - 1].close).toFixed(1)}" r="4.5" fill="var(--red)" stroke="var(--card)" stroke-width="1.3"/>`;
@@ -343,7 +343,7 @@ function chartCardHtml(row, seq, entryIdx) {
         <div class="chart-card-stats">
           <span>EMA50대비 <span class="${retClass(emaDisparity)}">${fmt(emaDisparity)}</span> <span class="sep">|</span> 기준선(EMA50) <span>${fmtV(cur.maShort)}</span></span>
         </div>
-        <div class="chart-card-legend"><span><i style="background:var(--sky600)"></i>진입가</span><span><i style="background:var(--purple)"></i>기준선(EMA50)</span><span><i style="background:var(--amber)"></i>EMA100</span><span><i style="background:var(--${s.primary.cls === 'bdg-red' ? 'red' : s.primary.cls === 'bdg-purple' ? 'purple' : s.primary.cls === 'bdg-teal' ? 'teal' : s.primary.cls === 'bdg-amber' ? 'amber' : 'gray600'})"></i>상태 <span>${s.primary.label}</span></span></div>
+        <div class="chart-card-legend"><span><i style="background:var(--sky600)"></i>진입가</span><span><i style="background:var(--teal)"></i>기준선(EMA50)</span><span><i style="background:var(--gray600)"></i>EMA100</span><span><i style="background:var(--${s.primary.cls === 'bdg-red' ? 'red' : s.primary.cls === 'bdg-purple' ? 'purple' : s.primary.cls === 'bdg-teal' ? 'teal' : s.primary.cls === 'bdg-amber' ? 'amber' : 'gray600'})"></i>상태 <span>${s.primary.label}</span></span></div>
       </div>`;
 }
 
