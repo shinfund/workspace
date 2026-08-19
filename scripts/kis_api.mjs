@@ -99,7 +99,7 @@ export async function getToken() {
   return res.access_token;
 }
 
-async function fetchKrxUniverse() {
+export async function fetchKrxUniverse() {
   console.error('[KRX] 전일 시총 유니버스 조회...');
   const r = await get(`https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo?serviceKey=${KRX_KEY}&numOfRows=5000&pageNo=1&resultType=json`);
   const items = r?.response?.body?.items?.item ?? [];

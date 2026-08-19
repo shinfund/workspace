@@ -5,15 +5,17 @@
 // 사용법: node scripts/project_baseline_recent_signals.mjs [--days 365] [--chart-cap 10] [--watch-cap 8]
 import https from 'https';
 import fs from 'fs';
-import { getToken as getKisToken, fetchKisPrice } from './kis_api.mjs';
+import { getToken as getKisToken, fetchKisPrice, fetchKrxUniverse } from './kis_api.mjs';
 
 const YF_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
   'Accept': 'application/json', 'Accept-Language': 'ko-KR,ko;q=0.9',
 };
 
-// 시가총액 TOP50 (project_baseline_strategy_backtest.mjs와 동일 유니버스, 2026-08-03 KIS 기준)
-const DEFAULT_STOCKS = [
+const UNIVERSE_SIZE = 50;
+
+// KRX 조회 실패 시에만 사용하는 폴백 유니버스(2026-08-03 KIS 기준 스냅샷, 우선주 제외)
+const FALLBACK_STOCKS = [
   { code: '005930', name: '삼성전자' }, { code: '000660', name: 'SK하이닉스' },
   { code: '402340', name: 'SK스퀘어' }, { code: '009150', name: '삼성전기' },
   { code: '005380', name: '현대차' }, { code: '373220', name: 'LG에너지솔루션' },
@@ -40,6 +42,25 @@ const DEFAULT_STOCKS = [
   { code: '079550', name: 'LIG디펜스앤에어로스페이스' }, { code: '003550', name: 'LG' },
   { code: '086280', name: '현대글로비스' }, { code: '010950', name: 'S-Oil' },
 ];
+
+// 매 실행마다 KRX 전일 시총 기준 TOP50(ETF·우선주 제외)을 새로 산출한다(2026-08-19, 고정 리스트 폐지).
+// project_baseline_strategy_backtest.mjs의 백테스트는 재현성을 위해 2026-08-03 스냅샷 유니버스를 계속 유지한다.
+async function buildTop50Universe() {
+  try {
+    const { kospi, kosdaq, basDt } = await fetchKrxUniverse();
+    const top50 = [...kospi, ...kosdaq]
+      .sort((a, b) => b._mktcap - a._mktcap)
+      .slice(0, UNIVERSE_SIZE)
+      .map(s => s.시장 === 'KOSDAQ'
+        ? { code: s.종목코드, name: s.종목명, market: 'KOSDAQ' }
+        : { code: s.종목코드, name: s.종목명 });
+    console.error(`[유니버스] KRX 시총 TOP${UNIVERSE_SIZE} 산출 완료(기준일 ${basDt})`);
+    return top50;
+  } catch (e) {
+    console.error(`[유니버스] KRX 조회 실패(${e.message}) → 폴백 스냅샷 사용`);
+    return FALLBACK_STOCKS;
+  }
+}
 
 const ROLL = 250, MIN_STREAK = 16, Z_THRESHOLD = -1.25;
 const FAST_PERIOD = 5, BASE_PERIOD = 200;
@@ -519,8 +540,9 @@ async function main() {
   console.error(`[기준선 전략 최근신호/예상종목 산출] recentDays=${opts.recentDays} chartCap=${opts.chartCap} watchCap=${opts.watchCap}`);
 
   const todayDate = kstTodayDate();
-  const kisMap = await fetchKisPriceMap(DEFAULT_STOCKS);
-  const loaded = await batchAll(DEFAULT_STOCKS, s => loadStock(s, kisMap, todayDate));
+  const universe = await buildTop50Universe();
+  const kisMap = await fetchKisPriceMap(universe);
+  const loaded = await batchAll(universe, s => loadStock(s, kisMap, todayDate));
   const valid = loaded.filter(r => !r.error);
   const errors = loaded.filter(r => r.error).map(r => `${r.name}: ${r.error}`);
   if (errors.length) console.error(`[조회실패] ${errors.join(', ')}`);
