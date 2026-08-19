@@ -3,7 +3,7 @@
 // (청산완료: 사유·경과일·수익률 / 보유중: 경과일·현재수익률)를 최근 N일 구간에 대해 산출해 JSON으로 출력한다.
 // 사용법: node scripts/project_pullback_recent_signals.mjs [--days 120]
 import https from 'https';
-import { fetchKrxUniverse } from './kis_api.mjs';
+import { fetchKrxUniverse, getToken as getKisToken, fetchKisPrice } from './kis_api.mjs';
 
 const YF_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -222,7 +222,7 @@ function simulateLiveStatus(seq, i0, entryClose, sl, trail, maxHold, tpPct, tpFr
   return null;
 }
 
-async function loadStockSignals(stock, regimeByMarket, opts) {
+async function loadStockSignals(stock, regimeByMarket, opts, kisMap, todayDate) {
   const marketRegime = stock.market === 'KOSDAQ' ? regimeByMarket.KOSDAQ : regimeByMarket.KOSPI;
   const p2 = Math.floor(Date.now() / 1000);
   const p1 = p2 - opts.calendarDays * 24 * 3600;
@@ -244,6 +244,11 @@ async function loadStockSignals(stock, regimeByMarket, opts) {
     if (closes[i] == null || maShort[i] == null || maLong[i] == null) continue;
     const atrPct = atr[i] != null ? atr[i] / closes[i] * 100 : null;
     seq.push({ date: dates[i], close: closes[i], maShort: maShort[i], maLong: maLong[i], atrPct });
+  }
+  // 장중/장마감 직후 Yahoo 당일 종가가 지연 반영될 수 있어, 오늘 날짜 마지막 봉은 KIS 당일 현재가로 덮어쓴다
+  const lastIdx = seq.length - 1;
+  if (lastIdx >= 0 && seq[lastIdx].date === todayDate && kisMap?.has(stock.code)) {
+    seq[lastIdx].close = kisMap.get(stock.code);
   }
   const minLen = MA_LONG + SLOPE_LOOKBACK + 1;
   if (seq.length < minLen) return { ...stock, error: '데이터 부족', seq: null, entries: [] };
@@ -360,12 +365,32 @@ function chartCardHtml(row, seq, entryIdx) {
       </div>`;
 }
 
+function kstTodayDate() { const d = new Date(Date.now() + 9 * 3600 * 1000); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`; }
+// 장중/장마감 직후 Yahoo 당일 종가 지연 보정용 KIS 당일 현재가 일괄조회(stock-baseline·stock-deviation과 동일 기법, [[feedback_price_cross_verify]])
+async function fetchKisPriceMap(codes) {
+  let token;
+  try { token = await getKisToken(); } catch (e) {
+    console.error(`[KIS] 토큰 실패: ${e.message} → 당일 종가는 Yahoo 값 사용`);
+    return new Map();
+  }
+  const map = new Map();
+  const BATCH = 5, DELAY_KIS = 200;
+  for (let i = 0; i < codes.length; i += BATCH) {
+    const batch = codes.slice(i, i + BATCH);
+    const res = await Promise.all(batch.map(c => fetchKisPrice(token, c)));
+    batch.forEach((c, j) => { if (res[j] && res[j].현재가 > 0) map.set(c, res[j].현재가); });
+    if (i + BATCH < codes.length) await new Promise(r => setTimeout(r, DELAY_KIS));
+  }
+  console.error(`[KIS] 당일 현재가 ${map.size}/${codes.length}종목 확보`);
+  return map;
+}
+
 const CHART_COUNT = 10;
 
 // 2026-08-19: 코스피/코스닥 분리 — 유니버스 하나를 스캔해 표/차트/통계를 만드는 로직을 함수로 뽑아
 // 코스피(자체 SL8/TRAIL8, 코스피지수 국면)와 코스닥(SL18/TRAIL18, 코스닥지수 국면) 각각 실행한다.
-async function runMarket(universe, regimeByMarket, opts, cutoffDate) {
-  const loaded = await batchAll(universe, s => loadStockSignals(s, regimeByMarket, { calendarDays: CALENDAR_DAYS }));
+async function runMarket(universe, regimeByMarket, opts, cutoffDate, kisMap, todayDate) {
+  const loaded = await batchAll(universe, s => loadStockSignals(s, regimeByMarket, { calendarDays: CALENDAR_DAYS }, kisMap, todayDate));
   const valid = loaded.filter(r => !r.error && r.entries.length);
 
   const rows = [];
@@ -413,8 +438,12 @@ async function main() {
   ]);
   const regimeByMarket = { KOSPI: regimeKospi, KOSDAQ: regimeKosdaq };
 
-  const ks = await runMarket(kospiUniverse, regimeByMarket, opts, cutoffDate);
-  const kq = await runMarket(kosdaqUniverse, regimeByMarket, opts, cutoffDate);
+  const todayDate = kstTodayDate();
+  const allCodes = [...new Set([...kospiUniverse, ...kosdaqUniverse].map(s => s.code))];
+  const kisMap = await fetchKisPriceMap(allCodes);
+
+  const ks = await runMarket(kospiUniverse, regimeByMarket, opts, cutoffDate, kisMap, todayDate);
+  const kq = await runMarket(kosdaqUniverse, regimeByMarket, opts, cutoffDate, kisMap, todayDate);
 
   const fs = await import('fs');
   fs.writeFileSync('pullback_signals_table_ks.html', ks.tableHtml, 'utf-8');

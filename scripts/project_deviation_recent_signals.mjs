@@ -5,7 +5,7 @@
 // 청산: ①-15%손절(최우선) ②+20%도달시 50%매도 ③이후 종가>=EMA20 시 잔량50%(전체25%)매도 ④이후 종가<EMA5 하향이탈 시 잔량전량매도 ⑤20거래일 시간청산
 // 사용법: node scripts/project_deviation_recent_signals.mjs [--days 210]
 import https from 'https';
-import { fetchKrxUniverse } from './kis_api.mjs';
+import { fetchKrxUniverse, getToken as getKisToken, fetchKisPrice } from './kis_api.mjs';
 
 const YF_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -196,7 +196,27 @@ function simulateLiveStatus(seq, i0, opts) {
   return { status: 'CLOSED', ret: weightedRet, legs, finalDay: finalLeg.day, finalReason: finalLeg.reason };
 }
 
-async function loadStockSignals(stock, opts) {
+function kstTodayDate() { const d = new Date(Date.now() + 9 * 3600 * 1000); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`; }
+// 장중/장마감 직후 Yahoo 당일 종가 지연 보정용 KIS 당일 현재가 일괄조회(stock-baseline·stock-pullback과 동일 기법, [[feedback_price_cross_verify]])
+async function fetchKisPriceMap(codes) {
+  let token;
+  try { token = await getKisToken(); } catch (e) {
+    console.error(`[KIS] 토큰 실패: ${e.message} → 당일 종가는 Yahoo 값 사용`);
+    return new Map();
+  }
+  const map = new Map();
+  const BATCH = 5, DELAY_KIS = 200;
+  for (let i = 0; i < codes.length; i += BATCH) {
+    const batch = codes.slice(i, i + BATCH);
+    const res = await Promise.all(batch.map(c => fetchKisPrice(token, c)));
+    batch.forEach((c, j) => { if (res[j] && res[j].현재가 > 0) map.set(c, res[j].현재가); });
+    if (i + BATCH < codes.length) await new Promise(r => setTimeout(r, DELAY_KIS));
+  }
+  console.error(`[KIS] 당일 현재가 ${map.size}/${codes.length}종목 확보`);
+  return map;
+}
+
+async function loadStockSignals(stock, opts, kisMap, todayDate) {
   const p2 = Math.floor(Date.now() / 1000);
   const p1 = p2 - opts.calendarDays * 24 * 3600;
   const symbol = stock.market === 'KOSDAQ' ? `${stock.code}.KQ` : `${stock.code}.KS`;
@@ -222,6 +242,15 @@ async function loadStockSignals(stock, opts) {
     });
   }
   if (seq.length < ROLL + 1) return { ...stock, error: '데이터 부족', seq: null, entries: [] };
+
+  // 장중/장마감 직후 Yahoo 당일 종가가 지연 반영될 수 있어, 오늘 날짜 마지막 봉은 KIS 당일 현재가로 덮어쓴다
+  const lastIdx = seq.length - 1;
+  if (seq[lastIdx].date === todayDate && kisMap?.has(stock.code)) {
+    const live = kisMap.get(stock.code);
+    seq[lastIdx].close = live;
+    seq[lastIdx].dev5 = (live - seq[lastIdx].ema5) / seq[lastIdx].ema5 * 100;
+    seq[lastIdx].dev20 = (live - seq[lastIdx].ema20) / seq[lastIdx].ema20 * 100;
+  }
 
   const flags = new Array(seq.length).fill(false);
   for (let i = ROLL - 1; i < seq.length; i++) {
@@ -322,8 +351,8 @@ function chartCardHtml(row, seq, entryIdx) {
       </div>`;
 }
 
-async function runMarket(universe, opts, cutoffDate) {
-  const loaded = await batchAll(universe, s => loadStockSignals(s, opts));
+async function runMarket(universe, opts, cutoffDate, kisMap, todayDate) {
+  const loaded = await batchAll(universe, s => loadStockSignals(s, opts, kisMap, todayDate));
   const valid = loaded.filter(r => !r.error && r.entries.length);
   const errors = loaded.filter(r => r.error).map(r => `${r.name}: ${r.error}`);
   if (errors.length) console.error(`[조회실패] ${errors.join(', ')}`);
@@ -366,8 +395,12 @@ async function main() {
   const kosdaqUniverse = await buildKosdaqUniverse();
   console.error(`[괴리율] 코스피 ${kospiUniverse.length}종목 / 코스닥 ${kosdaqUniverse.length}종목 스캔 시작`);
 
-  const ks = await runMarket(kospiUniverse, opts, cutoffDate);
-  const kq = await runMarket(kosdaqUniverse, opts, cutoffDate);
+  const todayDate = kstTodayDate();
+  const allCodes = [...new Set([...kospiUniverse, ...kosdaqUniverse].map(s => s.code))];
+  const kisMap = await fetchKisPriceMap(allCodes);
+
+  const ks = await runMarket(kospiUniverse, opts, cutoffDate, kisMap, todayDate);
+  const kq = await runMarket(kosdaqUniverse, opts, cutoffDate, kisMap, todayDate);
 
   const fs = await import('fs');
   fs.writeFileSync('recent_signals_table_ks.html', ks.tableHtml, 'utf-8');
