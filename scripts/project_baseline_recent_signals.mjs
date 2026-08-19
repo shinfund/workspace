@@ -371,7 +371,13 @@ function statusInfo(row, todayDate) {
   let note = '';
   if (row.status === 'OPEN') {
     if (!row.recovered) note = `<span style="color:var(--txt3);font-size:12.5px">(회복 전 · 매수${row.buyCount}/${MAX_BUY_LEGS}회)</span>`;
-    else note = `<span style="color:var(--txt3);font-size:12.5px">(회복후 보유100% · 1파 진행중)</span>`;
+    else {
+      // 2026-08-19: "경과"(D+N) 컬럼은 진입일 기준이라, 회복 후 시간청산(POST_RECOVER_HOLD=60거래일)은
+      // 회복일 기준으로 별도로 도는 시계라는 걸 표에서 알기 어렵다는 지적(사용자) — 회복 후 경과일수를
+      // "회복D+N/60"으로 병기해 60일 룰까지 남은 거리를 바로 보이게 함.
+      const daysSinceRecover = row.day - row.recoverDay;
+      note = `<span style="color:var(--txt3);font-size:12.5px">(회복후 보유100% · 회복D+${daysSinceRecover}/${POST_RECOVER_HOLD} · 1파 진행중)</span>`;
+    }
   }
   const day = row.status === 'OPEN' ? row.day : row.finalDay;
   return { primary, subBadges, note, day, closeDate, recoverTag };
@@ -464,7 +470,9 @@ function signalChartCardHtml(row, seq, entryIdx) {
   const svg = buildChartSvg(chartRows, { entryIdx: localEntryIdx, buyLog: row.buyLog, windowStart, entryIdxGlobal: entryIdx });
   const cur = seq[seq.length - 1];
   const s = statusInfo(row, cur.date);
-  const recovLabel = row.recovered ? `회복(D+${row.recoverDay})` : '회복전';
+  const recovLabel = row.recovered
+    ? (row.status === 'OPEN' ? `회복(D+${row.recoverDay}) · 회복D+${row.day - row.recoverDay}/${POST_RECOVER_HOLD}` : `회복(D+${row.recoverDay})`)
+    : '회복전';
   return `      <div class="chart-card">
         <div class="chart-card-head"><span class="chart-card-name">${esc(row.name)}</span>${badgeGroup(s)}</div>
         ${svg}
