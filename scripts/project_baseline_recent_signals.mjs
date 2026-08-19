@@ -398,8 +398,10 @@ function buildChartSvg(rows, markers) {
       // entryIdx에 그대로 더하기만 하면 됨.
       const idx = markers.entryIdx + b.day;
       if (idx >= 0 && idx < n) {
+        const buyY = yAt(rows[idx].close).toFixed(1);
+        svg += `<line x1="${x0}" y1="${buyY}" x2="${x1}" y2="${buyY}" stroke="var(--purple)" stroke-width="1" stroke-dasharray="4,3" opacity="0.55"/>`;
         svg += `<line x1="${xAt(idx).toFixed(1)}" y1="${yTop}" x2="${xAt(idx).toFixed(1)}" y2="${yBot}" stroke="var(--txt2)" stroke-width="1" stroke-dasharray="2,3"/>`;
-        svg += `<circle cx="${xAt(idx).toFixed(1)}" cy="${yAt(rows[idx].close).toFixed(1)}" r="3.5" fill="var(--purple)" stroke="var(--card)" stroke-width="1"/>`;
+        svg += `<circle cx="${xAt(idx).toFixed(1)}" cy="${buyY}" r="3.5" fill="var(--purple)" stroke="var(--card)" stroke-width="1"/>`;
       }
     }
   }
