@@ -4,7 +4,7 @@
 // 며칠 전 이미 이탈해 지속 중인 종목이 최하위 배지("관찰")로 방치되는 문제 — breakdown5를 "현재 상태" 기준으로 재정의.
 // 사용법: node scripts/project_deviation_holdings_candidates.mjs
 import https from 'https';
-import { fetchKrxUniverse } from './kis_api.mjs';
+import { fetchKrxUniverse, getToken as getKisToken, fetchKisPrice } from './kis_api.mjs';
 
 const YF_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -108,6 +108,25 @@ async function fetchChartAutoMarket(code, market) {
   return aLen >= bLen ? { chart: a, market: primary } : { chart: b, market: primary === 'KOSDAQ' ? 'KOSPI' : 'KOSDAQ' };
 }
 function tsToKst(ts) { const d = new Date((ts + 9 * 3600) * 1000); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`; }
+function kstTodayDate() { const d = new Date(Date.now() + 9 * 3600 * 1000); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`; }
+// 장중/장마감 직후 Yahoo 당일 종가 지연 보정용 KIS 당일 현재가 일괄조회(stock-baseline·project_stock_deviation.mjs와 동일 기법, [[feedback_price_cross_verify]])
+async function fetchKisPriceMap(codes) {
+  let token;
+  try { token = await getKisToken(); } catch (e) {
+    console.error(`[KIS] 토큰 실패: ${e.message} → 당일 종가는 Yahoo 값 사용`);
+    return new Map();
+  }
+  const map = new Map();
+  const BATCH = 5, DELAY_KIS = 200;
+  for (let i = 0; i < codes.length; i += BATCH) {
+    const batch = codes.slice(i, i + BATCH);
+    const res = await Promise.all(batch.map(c => fetchKisPrice(token, c)));
+    batch.forEach((c, j) => { if (res[j] && res[j].현재가 > 0) map.set(c, res[j].현재가); });
+    if (i + BATCH < codes.length) await new Promise(r => setTimeout(r, DELAY_KIS));
+  }
+  console.error(`[KIS] 당일 현재가 ${map.size}/${codes.length}종목 확보`);
+  return map;
+}
 function buildEma(closes, period) {
   const k = 2 / (period + 1); const emas = new Array(closes.length).fill(null);
   let ema = null; const seed = [];
@@ -141,7 +160,7 @@ function fmtV(n) { return Math.round(n).toLocaleString('ko-KR'); }
 function devClass(n) { return n <= -25 ? 't-neg-hi' : n < 0 ? 't-neg' : n > 0 ? 't-pos' : 't-flat'; }
 function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
-async function analyzeCommon(code, market) {
+async function analyzeCommon(code, market, kisMap, todayDate) {
   const got = await fetchChartAutoMarket(code, market);
   if (!got) return { error: '데이터 조회 실패' };
   const { chart, market: usedMarket } = got;
@@ -156,6 +175,14 @@ async function analyzeCommon(code, market) {
     rows.push({ date: dates[i], close: closes[i], ema5: ema5s[i], ema20: ema20s[i], ema50: ema50s[i], ema100: ema100s[i], ema200: ema200s[i], dev5: (closes[i] - ema5s[i]) / ema5s[i] * 100, dev20: (closes[i] - ema20s[i]) / ema20s[i] * 100 });
   }
   if (!rows.length) return { error: '통계 대상 구간 데이터 없음' };
+  // 장중/장마감 직후 Yahoo 당일 종가가 지연 반영될 수 있어, 오늘 날짜 마지막 봉은 KIS 당일 현재가로 덮어쓴다
+  const lastRow = rows[rows.length - 1];
+  if (lastRow.date === todayDate && kisMap?.has(code)) {
+    const live = kisMap.get(code);
+    lastRow.close = live;
+    lastRow.dev5 = (live - lastRow.ema5) / lastRow.ema5 * 100;
+    lastRow.dev20 = (live - lastRow.ema20) / lastRow.ema20 * 100;
+  }
   const dev5s = rows.map(r => r.dev5), dev20s = rows.map(r => r.dev20);
   const cur = rows[rows.length - 1], prev = rows.length >= 2 ? rows[rows.length - 2] : null;
   const ms5 = devMeanSd(dev5s), ms20 = devMeanSd(dev20s);
@@ -315,9 +342,9 @@ function candidateCardHtml(r) {
 // 2026-08-19: 코스피/코스닥 시장 단위로 유니버스를 분석해 "초근접"(finalSignal !== '─') 후보만 반환.
 // 기존엔 top50 통합 풀에서 근접도 상위 6개를 무조건 채워서 보여줬는데(초근접이 아닌 종목까지 포함),
 // 이제는 임계값 필터만 적용하고 개수를 강제하지 않는다 — 초근접 후보가 없으면 빈 배열 그대로 반환.
-async function analyzeMarketCandidates(universe, holdCodes) {
+async function analyzeMarketCandidates(universe, holdCodes, kisMap, todayDate) {
   const results = await batchAll(universe, async s => {
-    const a = await analyzeCommon(s.code, s.market);
+    const a = await analyzeCommon(s.code, s.market, kisMap, todayDate);
     return a.error ? { ...s, error: a.error } : { ...s, ...a };
   }, 6, 120);
   const valid = results.filter(r => !r.error);
@@ -350,8 +377,13 @@ async function main() {
   console.error('[조회] Notion 보유종목DB 조회 중...');
   const { rows: holdingsRaw, latestDate: holdDate } = await fetchNotionHoldings();
   console.error(`[조회] 보유종목 ${holdingsRaw.length}개 분석 중... (${holdingsRaw.map(h => h.name).join(', ')})`);
+
+  const todayDate = kstTodayDate();
+  const allCodes = [...new Set([...kospiUniverse, ...kosdaqUniverse, ...holdingsRaw].map(s => s.code))];
+  const kisMap = await fetchKisPriceMap(allCodes);
+
   const holdingsResults = await batchAll(holdingsRaw, async h => {
-    const a = await analyzeCommon(h.code, null);
+    const a = await analyzeCommon(h.code, null, kisMap, todayDate);
     if (a.error) return { ...h, error: a.error };
     const r = { ...h, ...a };
     r.unrealizedRet = h.avgPrice ? (r.cur.close - h.avgPrice) / h.avgPrice * 100 : null;
@@ -366,8 +398,8 @@ async function main() {
   }, 5, 150);
 
   const holdCodes = new Set(holdingsResults.filter(h => !h.error).map(h => h.code));
-  const ks = await analyzeMarketCandidates(kospiUniverse, holdCodes);
-  const kq = await analyzeMarketCandidates(kosdaqUniverse, holdCodes);
+  const ks = await analyzeMarketCandidates(kospiUniverse, holdCodes, kisMap, todayDate);
+  const kq = await analyzeMarketCandidates(kosdaqUniverse, holdCodes, kisMap, todayDate);
 
   const validHoldings = holdingsResults.filter(h => !h.error);
   const holdingCards = validHoldings.map(holdingCardHtml).join('\n');
