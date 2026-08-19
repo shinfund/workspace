@@ -284,8 +284,10 @@ function buildChartSvg(rows) {
   svg += poly('close', 'txt', null, 1.7);
   const entryIdx = rows.findIndex(r => r.isEntry);
   if (entryIdx >= 0) {
+    const entryY = yAt(rows[entryIdx].close).toFixed(1);
+    svg += `<line x1="${x0}" y1="${entryY}" x2="${x1}" y2="${entryY}" stroke="var(--sky600)" stroke-width="1" stroke-dasharray="4,3" opacity="0.55"/>`;
     svg += `<line x1="${xAt(entryIdx).toFixed(1)}" y1="${yTop}" x2="${xAt(entryIdx).toFixed(1)}" y2="${yBot}" stroke="var(--txt2)" stroke-width="1" stroke-dasharray="2,3"/>`;
-    svg += `<circle cx="${xAt(entryIdx).toFixed(1)}" cy="${yAt(rows[entryIdx].close).toFixed(1)}" r="4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1.2"/>`;
+    svg += `<circle cx="${xAt(entryIdx).toFixed(1)}" cy="${entryY}" r="4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1.2"/>`;
   }
   svg += `<circle cx="${xAt(n - 1).toFixed(1)}" cy="${yAt(rows[n - 1].close).toFixed(1)}" r="4.5" fill="var(--red)" stroke="var(--card)" stroke-width="1.3"/>`;
   svg += `<text x="${x0}" y="214" font-size="13.5" fill="var(--txt)">${rows[0].date}</text><text x="${x1}" y="214" font-size="13.5" fill="var(--txt)" text-anchor="end">${rows[n - 1].date}</text>`;
