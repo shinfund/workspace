@@ -285,7 +285,7 @@ function buildChartSvg(rows) {
   const entryIdx = rows.findIndex(r => r.isEntry);
   if (entryIdx >= 0) {
     const entryY = yAt(rows[entryIdx].close).toFixed(1);
-    svg += `<line x1="${x0}" y1="${entryY}" x2="${x1}" y2="${entryY}" stroke="var(--sky600)" stroke-width="1.6" stroke-dasharray="5,3" opacity="0.85"/>`;
+    svg += `<line x1="${x0}" y1="${entryY}" x2="${x1}" y2="${entryY}" stroke="var(--sky600)" stroke-width="1" stroke-dasharray="5,3" opacity="0.85"/>`;
     svg += `<line x1="${xAt(entryIdx).toFixed(1)}" y1="${yTop}" x2="${xAt(entryIdx).toFixed(1)}" y2="${yBot}" stroke="var(--txt2)" stroke-width="1" stroke-dasharray="2,3"/>`;
     svg += `<circle cx="${xAt(entryIdx).toFixed(1)}" cy="${entryY}" r="4" fill="var(--sky600)" stroke="var(--card)" stroke-width="1.2"/>`;
   }
