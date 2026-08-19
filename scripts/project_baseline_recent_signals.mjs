@@ -590,6 +590,10 @@ async function runMarket(universe, opts, todayDate, cutoffDate) {
 }
 
 // 2026-08-19: 예상종목(워치) 탭도 최근신호와 동일하게 코스피/코스닥 각 시장 단위로 분리 산출한다.
+// 2026-08-19(2차): "예상종목"은 문자 그대로 진입조건 초근접(Z조건까지 충족, EMA5 상향돌파만 대기) 종목만
+// 보여준다(사용자 지적 — 스트릭만 충족하고 Z는 한참 먼 종목까지 강제로 채워 보여주던 문제). 스트릭만
+// 충족한 전체 개수는 KPI 카드(관찰대상)로만 참고 제공하고, 표·차트에는 Z조건까지 충족한 종목만 표시—
+// 초근접 후보가 없으면 빈 목록을 그대로 보여준다(강제 상위 N개 채우기 없음).
 function computeWatch(valid, openNames, opts) {
   const watchCandidates = [];
   for (const r of valid) {
@@ -602,13 +606,13 @@ function computeWatch(valid, openNames, opts) {
     watchCandidates.push({ ...r, curStreak, curZ: zs.z });
   }
   watchCandidates.sort((a, b) => a.curZ - b.curZ);
-  const watchTop = watchCandidates.slice(0, opts.watchCap);
-  const watchZHitCount = watchCandidates.filter(r => r.curZ <= Z_THRESHOLD).length;
+  const watchZHit = watchCandidates.filter(r => r.curZ <= Z_THRESHOLD);
+  const watchTop = watchZHit.slice(0, opts.watchCap);
   return {
     watchChartsHtml: watchTop.map(watchChartCardHtml).join('\n'),
     watchTableHtml: watchTop.map(watchRowHtml).join('\n'),
     stats: {
-      total: watchCandidates.length, zHitCount: watchZHitCount, notYetCount: watchCandidates.length - watchZHitCount,
+      total: watchCandidates.length, zHitCount: watchZHit.length, notYetCount: watchCandidates.length - watchZHit.length,
       watchNames: watchTop.map(r => ({ name: r.name, streak: r.curStreak, z: r.curZ })),
     },
   };
