@@ -80,7 +80,7 @@ function get(url) {
   });
 }
 
-async function getToken() {
+export async function getToken() {
   if (fs.existsSync(TOKEN_CACHE)) {
     try {
       const c=JSON.parse(fs.readFileSync(TOKEN_CACHE,'utf8'));
@@ -134,7 +134,7 @@ async function fetchKrxUniverse() {
   return { kospi, kosdaq, basDt };
 }
 
-async function fetchKisPrice(token, code) {
+export async function fetchKisPrice(token, code) {
   const qs=new URLSearchParams({FID_COND_MRKT_DIV_CODE:'J',FID_INPUT_ISCD:code});
   return new Promise(res=>{
     const r=https.request({
@@ -288,4 +288,5 @@ async function main() {
   console.log(JSON.stringify(opts.all ? jsonOut : jsonOut[opts.sort], null, 2));
 }
 
-main().catch(e=>{ console.error('[오류]', e.message); process.exit(1); });
+const isDirectRun = process.argv[1] && process.argv[1].replace(/\\/g, '/').endsWith('/kis_api.mjs');
+if (isDirectRun) main().catch(e=>{ console.error('[오류]', e.message); process.exit(1); });

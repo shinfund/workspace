@@ -5,6 +5,7 @@
 // 사용법: node scripts/project_baseline_recent_signals.mjs [--days 365] [--chart-cap 10] [--watch-cap 8]
 import https from 'https';
 import fs from 'fs';
+import { getToken as getKisToken, fetchKisPrice } from './kis_api.mjs';
 
 const YF_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -45,6 +46,31 @@ const FAST_PERIOD = 5, BASE_PERIOD = 200;
 const MAX_BUY_LEGS = 2, RECOVER_TIMEOUT = 120, POST_RECOVER_HOLD = 60;
 const CALENDAR_DAYS = 2555; // ROLL(250) 워밍업 + minStreak + 7년치 확보(백테스트와 동일)
 const CHART_LEAD_DAYS = 15;
+
+// ─── KIS API (당일 현재가 — 장중 Yahoo가 전일종가로 지연되는 문제 보완) ──────────────────
+// 인증·시세조회 함수는 kis_api.mjs에서 그대로 가져다 쓴다(자격증명 중복 방지).
+async function fetchKisPriceMap(stocks) {
+  let token;
+  try { token = await getKisToken(); } catch (e) {
+    console.error(`[KIS] 토큰 실패: ${e.message} → 당일 현재가는 Yahoo 값 사용`);
+    return new Map();
+  }
+  const map = new Map();
+  const BATCH = 5, DELAY_KIS = 200;
+  for (let i = 0; i < stocks.length; i += BATCH) {
+    const batch = stocks.slice(i, i + BATCH);
+    const res = await Promise.all(batch.map(s => fetchKisPrice(token, s.code)));
+    batch.forEach((s, j) => { if (res[j] && res[j].현재가 > 0) map.set(s.code, res[j].현재가); });
+    if (i + BATCH < stocks.length) await new Promise(r => setTimeout(r, DELAY_KIS));
+  }
+  console.error(`[KIS] 당일 현재가 ${map.size}/${stocks.length}종목 확보`);
+  return map;
+}
+
+function kstTodayDate() {
+  const d = new Date(Date.now() + 9 * 3600 * 1000);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+}
 
 function parseArgs() {
   const argv = process.argv.slice(2);
@@ -245,7 +271,7 @@ function simulateLiveStatus(seq, i0) {
   }
 }
 
-async function loadStock(stock) {
+async function loadStock(stock, kisMap, todayDate) {
   const p2 = Math.floor(Date.now() / 1000);
   const p1 = p2 - CALENDAR_DAYS * 24 * 3600;
   const symbol = stock.market === 'KOSDAQ' ? `${stock.code}.KQ` : `${stock.code}.KS`;
@@ -267,6 +293,15 @@ async function loadStock(stock) {
     });
   }
   if (seq.length < ROLL + MIN_STREAK + 1) return { ...stock, error: '데이터 부족', seq: null };
+
+  // 장중에는 Yahoo의 "오늘" 캔들이 전일종가로 지연 반영되는 경우가 있어, 오늘 날짜 마지막 봉은
+  // KIS 당일 현재가로 덮어써서 최근신호 탭의 "현재가"가 실시간에 가깝게 표시되도록 보정한다.
+  const lastIdx = seq.length - 1;
+  if (seq[lastIdx].date === todayDate && kisMap?.has(stock.code)) {
+    const live = kisMap.get(stock.code);
+    seq[lastIdx].close = live;
+    seq[lastIdx].dev200 = (live - seq[lastIdx].ema200) / seq[lastIdx].ema200 * 100;
+  }
 
   const streak = new Array(seq.length).fill(0);
   for (let i = 0; i < seq.length; i++) {
@@ -483,7 +518,9 @@ async function main() {
   const opts = parseArgs();
   console.error(`[기준선 전략 최근신호/예상종목 산출] recentDays=${opts.recentDays} chartCap=${opts.chartCap} watchCap=${opts.watchCap}`);
 
-  const loaded = await batchAll(DEFAULT_STOCKS, s => loadStock(s));
+  const todayDate = kstTodayDate();
+  const kisMap = await fetchKisPriceMap(DEFAULT_STOCKS);
+  const loaded = await batchAll(DEFAULT_STOCKS, s => loadStock(s, kisMap, todayDate));
   const valid = loaded.filter(r => !r.error);
   const errors = loaded.filter(r => r.error).map(r => `${r.name}: ${r.error}`);
   if (errors.length) console.error(`[조회실패] ${errors.join(', ')}`);
