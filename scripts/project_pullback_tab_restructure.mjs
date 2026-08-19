@@ -50,7 +50,7 @@ function candidateCardHtml(r) {
         <div class="chart-card-stats">
           <span>최근 신고가 대비 눌림폭 <span>${r.pullbackPct.toFixed(2)}%</span> <span class="sep">|</span> 되돌림밴드(ATR×0.4) 대비 <span>${r.normDepth.toFixed(2)}배</span></span>
         </div>
-        <div class="chart-card-legend"><span><i style="background:var(--purple)"></i>EMA50</span><span><i style="background:var(--amber)"></i>EMA100</span></div>
+        <div class="chart-card-legend"><span><i class="dash" style="border-color:var(--purple)"></i>EMA50</span><span><i class="dash" style="border-color:var(--amber)"></i>EMA100</span></div>
       </div>`;
 }
 

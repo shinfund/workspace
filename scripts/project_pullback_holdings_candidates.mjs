@@ -206,7 +206,7 @@ function candidateCardHtml(r) {
         <div class="chart-card-stats">
           <span>기준선(EMA50) <span>${fmtV(r.ema50)}</span></span>
         </div>
-        <div class="chart-card-legend"><span><i style="background:var(--purple)"></i>기준선(EMA50)</span><span><i style="background:var(--amber)"></i>EMA100</span></div>
+        <div class="chart-card-legend"><span><i class="dash" style="border-color:var(--purple)"></i>기준선(EMA50)</span><span><i class="dash" style="border-color:var(--amber)"></i>EMA100</span></div>
       </div>`;
 }
 function candidateRowHtml(r) {
@@ -229,7 +229,7 @@ function holdingCardHtml(r) {
         <div class="chart-card-stats">
           <span>EMA50대비 <span class="${devClass(dev50)}">${fmt(dev50)}</span> <span class="sep">|</span> 추세 <span>${trendLbl}</span> <span class="sep">|</span> 기준선(EMA50) <span>${fmtV(r.ema50)}</span></span>
         </div>
-        <div class="chart-card-legend"><span><i style="background:var(--purple)"></i>기준선(EMA50)</span><span><i style="background:var(--amber)"></i>EMA100</span><span><i style="background:var(--${v.cls})"></i>판단 <span style="color:var(--${v.cls})">${v.label}</span></span><span><i style="background:var(--txt2)"></i>평단 <span>${fmtV(r.avgPrice)}</span></span><span><i style="background:var(--coral)"></i>손절선(-8%) <span>${fmtV(slPrice)}</span></span></div>
+        <div class="chart-card-legend"><span><i class="dash" style="border-color:var(--purple)"></i>기준선(EMA50)</span><span><i class="dash" style="border-color:var(--amber)"></i>EMA100</span><span><i style="background:var(--${v.cls})"></i>판단 <span style="color:var(--${v.cls})">${v.label}</span></span><span><i style="background:var(--txt2)"></i>평단 <span>${fmtV(r.avgPrice)}</span></span><span><i style="background:var(--coral)"></i>손절선(-8%) <span>${fmtV(slPrice)}</span></span></div>
       </div>`;
 }
 function holdingRowHtml(r) {

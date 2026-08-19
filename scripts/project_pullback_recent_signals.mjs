@@ -343,7 +343,7 @@ function chartCardHtml(row, seq, entryIdx) {
         <div class="chart-card-stats">
           <span>EMA50대비 <span class="${retClass(emaDisparity)}">${fmt(emaDisparity)}</span> <span class="sep">|</span> 기준선(EMA50) <span>${fmtV(cur.maShort)}</span></span>
         </div>
-        <div class="chart-card-legend"><span><i style="background:var(--sky600)"></i>진입가</span><span><i style="background:var(--teal)"></i>기준선(EMA50)</span><span><i style="background:var(--gray600)"></i>EMA100</span><span><i style="background:var(--${s.primary.cls === 'bdg-red' ? 'red' : s.primary.cls === 'bdg-purple' ? 'purple' : s.primary.cls === 'bdg-teal' ? 'teal' : s.primary.cls === 'bdg-amber' ? 'amber' : 'gray600'})"></i>상태 <span>${s.primary.label}</span></span></div>
+        <div class="chart-card-legend"><span><i style="background:var(--sky600)"></i>진입가</span><span><i class="dash" style="border-color:var(--teal)"></i>기준선(EMA50)</span><span><i class="dash" style="border-color:var(--gray600)"></i>EMA100</span><span><i style="background:var(--${s.primary.cls === 'bdg-red' ? 'red' : s.primary.cls === 'bdg-purple' ? 'purple' : s.primary.cls === 'bdg-teal' ? 'teal' : s.primary.cls === 'bdg-amber' ? 'amber' : 'gray600'})"></i>상태 <span>${s.primary.label}</span></span></div>
       </div>`;
 }
 
