@@ -2,6 +2,7 @@
 // project_pullback_recent_signals.mjs와 project_holdings_deviation_stats.mjs의 로직을 눌림목 전략에 맞춰 결합.
 // 사용법: node scripts/project_pullback_holdings_candidates.mjs
 import https from 'https';
+import { fetchKrxUniverse } from './kis_api.mjs';
 
 const YF_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -10,37 +11,44 @@ const YF_HEADERS = {
 const NOTION_TOKEN = process.env.NOTION_TOKEN;
 const HOLDINGS_DB_ID = '9f666aeb-832a-4aa2-9e52-e37515b75e56';
 
-const DEFAULT_STOCKS = [
-  { code: '005930', name: '삼성전자' }, { code: '000660', name: 'SK하이닉스' },
-  { code: '402340', name: 'SK스퀘어' }, { code: '009150', name: '삼성전기' },
-  { code: '005380', name: '현대차' }, { code: '373220', name: 'LG에너지솔루션' },
-  { code: '207940', name: '삼성바이오로직스' }, { code: '032830', name: '삼성생명' },
-  { code: '105560', name: 'KB금융' }, { code: '028260', name: '삼성물산' },
-  { code: '000270', name: '기아' }, { code: '329180', name: 'HD현대중공업' },
-  { code: '055550', name: '신한지주' }, { code: '012450', name: '한화에어로스페이스' },
-  { code: '068270', name: '셀트리온' }, { code: '012330', name: '현대모비스' },
-  { code: '034020', name: '두산에너빌리티' }, { code: '034730', name: 'SK' },
-  { code: '086790', name: '하나금융지주' }, { code: '035420', name: 'NAVER' },
-  { code: '006400', name: '삼성SDI' }, { code: '000810', name: '삼성화재' },
-  { code: '010120', name: 'LS ELECTRIC' }, { code: '009540', name: 'HD한국조선해양' },
-  { code: '066570', name: 'LG전자' }, { code: '042660', name: '한화오션' },
-  { code: '005490', name: 'POSCO홀딩스' }, { code: '267260', name: 'HD현대일렉트릭' },
-  { code: '316140', name: '우리금융지주' }, { code: '298040', name: '효성중공업' },
-  { code: '015760', name: '한국전력' }, { code: '010130', name: '고려아연' },
-  { code: '042700', name: '한미반도체' }, { code: '011200', name: 'HMM' },
-  { code: '096770', name: 'SK이노베이션' }, { code: '006800', name: '미래에셋증권' },
-  { code: '033780', name: 'KT&G' }, { code: '000150', name: '두산' },
-  { code: '010140', name: '삼성중공업' }, { code: '051910', name: 'LG화학' },
-  { code: '017670', name: 'SK텔레콤' }, { code: '035720', name: '카카오' },
-  { code: '196170', name: '알테오젠', market: 'KOSDAQ' }, { code: '024110', name: '기업은행' },
-  { code: '018260', name: '삼성에스디에스' }, { code: '267250', name: 'HD현대' },
-  { code: '079550', name: 'LIG디펜스앤에어로스페이스' }, { code: '003550', name: 'LG' },
-  { code: '086280', name: '현대글로비스' }, { code: '010950', name: 'S-Oil' },
+const KOSPI_SIZE = 50, KOSDAQ_SIZE = 20;
+
+// KRX 조회 실패 시에만 사용하는 폴백 유니버스(2026-08-19, 다른 앱들과 동일)
+const FALLBACK_KOSPI = [
+  { code: '005930', name: '삼성전자' }, { code: '000660', name: 'SK하이닉스' }, { code: '402340', name: 'SK스퀘어' }, { code: '009150', name: '삼성전기' }, { code: '005380', name: '현대차' }, { code: '373220', name: 'LG에너지솔루션' }, { code: '207940', name: '삼성바이오로직스' }, { code: '032830', name: '삼성생명' }, { code: '028260', name: '삼성물산' }, { code: '012450', name: '한화에어로스페이스' }, { code: '105560', name: 'KB금융' }, { code: '000270', name: '기아' }, { code: '034020', name: '두산에너빌리티' }, { code: '329180', name: 'HD현대중공업' }, { code: '055550', name: '신한지주' }, { code: '012330', name: '현대모비스' }, { code: '068270', name: '셀트리온' }, { code: '034730', name: 'SK' }, { code: '006400', name: '삼성SDI' }, { code: '086790', name: '하나금융지주' }, { code: '035420', name: 'NAVER' }, { code: '066570', name: 'LG전자' }, { code: '010120', name: 'LS ELECTRIC' }, { code: '042660', name: '한화오션' }, { code: '267260', name: 'HD현대일렉트릭' }, { code: '000810', name: '삼성화재' }, { code: '298040', name: '효성중공업' }, { code: '009540', name: 'HD한국조선해양' }, { code: '005490', name: 'POSCO홀딩스' }, { code: '010130', name: '고려아연' }, { code: '316140', name: '우리금융지주' }, { code: '096770', name: 'SK이노베이션' }, { code: '042700', name: '한미반도체' }, { code: '017670', name: 'SK텔레콤' }, { code: '011200', name: 'HMM' }, { code: '015760', name: '한국전력' }, { code: '006800', name: '미래에셋증권' }, { code: '000150', name: '두산' }, { code: '051910', name: 'LG화학' }, { code: '010140', name: '삼성중공업' }, { code: '018260', name: '삼성에스디에스' }, { code: '267250', name: 'HD현대' }, { code: '033780', name: 'KT&G' }, { code: '003550', name: 'LG' }, { code: '079550', name: 'LIG디펜스앤에어로스페이스' }, { code: '035720', name: '카카오' }, { code: '010950', name: 'S-Oil' }, { code: '024110', name: '기업은행' }, { code: '064350', name: '현대로템' }, { code: '086280', name: '현대글로비스' },
 ];
+const FALLBACK_KOSDAQ = [
+  { code: '196170', name: '알테오젠', market: 'KOSDAQ' }, { code: '086520', name: '에코프로', market: 'KOSDAQ' }, { code: '247540', name: '에코프로비엠', market: 'KOSDAQ' }, { code: '277810', name: '레인보우로보틱스', market: 'KOSDAQ' }, { code: '036930', name: '주성엔지니어링', market: 'KOSDAQ' }, { code: '028300', name: 'HLB', market: 'KOSDAQ' }, { code: '240810', name: '원익IPS', market: 'KOSDAQ' }, { code: '058470', name: '리노공업', market: 'KOSDAQ' }, { code: '039030', name: '이오테크닉스', market: 'KOSDAQ' }, { code: '087010', name: '펩트론', market: 'KOSDAQ' }, { code: '298380', name: '에이비엘바이오', market: 'KOSDAQ' }, { code: '000250', name: '삼천당제약', market: 'KOSDAQ' }, { code: '141080', name: '리가켐바이오', market: 'KOSDAQ' }, { code: '222800', name: '심텍', market: 'KOSDAQ' }, { code: '214450', name: '파마리서치', market: 'KOSDAQ' }, { code: '108490', name: '로보티즈', market: 'KOSDAQ' }, { code: '319660', name: '피에스케이', market: 'KOSDAQ' }, { code: '095340', name: 'ISC', market: 'KOSDAQ' }, { code: '403870', name: 'HPSP', market: 'KOSDAQ' }, { code: '440110', name: '파두', market: 'KOSDAQ' },
+];
+
+async function buildKospiUniverse() {
+  try {
+    const { kospi, basDt } = await fetchKrxUniverse();
+    const top = kospi.sort((a, b) => b._mktcap - a._mktcap).slice(0, KOSPI_SIZE).map(s => ({ code: s.종목코드, name: s.종목명 }));
+    console.error(`[유니버스] 코스피 시총 TOP${KOSPI_SIZE} 산출 완료(기준일 ${basDt})`);
+    return top;
+  } catch (e) {
+    console.error(`[유니버스] KRX 조회 실패(${e.message}) → 코스피 폴백 스냅샷 사용`);
+    return FALLBACK_KOSPI;
+  }
+}
+async function buildKosdaqUniverse() {
+  try {
+    const { kosdaq, basDt } = await fetchKrxUniverse();
+    const top = kosdaq.sort((a, b) => b._mktcap - a._mktcap).slice(0, KOSDAQ_SIZE).map(s => ({ code: s.종목코드, name: s.종목명, market: 'KOSDAQ' }));
+    console.error(`[유니버스] 코스닥 시총 TOP${KOSDAQ_SIZE} 산출 완료(기준일 ${basDt})`);
+    return top;
+  } catch (e) {
+    console.error(`[유니버스] KRX 조회 실패(${e.message}) → 코스닥 폴백 스냅샷 사용`);
+    return FALLBACK_KOSDAQ;
+  }
+}
 
 const MA_SHORT = 50, MA_LONG = 100, SLOPE_LOOKBACK = 10;
 const ATR_PERIOD = 14, BAND_K = 0.4;
-const SL = 8, TP_PCT = 10;
+const SL = 8, TP_PCT = 10; // 코스피 기본값
+const SL_KOSDAQ = 18; // 2026-08-19: project_stock_pullback.mjs 그리드서치 결과와 동일하게 코스닥은 SL 18%
+function slFor(market) { return market === 'KOSDAQ' ? SL_KOSDAQ : SL; }
 const CHART_DAYS = 70, CALENDAR_DAYS = 400;
 
 function httpGetJson(url) {
@@ -216,7 +224,8 @@ function candidateRowHtml(r) {
 function holdingCardHtml(r) {
   const v = verdict(r);
   const badgeCls = { red: 'bdg-red', teal: 'bdg-teal', amber: 'bdg-amber', gray: 'bdg-gray' }[v.cls];
-  const slPrice = r.avgPrice * (1 - SL / 100);
+  const sl = slFor(r.market);
+  const slPrice = r.avgPrice * (1 - sl / 100);
   const svg = buildChartSvg(r.chartRows, { avgPrice: r.avgPrice, slPrice });
   const dev50 = (r.close - r.ema50) / r.ema50 * 100;
   const trendLbl = r.trendUp ? '정배열 유지' : '역배열/조정';
@@ -229,7 +238,7 @@ function holdingCardHtml(r) {
         <div class="chart-card-stats">
           <span>EMA50대비 <span class="${devClass(dev50)}">${fmt(dev50)}</span> <span class="sep">|</span> 추세 <span>${trendLbl}</span> <span class="sep">|</span> 기준선(EMA50) <span>${fmtV(r.ema50)}</span></span>
         </div>
-        <div class="chart-card-legend"><span><i class="dash" style="border-color:var(--purple)"></i>기준선(EMA50)</span><span><i class="dash" style="border-color:var(--amber)"></i>EMA100</span><span><i style="background:var(--${v.cls})"></i>판단 <span style="color:var(--${v.cls})">${v.label}</span></span><span><i style="background:var(--txt2)"></i>평단 <span>${fmtV(r.avgPrice)}</span></span><span><i style="background:var(--coral)"></i>손절선(-8%) <span>${fmtV(slPrice)}</span></span></div>
+        <div class="chart-card-legend"><span><i class="dash" style="border-color:var(--purple)"></i>기준선(EMA50)</span><span><i class="dash" style="border-color:var(--amber)"></i>EMA100</span><span><i style="background:var(--${v.cls})"></i>판단 <span style="color:var(--${v.cls})">${v.label}</span></span><span><i style="background:var(--txt2)"></i>평단 <span>${fmtV(r.avgPrice)}</span></span><span><i style="background:var(--coral)"></i>손절선(-${sl}%) <span>${fmtV(slPrice)}</span></span></div>
       </div>`;
 }
 function holdingRowHtml(r) {
@@ -280,17 +289,21 @@ async function fetchNotionHoldings() {
 }
 
 function verdict(r) {
-  if (r.unrealizedRet != null && r.unrealizedRet <= -SL) return { label: '손절검토', cls: 'red' };
+  const sl = slFor(r.market);
+  if (r.unrealizedRet != null && r.unrealizedRet <= -sl) return { label: '손절검토', cls: 'red' };
   if (r.breakdown50) return { label: '전량매도검토(50EMA이탈)', cls: 'red' };
   if (r.freshTp10) return { label: '1차익절검토(+10%)', cls: 'teal' };
   if (r.aboveEma50) return { label: '홀딩(50EMA위)', cls: 'teal' };
-  if (r.unrealizedRet != null && r.unrealizedRet <= -SL * 0.6) return { label: '주의', cls: 'amber' };
+  if (r.unrealizedRet != null && r.unrealizedRet <= -sl * 0.6) return { label: '주의', cls: 'amber' };
   return { label: '관찰', cls: 'gray' };
 }
 
 async function main() {
-  console.error(`[조회] 후보 유니버스 ${DEFAULT_STOCKS.length}종목 분석 중...`);
-  const universeResults = await batchAll(DEFAULT_STOCKS, async s => {
+  const kospiUniverse = await buildKospiUniverse();
+  const kosdaqUniverse = await buildKosdaqUniverse();
+  const allUniverse = [...kospiUniverse, ...kosdaqUniverse];
+  console.error(`[조회] 후보 유니버스 코스피${kospiUniverse.length}+코스닥${kosdaqUniverse.length}종목 분석 중...`);
+  const universeResults = await batchAll(allUniverse, async s => {
     const a = await analyzeStock(s.code, s.market);
     return a.error ? { ...s, error: a.error } : { ...s, ...a };
   });
@@ -301,7 +314,7 @@ async function main() {
   const holdCodes = new Set(holdingsRaw.map(h => h.code));
 
   // held 종목이 유니버스에 없으면(코스닥 소형주 등) 개별 조회
-  const missingHoldCodes = holdingsRaw.filter(h => !DEFAULT_STOCKS.some(s => s.code === h.code));
+  const missingHoldCodes = holdingsRaw.filter(h => !allUniverse.some(s => s.code === h.code));
 
   const holdingAnalysis = new Map();
   for (const s of universeResults) if (holdCodes.has(s.code)) holdingAnalysis.set(s.code, s);
@@ -322,21 +335,30 @@ async function main() {
     return { ...h, ...a, unrealizedRet, aboveEma50, breakdown50, freshTp10 };
   });
 
-  // 예상종목: 정배열(EMA50>EMA100 상승기울기) 종목 중 되돌림밴드 근접도(normDepth) 오름차순 top6
+  // 2026-08-19: 예상종목 = "초근접"(정배열 유지 + 되돌림밴드 진입조건 normDepth<=BAND_K를 이미 충족한
+  // 종목)만 표시. 기존엔 top6를 무조건 채워서 밴드 밖(진입조건 미충족) 종목까지 보여줬음(사용자 지적) —
+  // 이제 조건 충족분만, 개수 제한 없이(없으면 빈 목록) 코스피/코스닥 각각 분리해 보여준다.
   const validUniverse = universeResults.filter(r => !r.error);
-  const candidates = validUniverse
-    .filter(r => r.trendUp && r.normDepth != null && r.normDepth >= 0)
-    .sort((a, b) => a.normDepth - b.normDepth)
-    .slice(0, 6)
-    .map(r => ({ ...r, held: holdCodes.has(r.code) }));
+  function buildCandidates(pool) {
+    return pool
+      .filter(r => r.trendUp && r.normDepth != null && r.normDepth >= 0 && r.normDepth <= BAND_K)
+      .sort((a, b) => a.normDepth - b.normDepth)
+      .map(r => ({ ...r, held: holdCodes.has(r.code) }));
+  }
+  const candidatesKs = buildCandidates(validUniverse.filter(r => r.market !== 'KOSDAQ'));
+  const candidatesKq = buildCandidates(validUniverse.filter(r => r.market === 'KOSDAQ'));
 
-  const outCandidates = candidates.map(r => ({
-    code: r.code, name: r.name, market: r.market, held: r.held,
-    close: r.cur.close, ema50: r.cur.ema50, ema100: r.cur.ema100,
-    pullbackPct: r.pullbackPct, normDepth: r.normDepth, atrPct: r.cur.atrPct,
-    date: r.cur.date,
-    chartRows: r.chartRows.map(x => ({ date: x.date, close: x.close, ema50: x.ema50, ema100: x.ema100 })),
-  }));
+  function toOutCandidates(list) {
+    return list.map(r => ({
+      code: r.code, name: r.name, market: r.market, held: r.held,
+      close: r.cur.close, ema50: r.cur.ema50, ema100: r.cur.ema100,
+      pullbackPct: r.pullbackPct, normDepth: r.normDepth, atrPct: r.cur.atrPct,
+      date: r.cur.date,
+      chartRows: r.chartRows.map(x => ({ date: x.date, close: x.close, ema50: x.ema50, ema100: x.ema100 })),
+    }));
+  }
+  const outCandidatesKs = toOutCandidates(candidatesKs);
+  const outCandidatesKq = toOutCandidates(candidatesKq);
   const outHoldings = holdings.map(h => h.error ? { code: h.code, name: h.name, error: h.error } : {
     code: h.code, name: h.name, market: h.market, avgPrice: h.avgPrice, qty: h.qty,
     close: h.cur.close, ema50: h.cur.ema50, ema100: h.cur.ema100,
@@ -346,29 +368,37 @@ async function main() {
   });
   const validHoldingsOut = outHoldings.filter(h => !h.error);
 
-  const candidateRows = outCandidates.map(candidateRowHtml).join('\n          ');
-  const candidateCards = outCandidates.map(candidateCardHtml).join('\n');
-  const holdingRows = validHoldingsOut.map(holdingRowHtml).join('\n          ');
-  const holdingCards = validHoldingsOut.map(holdingCardHtml).join('\n');
   const fs = await import('fs');
-  fs.writeFileSync('candidates_table_rows.html', candidateRows, 'utf-8');
-  fs.writeFileSync('candidates_cards.html', candidateCards, 'utf-8');
-  fs.writeFileSync('holdings_table_rows.html', holdingRows, 'utf-8');
-  fs.writeFileSync('holdings_cards.html', holdingCards, 'utf-8');
-  console.error('[산출완료] candidates_table_rows.html, candidates_cards.html, holdings_table_rows.html, holdings_cards.html');
+  fs.writeFileSync('candidates_table_rows_ks.html', outCandidatesKs.map(candidateRowHtml).join('\n          '), 'utf-8');
+  fs.writeFileSync('candidates_cards_ks.html', outCandidatesKs.map(candidateCardHtml).join('\n'), 'utf-8');
+  fs.writeFileSync('candidates_table_rows_kq.html', outCandidatesKq.map(candidateRowHtml).join('\n          '), 'utf-8');
+  fs.writeFileSync('candidates_cards_kq.html', outCandidatesKq.map(candidateCardHtml).join('\n'), 'utf-8');
+  fs.writeFileSync('holdings_table_rows.html', validHoldingsOut.map(holdingRowHtml).join('\n          '), 'utf-8');
+  fs.writeFileSync('holdings_cards.html', validHoldingsOut.map(holdingCardHtml).join('\n'), 'utf-8');
+  console.error('[산출완료] 예상종목 *_ks/kq.html(코스피/코스닥 분리) 4개 + holdings 2개');
 
   const out = {
     generatedAt: new Date().toISOString(),
-    universeTotal: DEFAULT_STOCKS.length,
+    universeTotal: allUniverse.length,
     universeValid: validUniverse.length,
     trendUpCount: validUniverse.filter(r => r.trendUp).length,
-    candidatesKpi: { total: outCandidates.length },
+    kospi: {
+      universeTotal: kospiUniverse.length,
+      trendUpCount: validUniverse.filter(r => r.market !== 'KOSDAQ' && r.trendUp).length,
+      candidatesKpi: { total: outCandidatesKs.length },
+    },
+    kosdaq: {
+      universeTotal: kosdaqUniverse.length,
+      trendUpCount: validUniverse.filter(r => r.market === 'KOSDAQ' && r.trendUp).length,
+      candidatesKpi: { total: outCandidatesKq.length },
+    },
     holdingsKpi: {
       total: validHoldingsOut.length,
       trendUp: validHoldingsOut.filter(h => h.trendUp).length,
       avgUnrealizedRet: validHoldingsOut.length ? validHoldingsOut.reduce((a, h) => a + h.unrealizedRet, 0) / validHoldingsOut.length : null,
     },
-    candidates: outCandidates,
+    candidatesKospi: outCandidatesKs,
+    candidatesKosdaq: outCandidatesKq,
     holdings: outHoldings,
   };
   console.log(JSON.stringify(out));

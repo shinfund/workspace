@@ -64,10 +64,18 @@ const DEFAULT_STOCKS = [
 ];
 
 const KOSPI_SYMBOL = '%5EKS11';
+const KOSDAQ_SYMBOL = '%5EKQ11'; // 2026-08-19: 코스닥 종목엔 코스피지수 대신 코스닥지수로 시장국면 판정(사용자 확정)
 const MA_SHORT = 50, MA_LONG = 100, SLOPE_LOOKBACK = 10; // 사용자 개인 이평체계(5/10/20/50/100/200/400 EMA) — 구 SMA60/120을 비율(1:2) 유지한 채 EMA50/100으로 교체
 const BREAKOUT_LOOKBACK = 6; // 신고가 재지지 최근성 기준(2026-08-06 재탐색: 10일→6일, MA_SHORT 축소에 맞춰 비율 재조정)
 const ATR_PERIOD = 14, BAND_K = 0.4; // 되돌림밴드 = 눌림폭 <= ATR% × BAND_K
-const SL = 8, TRAIL = 8, TP_PCT = 10, TP_FRAC = 0.5;
+const SL = 8, TRAIL = 8, TP_PCT = 10, TP_FRAC = 0.5; // 코스피 기본값
+// 2026-08-19: 코스닥 전용 SL/TRAIL — 기존(코스피와 동일 SL8/TRAIL8) 그대로 적용하면 승률42%·중앙값-4.10%로
+// 코스피(승률56%·중앙값+5.86%)보다 뚜렷이 열위였음(코스닥이 변동성 커서 8%는 너무 타이트한 손절/트레일링).
+// SL/TRAIL만 18%/18%로 넓히면 진입조건 변경 없이 승률55%·중앙값+2.14%로 코스피에 근접(그리드서치 결과,
+// TR을 25%까지 더 넓히면 평균·Sharpe는 근소 개선되지만 중앙값·승률은 오히려 하락해 18%가 더 견고).
+const SL_KOSDAQ = 18, TRAIL_KOSDAQ = 18;
+function slFor(market) { return market === 'KOSDAQ' ? SL_KOSDAQ : SL; }
+function trailFor(market) { return market === 'KOSDAQ' ? TRAIL_KOSDAQ : TRAIL; }
 const REGIME_STREAK_MIN = 10; // 시장국면(상승) 전환 후 최소 10거래일 지나야 진입 허용 — 막 전환된 직후 휩소 구간 배제(2026-08-06 그리드서치 채택, v9)
 const KOSPI_ATR_PERIOD = 14, VOL_CAP = 4; // KOSPI 자체 ATR%가 이 값 초과면 신규진입 금지 — 추세 도중의 급변(크래시)장 배제(v10에서 2 채택 후, 좋았던 달까지 차단하는 문제 발견돼 v11에서 4로 완화)
 
@@ -77,6 +85,12 @@ function parseArgs() {
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--calendar-days') o.calendarDays = parseInt(argv[++i]);
     if (argv[i] === '--max-hold') o.maxHold = parseInt(argv[++i]);
+    if (argv[i] === '--stocks') {
+      o.stocks = argv[++i].split(',').map(s => {
+        const [code, name, market] = s.split(':');
+        return { code, name: name || code, market: market || 'KOSPI' };
+      });
+    }
   }
   return o;
 }
@@ -192,9 +206,9 @@ async function batchAll(items, fn, concurrency = 5, delay = 150) {
   return results;
 }
 
-async function fetchMarketRegime(p1, p2) {
-  const chart = await fetchYahooChart(KOSPI_SYMBOL, p1, p2);
-  if (!chart || !chart.ts.length) throw new Error('KOSPI지수 조회 실패');
+async function fetchMarketRegime(p1, p2, symbol = KOSPI_SYMBOL) {
+  const chart = await fetchYahooChart(symbol, p1, p2);
+  if (!chart || !chart.ts.length) throw new Error(`${symbol} 지수 조회 실패`);
   const dates = chart.ts.map(tsToKstDate);
   const closes = fillForward(chart.close);
   const maLong = buildEma(closes, MA_LONG);
@@ -263,7 +277,8 @@ function simulatePartialTP(seq, i0, entryClose, sl, trail, maxHold, tpPct, tpFra
   return null;
 }
 
-async function loadStockSignals(stock, marketRegime, opts) {
+async function loadStockSignals(stock, regimeByMarket, opts) {
+  const marketRegime = stock.market === 'KOSDAQ' ? regimeByMarket.KOSDAQ : regimeByMarket.KOSPI;
   const p2 = Math.floor(Date.now() / 1000);
   const p1 = p2 - opts.calendarDays * 24 * 3600;
   const symbol = stock.market === 'KOSDAQ' ? `${stock.code}.KQ` : `${stock.code}.KS`;
@@ -337,25 +352,30 @@ async function main() {
 
   const p2 = Math.floor(Date.now() / 1000);
   const p1 = p2 - opts.calendarDays * 24 * 3600;
-  const marketRegime = await fetchMarketRegime(p1, p2);
+  const needKosdaq = opts.stocks.some(s => s.market === 'KOSDAQ');
+  const [regimeKospi, regimeKosdaq] = await Promise.all([
+    fetchMarketRegime(p1, p2, KOSPI_SYMBOL),
+    needKosdaq ? fetchMarketRegime(p1, p2, KOSDAQ_SYMBOL) : Promise.resolve(null),
+  ]);
+  const regimeByMarket = { KOSPI: regimeKospi, KOSDAQ: regimeKosdaq };
 
-  const loaded = await batchAll(opts.stocks, s => loadStockSignals(s, marketRegime, opts));
+  const loaded = await batchAll(opts.stocks, s => loadStockSignals(s, regimeByMarket, opts));
   const errors = loaded.filter(r => r.error).map(r => `${r.name}: ${r.error}`);
   const valid = loaded.filter(r => !r.error && r.entries.length);
   if (errors.length) console.error(`[조회실패] ${errors.join(', ')}`);
 
   const allEntries = [];
-  for (const r of valid) for (const e of r.entries) allEntries.push({ seq: r.seq, i: e.i, date: e.date, name: r.name });
+  for (const r of valid) for (const e of r.entries) allEntries.push({ seq: r.seq, i: e.i, date: e.date, name: r.name, market: r.market || 'KOSPI' });
   allEntries.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
   console.error(`[진입시점 추출 완료] 총 ${allEntries.length}건`);
 
   console.log('\n════════ 눌림목 V3_RETEST 최종 확정 전략 — 전체구간 성과 ════════');
-  console.log(`진입: 시장국면(지속≥${REGIME_STREAK_MIN}일·KOSPI변동성≤${VOL_CAP}%)+종목추세(정배열, EMA${MA_SHORT}/${MA_LONG}) + ${MA_SHORT}일신고가 재지지 + 눌림폭<=ATR%×${BAND_K} / 청산: SL${SL}%·TRAIL${TRAIL}%·EMA${MA_SHORT}이탈·시간청산40일\n`);
+  console.log(`진입: 시장국면(지속≥${REGIME_STREAK_MIN}일·지수변동성≤${VOL_CAP}%, 코스닥종목은 코스닥지수 기준)+종목추세(정배열, EMA${MA_SHORT}/${MA_LONG}) + ${MA_SHORT}일신고가 재지지 + 눌림폭<=ATR%×${BAND_K} / 청산: SL${SL}%·TRAIL${TRAIL}%(코스닥은 SL${SL_KOSDAQ}%·TRAIL${TRAIL_KOSDAQ}%)·EMA${MA_SHORT}이탈·시간청산40일\n`);
 
   console.log('전략'.padEnd(26) + 'n'.padStart(6) + '평균'.padStart(10) + '중앙값'.padStart(10) + '승률'.padStart(8) + 'Sharpe'.padStart(9));
   console.log('─'.repeat(69));
-  const baseline = summarize(allEntries.map(e => simulateTrendTrade(e.seq, e.i, e.seq[e.i].close, SL, TRAIL, opts.maxHold)).filter(Boolean));
-  const withTp = summarize(allEntries.map(e => simulatePartialTP(e.seq, e.i, e.seq[e.i].close, SL, TRAIL, opts.maxHold, TP_PCT, TP_FRAC)).filter(Boolean));
+  const baseline = summarize(allEntries.map(e => simulateTrendTrade(e.seq, e.i, e.seq[e.i].close, slFor(e.market), trailFor(e.market), opts.maxHold)).filter(Boolean));
+  const withTp = summarize(allEntries.map(e => simulatePartialTP(e.seq, e.i, e.seq[e.i].close, slFor(e.market), trailFor(e.market), opts.maxHold, TP_PCT, TP_FRAC)).filter(Boolean));
   console.log(fmtRow('baseline(전량매도만)', baseline));
   console.log(fmtRow(`TP+${TP_PCT}%에서 ${TP_FRAC * 100}%매도(최종전략)`, withTp));
 
@@ -368,8 +388,8 @@ async function main() {
     console.log(`\n════════ 확정 파라미터 IS/OOS 스냅샷 (재탐색 없음, ~${splitDate} 기준 60/40 분할) ════════\n`);
     console.log('구간'.padEnd(26) + 'n'.padStart(6) + '평균'.padStart(10) + '중앙값'.padStart(10) + '승률'.padStart(8) + 'Sharpe'.padStart(9));
     console.log('─'.repeat(69));
-    console.log(fmtRow('IS(튜닝당시 구간)', summarize(isEntries.map(e => simulatePartialTP(e.seq, e.i, e.seq[e.i].close, SL, TRAIL, opts.maxHold, TP_PCT, TP_FRAC)).filter(Boolean))));
-    console.log(fmtRow('OOS(그 이후 구간)', summarize(oosEntries.map(e => simulatePartialTP(e.seq, e.i, e.seq[e.i].close, SL, TRAIL, opts.maxHold, TP_PCT, TP_FRAC)).filter(Boolean))));
+    console.log(fmtRow('IS(튜닝당시 구간)', summarize(isEntries.map(e => simulatePartialTP(e.seq, e.i, e.seq[e.i].close, slFor(e.market), trailFor(e.market), opts.maxHold, TP_PCT, TP_FRAC)).filter(Boolean))));
+    console.log(fmtRow('OOS(그 이후 구간)', summarize(oosEntries.map(e => simulatePartialTP(e.seq, e.i, e.seq[e.i].close, slFor(e.market), trailFor(e.market), opts.maxHold, TP_PCT, TP_FRAC)).filter(Boolean))));
     console.log('\n※ 파라미터는 이미 확정됨(재탐색 아님) — OOS가 IS 대비 크게 훼손되면 최근 시장 레짐 변화 가능성을 의심할 것.');
   }
 }
