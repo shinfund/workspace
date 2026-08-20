@@ -173,7 +173,7 @@ async function main() {
 
   rows.sort((a, b) => (b.손익률 ?? -Infinity) - (a.손익률 ?? -Infinity));
 
-  console.log('\n종목명\t\t현재가\t등락률\t평균단가\t보유수량\t매입금액\t평가손익\t수익률\t괴리율(200EMA)');
+  console.log('\n종목명\t\t현재가\t등락률\t평균단가\t보유수량\t매입금액\t평가손익\t수익률\t괴리율(200)');
   let 총매입 = 0, 총평가 = 0;
   for (const r of rows) {
     총매입 += r.매입금액;
