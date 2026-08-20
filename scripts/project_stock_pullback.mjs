@@ -25,6 +25,14 @@
 //          44~79%)뿐이라 캡을 4%로 완화(scripts/project_pullback_market_vol_filter_sweep.mjs 그리드서치 결과 재확인)
 //          → 2·4(85%)·5월(55%)은 대부분 유지, 3·6·7월은 여전히 전부 차단. 최근진입 2026-01-30→05-14로 개선.
 //          트레이드오프: TP전략 Sharpe 0.489→0.407, OOS도 IS보다 소폭 저하(0.430→0.390, 그래도 필터없음 0.388보다 우수).)
+//       v12(2026-08-20, 승률56%·SL비율18%가 낮다는 사용자 지적으로 진입조건 2개 추가 그리드서치
+//          (scripts/project_pullback_entry_exit_retune_sweep.mjs, 48개 조합). 진입확인1일지연은 표본을
+//          761→204(-73%)까지 깎아 기각. 아래 2개만 채택:
+//          ① 시장국면 지수 병행확인 — 자기 시장 지수뿐 아니라 반대쪽 지수(코스피↔코스닥)도 상승국면이어야 진입
+//          ② 개별종목 ATR%상한 — 진입일 개별종목 14일 ATR%가 6% 초과면 진입 제외
+//          두 필터 결합 시 IS Sharpe 0.478/OOS Sharpe 0.484(baseline IS0.430/OOS0.390 대비 개선 + IS≈OOS로
+//          과최적화 위험 낮음), 승률56%→59%, SL비율18%→15%, 표본 761→613(-19%, 최근진입일 변화없음 2026-05-14).
+//          OTHER_INDEX_SYMBOL·STOCK_ATR_CAP 추가, 반대쪽 지수 국면도 항상 조회하도록 변경.)
 //       과거 그리드서치 원본 수치는 메모리(project_pullback_entry_variants_backtest.md) 참고.
 // 사용법: node scripts/project_stock_pullback.mjs [--max-hold N] [--calendar-days N]
 import https from 'https';
@@ -78,6 +86,7 @@ function slFor(market) { return market === 'KOSDAQ' ? SL_KOSDAQ : SL; }
 function trailFor(market) { return market === 'KOSDAQ' ? TRAIL_KOSDAQ : TRAIL; }
 const REGIME_STREAK_MIN = 10; // 시장국면(상승) 전환 후 최소 10거래일 지나야 진입 허용 — 막 전환된 직후 휩소 구간 배제(2026-08-06 그리드서치 채택, v9)
 const KOSPI_ATR_PERIOD = 14, VOL_CAP = 4; // KOSPI 자체 ATR%가 이 값 초과면 신규진입 금지 — 추세 도중의 급변(크래시)장 배제(v10에서 2 채택 후, 좋았던 달까지 차단하는 문제 발견돼 v11에서 4로 완화)
+const STOCK_ATR_CAP = 6; // v12: 진입일 개별종목 14일 ATR%가 이 값 초과면 진입 제외(과변동성 종목 배제, 2026-08-20 그리드서치 채택)
 
 function parseArgs() {
   const argv = process.argv.slice(2);
@@ -279,6 +288,7 @@ function simulatePartialTP(seq, i0, entryClose, sl, trail, maxHold, tpPct, tpFra
 
 async function loadStockSignals(stock, regimeByMarket, opts) {
   const marketRegime = stock.market === 'KOSDAQ' ? regimeByMarket.KOSDAQ : regimeByMarket.KOSPI;
+  const otherRegime = stock.market === 'KOSDAQ' ? regimeByMarket.KOSPI : regimeByMarket.KOSDAQ; // v12: 반대쪽 지수 병행확인용
   const p2 = Math.floor(Date.now() / 1000);
   const p1 = p2 - opts.calendarDays * 24 * 3600;
   const symbol = stock.market === 'KOSDAQ' ? `${stock.code}.KQ` : `${stock.code}.KS`;
@@ -309,10 +319,12 @@ async function loadStockSignals(stock, regimeByMarket, opts) {
     const prior = seq[i - SLOPE_LOOKBACK];
     const trendUp = s.close > s.maLong && s.maShort > s.maLong && s.maLong > prior.maLong;
     if (!trendUp || marketRegime.regime[s.date] !== true) continue;
+    if (otherRegime.regime[s.date] !== true) continue; // v12: 반대쪽 지수도 상승국면이어야 진입
     if ((marketRegime.streak[s.date] ?? 0) < REGIME_STREAK_MIN) continue;
     const kospiVol = marketRegime.volPct[s.date];
     if (kospiVol == null || kospiVol > VOL_CAP) continue;
     if (i < MA_SHORT || s.atrPct == null || s.atrPct <= 0) continue;
+    if (s.atrPct > STOCK_ATR_CAP) continue; // v12: 개별종목 변동성 상한
 
     let highS = -Infinity, highSIdx = -1;
     for (let k = i - (MA_SHORT - 1); k <= i - 1; k++) { if (seq[k].close > highS) { highS = seq[k].close; highSIdx = k; } }
@@ -348,14 +360,14 @@ function fmtRow(label, s) {
 
 async function main() {
   const opts = parseArgs();
-  console.error(`[눌림목 V3_RETEST 최종판 검증] ${opts.stocks.length}종목, 최대${opts.maxHold}거래일, 최근${opts.calendarDays}일, 추세필터=EMA${MA_SHORT}/${MA_LONG}, 되돌림밴드=ATR%×${BAND_K}, 시장국면지속≥${REGIME_STREAK_MIN}일, KOSPI변동성≤${VOL_CAP}%`);
+  console.error(`[눌림목 V3_RETEST v12 검증] ${opts.stocks.length}종목, 최대${opts.maxHold}거래일, 최근${opts.calendarDays}일, 추세필터=EMA${MA_SHORT}/${MA_LONG}, 되돌림밴드=ATR%×${BAND_K}, 시장국면지속≥${REGIME_STREAK_MIN}일, KOSPI변동성≤${VOL_CAP}%, 지수병행확인, 개별ATR%상한≤${STOCK_ATR_CAP}%`);
 
   const p2 = Math.floor(Date.now() / 1000);
   const p1 = p2 - opts.calendarDays * 24 * 3600;
-  const needKosdaq = opts.stocks.some(s => s.market === 'KOSDAQ');
+  // v12: 지수 병행확인 때문에 종목 유니버스 구성과 무관하게 코스피·코스닥 지수 둘 다 항상 조회
   const [regimeKospi, regimeKosdaq] = await Promise.all([
     fetchMarketRegime(p1, p2, KOSPI_SYMBOL),
-    needKosdaq ? fetchMarketRegime(p1, p2, KOSDAQ_SYMBOL) : Promise.resolve(null),
+    fetchMarketRegime(p1, p2, KOSDAQ_SYMBOL),
   ]);
   const regimeByMarket = { KOSPI: regimeKospi, KOSDAQ: regimeKosdaq };
 
@@ -369,8 +381,8 @@ async function main() {
   allEntries.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
   console.error(`[진입시점 추출 완료] 총 ${allEntries.length}건`);
 
-  console.log('\n════════ 눌림목 V3_RETEST 최종 확정 전략 — 전체구간 성과 ════════');
-  console.log(`진입: 시장국면(지속≥${REGIME_STREAK_MIN}일·지수변동성≤${VOL_CAP}%, 코스닥종목은 코스닥지수 기준)+종목추세(정배열, EMA${MA_SHORT}/${MA_LONG}) + ${MA_SHORT}일신고가 재지지 + 눌림폭<=ATR%×${BAND_K} / 청산: SL${SL}%·TRAIL${TRAIL}%(코스닥은 SL${SL_KOSDAQ}%·TRAIL${TRAIL_KOSDAQ}%)·EMA${MA_SHORT}이탈·시간청산40일\n`);
+  console.log('\n════════ 눌림목 V3_RETEST v12 확정 전략 — 전체구간 성과 ════════');
+  console.log(`진입: 시장국면(지속≥${REGIME_STREAK_MIN}일·지수변동성≤${VOL_CAP}%, 자기시장 지수+반대쪽 지수 둘다 상승국면)+종목추세(정배열, EMA${MA_SHORT}/${MA_LONG}) + ${MA_SHORT}일신고가 재지지 + 눌림폭<=ATR%×${BAND_K} + 개별ATR%≤${STOCK_ATR_CAP}% / 청산: SL${SL}%·TRAIL${TRAIL}%(코스닥은 SL${SL_KOSDAQ}%·TRAIL${TRAIL_KOSDAQ}%)·EMA${MA_SHORT}이탈·시간청산40일\n`);
 
   console.log('전략'.padEnd(26) + 'n'.padStart(6) + '평균'.padStart(10) + '중앙값'.padStart(10) + '승률'.padStart(8) + 'Sharpe'.padStart(9));
   console.log('─'.repeat(69));

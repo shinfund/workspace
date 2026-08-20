@@ -56,6 +56,7 @@ function slFor(market) { return market === 'KOSDAQ' ? SL_KOSDAQ : SL; }
 function trailFor(market) { return market === 'KOSDAQ' ? TRAIL_KOSDAQ : TRAIL; }
 const REGIME_STREAK_MIN = 10;
 const KOSPI_ATR_PERIOD = 14, VOL_CAP = 4;
+const STOCK_ATR_CAP = 6; // v12(2026-08-20): 진입일 개별종목 14일 ATR%가 이 값 초과면 진입 제외
 const CALENDAR_DAYS = 1100;
 
 function parseArgs() {
@@ -224,6 +225,7 @@ function simulateLiveStatus(seq, i0, entryClose, sl, trail, maxHold, tpPct, tpFr
 
 async function loadStockSignals(stock, regimeByMarket, opts, kisMap, todayDate) {
   const marketRegime = stock.market === 'KOSDAQ' ? regimeByMarket.KOSDAQ : regimeByMarket.KOSPI;
+  const otherRegime = stock.market === 'KOSDAQ' ? regimeByMarket.KOSPI : regimeByMarket.KOSDAQ; // v12: 반대쪽 지수 병행확인
   const p2 = Math.floor(Date.now() / 1000);
   const p1 = p2 - opts.calendarDays * 24 * 3600;
   const symbol = stock.market === 'KOSDAQ' ? `${stock.code}.KQ` : `${stock.code}.KS`;
@@ -259,10 +261,12 @@ async function loadStockSignals(stock, regimeByMarket, opts, kisMap, todayDate) 
     const prior = seq[i - SLOPE_LOOKBACK];
     const trendUp = s.close > s.maLong && s.maShort > s.maLong && s.maLong > prior.maLong;
     if (!trendUp || marketRegime.regime[s.date] !== true) continue;
+    if (otherRegime.regime[s.date] !== true) continue; // v12: 반대쪽 지수도 상승국면
     if ((marketRegime.streak[s.date] ?? 0) < REGIME_STREAK_MIN) continue;
     const kospiVol = marketRegime.volPct[s.date];
     if (kospiVol == null || kospiVol > VOL_CAP) continue;
     if (i < MA_SHORT || s.atrPct == null || s.atrPct <= 0) continue;
+    if (s.atrPct > STOCK_ATR_CAP) continue; // v12: 개별종목 변동성 상한
 
     let highS = -Infinity, highSIdx = -1;
     for (let k = i - (MA_SHORT - 1); k <= i - 1; k++) { if (seq[k].close > highS) { highS = seq[k].close; highSIdx = k; } }

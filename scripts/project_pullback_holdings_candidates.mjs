@@ -50,6 +50,9 @@ const SL = 8, TP_PCT = 10; // 코스피 기본값
 const SL_KOSDAQ = 18; // 2026-08-19: project_stock_pullback.mjs 그리드서치 결과와 동일하게 코스닥은 SL 18%
 function slFor(market) { return market === 'KOSDAQ' ? SL_KOSDAQ : SL; }
 const CHART_DAYS = 70, CALENDAR_DAYS = 400;
+// v12(2026-08-20): project_stock_pullback.mjs와 동일한 시장국면·개별변동성 필터를 예상종목 판정에도 반영
+const KOSPI_SYMBOL = '%5EKS11', KOSDAQ_SYMBOL = '%5EKQ11';
+const REGIME_STREAK_MIN = 10, KOSPI_ATR_PERIOD = 14, VOL_CAP = 4, STOCK_ATR_CAP = 6;
 
 function httpGetJson(url) {
   return new Promise((res, rej) => {
@@ -150,6 +153,25 @@ function buildAtr(high, low, close, period) {
   }
   return smas;
 }
+// v12: 지수(코스피/코스닥) 현재 시장국면(상승지속·변동성) — project_stock_pullback.mjs의 fetchMarketRegime과 동일 정의, 최신일만 사용
+async function fetchIndexRegimeToday(symbol) {
+  const p2 = Math.floor(Date.now() / 1000);
+  const p1 = p2 - CALENDAR_DAYS * 24 * 3600;
+  const chart = await fetchYahooChart(symbol, p1, p2);
+  if (!chart || !chart.ts.length) return { up: false, streak: 0, volPct: 999 };
+  const closes = fillForward(chart.close);
+  const maLong = buildEma(closes, MA_LONG);
+  const atr = buildAtr(chart.high, chart.low, closes, KOSPI_ATR_PERIOD);
+  let curStreak = 0, up = false, volPct = null;
+  for (let i = 0; i < closes.length; i++) {
+    if (maLong[i] == null || i < MA_LONG + SLOPE_LOOKBACK || closes[i] == null) continue;
+    up = closes[i] > maLong[i] && maLong[i] > maLong[i - SLOPE_LOOKBACK];
+    curStreak = up ? curStreak + 1 : 0;
+    volPct = atr[i] != null ? atr[i] / closes[i] * 100 : null;
+  }
+  return { up, streak: curStreak, volPct };
+}
+
 async function batchAll(items, fn, concurrency = 6, delay = 120) {
   const results = new Array(items.length).fill(null); let idx = 0;
   async function worker() { while (idx < items.length) { const i = idx++; results[i] = await fn(items[i], i); if (delay) await new Promise(r => setTimeout(r, delay)); } }
@@ -368,10 +390,17 @@ async function main() {
   // 2026-08-19: 예상종목 = "초근접"(정배열 유지 + 되돌림밴드 진입조건 normDepth<=BAND_K를 이미 충족한
   // 종목)만 표시. 기존엔 top6를 무조건 채워서 밴드 밖(진입조건 미충족) 종목까지 보여줬음(사용자 지적) —
   // 이제 조건 충족분만, 개수 제한 없이(없으면 빈 목록) 코스피/코스닥 각각 분리해 보여준다.
+  // v12: 코스피·코스닥 지수 둘 다 상승국면(지속≥10일·변동성≤4%)이어야 예상종목 표시(백테스트 진입조건과 동일 기준)
+  const [kospiRegime, kosdaqRegime] = await Promise.all([fetchIndexRegimeToday(KOSPI_SYMBOL), fetchIndexRegimeToday(KOSDAQ_SYMBOL)]);
+  const marketGateOk = r => r.up && r.streak >= REGIME_STREAK_MIN && r.volPct != null && r.volPct <= VOL_CAP;
+  const dualIndexOk = marketGateOk(kospiRegime) && marketGateOk(kosdaqRegime);
+  console.error(`[v12 시장국면] 코스피 상승${kospiRegime.up}·지속${kospiRegime.streak}일·변동성${kospiRegime.volPct?.toFixed(2)}% / 코스닥 상승${kosdaqRegime.up}·지속${kosdaqRegime.streak}일·변동성${kosdaqRegime.volPct?.toFixed(2)}% → 지수병행조건 ${dualIndexOk ? '충족' : '미충족(예상종목 없음)'}`);
+
   const validUniverse = universeResults.filter(r => !r.error);
   function buildCandidates(pool) {
+    if (!dualIndexOk) return [];
     return pool
-      .filter(r => r.trendUp && r.normDepth != null && r.normDepth >= 0 && r.normDepth <= BAND_K)
+      .filter(r => r.trendUp && r.normDepth != null && r.normDepth >= 0 && r.normDepth <= BAND_K && r.cur.atrPct != null && r.cur.atrPct <= STOCK_ATR_CAP)
       .sort((a, b) => a.normDepth - b.normDepth)
       .map(r => ({ ...r, held: holdCodes.has(r.code) }));
   }
