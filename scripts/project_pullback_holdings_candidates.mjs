@@ -68,6 +68,7 @@ function httpPostJson(url, body, headers) {
     const bodyStr = JSON.stringify(body);
     const o = new URL(url);
     const req = https.request({ hostname: o.hostname, port: 443, path: o.pathname, method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(bodyStr), ...headers } }, resp => {
+      resp.setEncoding('utf8');
       let d = ''; resp.on('data', c => d += c);
       resp.on('end', () => { try { res(JSON.parse(d)); } catch { rej(new Error('파싱실패')); } });
     });
@@ -79,6 +80,7 @@ function httpGetPage(url, headers) {
   return new Promise((res, rej) => {
     const o = new URL(url);
     const req = https.request({ hostname: o.hostname, port: 443, path: o.pathname, method: 'GET', headers }, resp => {
+      resp.setEncoding('utf8');
       let d = ''; resp.on('data', c => d += c);
       resp.on('end', () => { try { res(JSON.parse(d)); } catch { rej(new Error('파싱실패')); } });
     });
