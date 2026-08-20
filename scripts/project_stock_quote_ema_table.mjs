@@ -5,16 +5,28 @@
  *   KIS API       → 당일 현재가 실시간
  *   Yahoo Finance → EMA 계산용 과거 종가(마지막날은 KIS 당일가로 덮어쓰기)
  *
- * 입력: TARGETS (개별종목 감시 리스트, 하단에서 직접 지정)
+ * 입력: TARGETS (개별종목 감시 리스트, 하단 기본값) 또는 CLI 인자 "코드:종목명,코드:종목명,..."
  * 출력: 터미널 표 — 종목명,현재가,등락률,5EMA,20EMA,50EMA,100EMA,200EMA(각 EMA는 괴리율 %)
+ *
+ * Usage: node project_stock_quote_ema_table.mjs [코드:이름,코드:이름,...]
  */
 import https from 'https';
 import fs    from 'fs';
 
-const TARGETS = [
+const DEFAULT_TARGETS = [
   { 종목코드: '005930', 종목명: '삼성전자' },
   { 종목코드: '000660', 종목명: 'SK하이닉스' },
 ];
+
+function parseTargetsArg(arg) {
+  if (!arg) return DEFAULT_TARGETS;
+  return arg.split(',').map(pair => {
+    const [종목코드, 종목명] = pair.split(':');
+    return { 종목코드, 종목명: 종목명 || 종목코드 };
+  });
+}
+
+const TARGETS = parseTargetsArg(process.argv[2]);
 
 const KIS_APP_KEY    = 'PSO0pNJJEdcjc5qizFifXHn0yXG42TRA0hUz';
 const KIS_APP_SECRET = 'ag3QEJW9rPfVvvhuiJCZftESl2a0GSSXsbuLzZxVq008hTbqKrBScdZxz/NbVW9UBbdwF+Yd16eFrGB2Q6HLEKADkUCpTvUjXmdorsxF5KmNvVI/Q/fR/2uv9UjTYmzCusALcmkSOaeLQ1pByw8oVPE++lnBZg6aKxh33Tbfd/aNbGNKl2Y=';
@@ -29,6 +41,11 @@ const YF_HEADERS = {
 };
 const EMA_PERIODS = [5, 20, 50, 100, 200];
 const WARMUP_DAYS = Math.max(...EMA_PERIODS) * 6;
+
+const USE_COLOR = process.stdout.isTTY || process.env.FORCE_COLOR === '1';
+const UP    = USE_COLOR ? '\x1b[31m' : ''; // 상향돌파: 빨강
+const DOWN  = USE_COLOR ? '\x1b[34m' : ''; // 하향돌파: 파랑
+const RESET = USE_COLOR ? '\x1b[0m'  : '';
 
 async function getKisToken() {
   try {
@@ -145,7 +162,13 @@ function fillForward(closes) {
 }
 
 function fmtWon(n) { return n != null ? Number(Math.round(n)).toLocaleString('ko-KR') : '─'; }
-function fmtPct(n) { return n != null ? `${n >= 0 ? '+' : ''}${n.toFixed(2)}%` : '─'; }
+function fmtPct(n, cross) {
+  if (n == null) return '─';
+  const s = `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
+  if (cross === 'up')   return `${UP}▲ ${s}${RESET}`;
+  if (cross === 'down') return `${DOWN}▼ ${s}${RESET}`;
+  return s;
+}
 
 async function main() {
   const token = await getKisToken();
@@ -165,21 +188,37 @@ async function main() {
     // 마지막 종가를 KIS 당일가로 덮어쓰기(장중·Yahoo 지연 오차 방지)
     if (현재가 && closes.length) closes[closes.length - 1] = 현재가;
 
+    const yestCloses = closes.slice(0, -1);
+    const yestClose = closes.length >= 2 ? closes[closes.length - 2] : null;
+
     const devByPeriod = {};
+    const crossByPeriod = {};
     for (const period of EMA_PERIODS) {
       const ema = closes.length >= period ? buildEma(closes, period) : null;
-      devByPeriod[period] = (ema && 현재가) ? (현재가 - ema) / ema * 100 : null;
+      const dev = (ema && 현재가) ? (현재가 - ema) / ema * 100 : null;
+      devByPeriod[period] = dev;
+
+      let cross = null;
+      if (dev != null && yestClose != null && yestCloses.length >= period) {
+        const yestEma = buildEma(yestCloses, period);
+        const yestDev = yestEma ? (yestClose - yestEma) / yestEma * 100 : null;
+        if (yestDev != null) {
+          if (yestDev <= 0 && dev > 0) cross = 'up';
+          else if (yestDev >= 0 && dev < 0) cross = 'down';
+        }
+      }
+      crossByPeriod[period] = cross;
     }
 
-    rows.push({ 종목명: h.종목명, 현재가, 등락률: kis?.등락률, ...devByPeriod });
+    rows.push({ 종목명: h.종목명, 현재가, 등락률: kis?.등락률, dev: devByPeriod, cross: crossByPeriod });
   }
 
   console.log('\n종목명\t\t현재가\t등락률\t5EMA\t20EMA\t50EMA\t100EMA\t200EMA');
   for (const r of rows) {
-    console.log(
-      `${r.종목명}\t${fmtWon(r.현재가)}\t${fmtPct(r.등락률)}\t${fmtPct(r[5])}\t${fmtPct(r[20])}\t${fmtPct(r[50])}\t${fmtPct(r[100])}\t${fmtPct(r[200])}`
-    );
+    const cols = EMA_PERIODS.map(p => fmtPct(r.dev[p], r.cross[p])).join('\t');
+    console.log(`${r.종목명}\t${fmtWon(r.현재가)}\t${fmtPct(r.등락률)}\t${cols}`);
   }
+  console.log(`\n${UP}■${RESET} 당일 상향돌파   ${DOWN}■${RESET} 당일 하향돌파`);
 }
 
 main().catch(e => { console.error(e); process.exit(1); });
