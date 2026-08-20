@@ -26,7 +26,7 @@ function buildChartSvg(rows, opts) {
   const yLo = lo - pad, yHi = hi + pad;
   const yAt = v => yBot - (yBot - yTop) * (v - yLo) / (yHi - yLo);
   const poly = (key, color, dash, width) => `<polyline points="${rows.map((r, i) => `${xAt(i).toFixed(1)},${yAt(r[key]).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--${color})" stroke-width="${width}"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
-  let svg = poly('ema100', 'amber', '6,3', 1.3) + poly('ema50', 'purple', '4,3', 1.4);
+  let svg = poly('ema100', 'gray600', '6,3', 1.3) + poly('ema50', 'teal', '4,3', 1.4);
   if (opts.avgPrice) {
     svg += `<line x1="${x0}" y1="${yAt(opts.avgPrice).toFixed(1)}" x2="${x1}" y2="${yAt(opts.avgPrice).toFixed(1)}" stroke="var(--txt2)" stroke-width="1" stroke-dasharray="2,3"/>`;
     svg += `<line x1="${x0}" y1="${yAt(opts.slPrice).toFixed(1)}" x2="${x1}" y2="${yAt(opts.slPrice).toFixed(1)}" stroke="var(--coral)" stroke-width="1.1" stroke-dasharray="1,3"/>`;

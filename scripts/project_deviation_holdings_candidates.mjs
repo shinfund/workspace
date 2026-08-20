@@ -251,7 +251,7 @@ function verdict(r) {
 
 function buildChartSvg(rows, opts) {
   const longKey = opts.longKey || 'ema100';
-  const longColor = opts.longColor || 'teal';
+  const longColor = opts.longColor || 'gray600';
   const x0 = 6, x1 = 474, yTop = 12, yBot = 208;
   const n = rows.length;
   const xAt = i => x0 + (x1 - x0) * i / (n - 1);
@@ -263,7 +263,7 @@ function buildChartSvg(rows, opts) {
   const yLo = lo - pad, yHi = hi + pad;
   const yAt = v => yBot - (yBot - yTop) * (v - yLo) / (yHi - yLo);
   const poly = (key, color, dash, width) => `<polyline points="${rows.map((r, i) => `${xAt(i).toFixed(1)},${yAt(r[key]).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--${color})" stroke-width="${width}"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
-  let svg = poly(longKey, longColor, '6,3', 1.3) + poly('ema50', 'amber', '6,3', 1.3) + poly('ema20', 'purple', '4,3', 1.4) + poly('ema5', 'sky', '2,2', 2.2);
+  let svg = poly(longKey, longColor, '6,3', 1.3) + poly('ema50', 'teal', '6,3', 1.3) + poly('ema20', 'purple', '4,3', 1.4) + poly('ema5', 'sky', '2,2', 2.2);
   if (opts.avgPrice) {
     svg += `<line x1="${x0}" y1="${yAt(opts.avgPrice).toFixed(1)}" x2="${x1}" y2="${yAt(opts.avgPrice).toFixed(1)}" stroke="var(--txt2)" stroke-width="1" stroke-dasharray="2,3"/>`;
     svg += `<line x1="${x0}" y1="${yAt(opts.slPrice).toFixed(1)}" x2="${x1}" y2="${yAt(opts.slPrice).toFixed(1)}" stroke="var(--coral)" stroke-width="1.1" stroke-dasharray="1,3"/>`;
@@ -279,7 +279,7 @@ function holdingCardHtml(r) {
   const badgeCls = { red: 'bdg-red', teal: 'bdg-teal', amber: 'bdg-amber', gray: 'bdg-gray' }[v.cls];
   const slPrice = r.avgPrice * 0.85;
   const zpPrice = Math.min(r.z20Price, r.z5Price);
-  const svg = buildChartSvg(r.chartRows, { avgPrice: r.avgPrice, slPrice, longKey: 'ema200', longColor: 'gray600' });
+  const svg = buildChartSvg(r.chartRows, { avgPrice: r.avgPrice, slPrice, longKey: 'ema200', longColor: 'amber' });
   return `      <div class="chart-card">
         <div class="chart-card-head"><span class="chart-card-name">${esc(r.name)}</span><span class="badge ${badgeCls}">${v.label}</span></div>
         ${svg}
@@ -313,7 +313,7 @@ function candidateRowHtml(r) {
   return `<tr><td class="l">${esc(r.name)}</td><td class="c">${r.market}</td><td>${fmtV(r.cur.close)}</td><td class="${devClass(r.cur.dev20)}">${fmt(r.cur.dev20)}</td><td>${r.z20 == null ? '─' : r.z20.toFixed(2)}</td><td>${r.pct20.toFixed(0)}%ile</td><td class="${devClass(r.cur.dev5)}">${fmt(r.cur.dev5)}</td><td>${r.z5 == null ? '─' : r.z5.toFixed(2)}</td><td>${r.pct5.toFixed(0)}%ile</td><td class="c">${r.downTrend ? '하락' : '상승'}</td><td class="c"><span class="badge ${badge.c}">${badge.t}</span>${r.held ? ' <span class="badge bdg-teal">보유중</span>' : ''}</td></tr>`;
 }
 function candidateCardHtml(r) {
-  const svg = buildChartSvg(r.chartRows, { longKey: 'ema100', longColor: 'teal' });
+  const svg = buildChartSvg(r.chartRows, { longKey: 'ema100', longColor: 'gray600' });
   const sig = finalSignal(r);
   const badge = candidateBadge(sig);
   const zpPrice = Math.min(r.z20Price, r.z5Price);
