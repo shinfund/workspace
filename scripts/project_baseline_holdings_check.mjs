@@ -22,6 +22,64 @@ const ROLL = 250, MIN_STREAK = 16, Z_THRESHOLD = -1.25;
 const FAST_PERIOD = 5, BASE_PERIOD = 200;
 const CALENDAR_DAYS = 2555;
 
+// ─── 200EMA 상향돌파 확률(2026-08-20 추가) ──────────────────────────────────
+// 종목 자신의 과거 이력 중 "200EMA 하회 상태였던 모든 날"을 표본 삼아, 이후 N거래일 안에
+// 재상향돌파한 비율을 실증 계산한다(이미 위에서 불러온 seq를 그대로 재사용, 추가 API 호출 없음).
+// 같은 괴리율 구간(동구간)이었던 날만 필터링한 조건부 확률도 함께 계산 — 여러 워치 후보 중
+// 우선순위를 매길 때 참고용(표본 n이 적으면 노이즈가 큼, feedback_stock_deviation 계열과 동일 취지).
+const DEV_BUCKETS = [
+  { lo: -5,        hi: 0,   label: '0%~-5%' },
+  { lo: -10,       hi: -5,  label: '-5%~-10%' },
+  { lo: -15,       hi: -10, label: '-10%~-15%' },
+  { lo: -20,       hi: -15, label: '-15%~-20%' },
+  { lo: -Infinity, hi: -20, label: '-20% 이하' },
+];
+const BREAKOUT_HORIZONS = [20, 60, 120];
+
+function bucketOf(dev) { return DEV_BUCKETS.find(b => dev > b.lo && dev <= b.hi) || DEV_BUCKETS[DEV_BUCKETS.length - 1]; }
+
+function computeDaysToCross(seq) {
+  const n = seq.length;
+  const nextAboveIdx = new Array(n).fill(null);
+  let nearest = null;
+  for (let i = n - 1; i >= 0; i--) {
+    if (seq[i].close >= seq[i].ema200) nearest = i;
+    nextAboveIdx[i] = nearest;
+  }
+  return seq.map((r, i) => {
+    if (r.close >= r.ema200) return null;
+    const j = i + 1 < n ? nextAboveIdx[i + 1] : null;
+    return j != null ? j - i : Infinity;
+  });
+}
+
+function probAtHorizon(samples, h) {
+  let success = 0, denom = 0;
+  for (const s of samples) {
+    if (s.daysToCross <= h) { success++; denom++; }
+    else if (s.remain >= h) { denom++; }
+  }
+  return { p: denom ? success / denom * 100 : null, n: denom };
+}
+
+function breakoutProbability(seq) {
+  const n = seq.length;
+  const daysToCross = computeDaysToCross(seq);
+  const belowSamples = [];
+  for (let i = 0; i < n; i++) {
+    if (seq[i].close >= seq[i].ema200) continue;
+    belowSamples.push({ dev: seq[i].dev200, daysToCross: daysToCross[i], remain: n - 1 - i });
+  }
+  const cur = seq[n - 1];
+  const curBelow = cur.close < cur.ema200;
+  const curBucket = curBelow ? bucketOf(cur.dev200) : null;
+  const sameBucketSamples = curBucket ? belowSamples.filter(s => s.dev > curBucket.lo && s.dev <= curBucket.hi) : [];
+  const overall = {}, byBucket = {};
+  for (const h of BREAKOUT_HORIZONS) { overall[h] = probAtHorizon(belowSamples, h); byBucket[h] = probAtHorizon(sameBucketSamples, h); }
+  return { curBucket, overall, byBucket };
+}
+function fmtProb(p) { return p.p != null ? `${p.p.toFixed(0)}%(n=${p.n})` : '─'; }
+
 function httpPostJson(url, body, headers) {
   return new Promise((res, rej) => {
     const bodyStr = JSON.stringify(body);
@@ -167,7 +225,8 @@ async function analyzeHolding(h) {
   const belowBaseline = cur.close < cur.ema200;
   const unrealizedRet = h.avgPrice ? (cur.close - h.avgPrice) / h.avgPrice * 100 : null;
   const aboveEma5 = cur.close >= cur.ema5;
-  return { ...h, market, close: cur.close, ema5: cur.ema5, ema200: cur.ema200, dev200: cur.dev200, z200: zs.z, curStreak, belowBaseline, aboveEma5, unrealizedRet, date: cur.date, seq: seq.slice(-CHART_POINTS) };
+  const breakout = breakoutProbability(seq);
+  return { ...h, market, close: cur.close, ema5: cur.ema5, ema200: cur.ema200, dev200: cur.dev200, z200: zs.z, curStreak, belowBaseline, aboveEma5, unrealizedRet, breakout, date: cur.date, seq: seq.slice(-CHART_POINTS) };
 }
 const CHART_POINTS = 260;
 
@@ -175,8 +234,16 @@ function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').
 function fmtV(v) { return v == null ? '─' : Math.round(v).toLocaleString('ko-KR'); }
 function retClass(v) { if (v == null) return ''; if (v <= -20) return 't-neg-hi'; return v < 0 ? 't-neg' : 't-pos'; }
 
+function breakoutCellHtml(r) {
+  if (!r.belowBaseline || !r.breakout?.curBucket) return '<span class="t-flat">&mdash;</span>';
+  const b60 = r.breakout.byBucket[60];
+  return b60.p != null
+    ? `<span title="괴리율구간 ${esc(r.breakout.curBucket.label)}, 표본 n=${b60.n}">${b60.p.toFixed(0)}%</span>`
+    : '<span class="t-flat">표본부족</span>';
+}
+
 function tableRowHtml(r, v) {
-  return `          <tr><td class="l">${esc(r.name)}</td><td class="c">${r.market || '─'}</td><td class="${retClass(r.unrealizedRet)}">${fmt(r.unrealizedRet)}</td><td class="${retClass(r.dev200)}">${fmt(r.dev200)}</td><td>${r.z200.toFixed(2)}</td><td class="c">${r.curStreak}일</td><td class="c"><span class="badge bdg-${v.cls}">${esc(v.label)}</span></td></tr>`;
+  return `          <tr><td class="l">${esc(r.name)}</td><td class="c">${r.market || '─'}</td><td class="${retClass(r.unrealizedRet)}">${fmt(r.unrealizedRet)}</td><td class="${retClass(r.dev200)}">${fmt(r.dev200)}</td><td>${r.z200.toFixed(2)}</td><td class="c">${r.curStreak}일</td><td class="c">${breakoutCellHtml(r)}</td><td class="c"><span class="badge bdg-${v.cls}">${esc(v.label)}</span></td></tr>`;
 }
 
 function buildChartSvg(rows, avgPrice) {
@@ -212,6 +279,9 @@ function chartCardHtml(r, v) {
         <div class="chart-card-stats">
           <span>EMA200(기준선)대비 <span class="${retClass(r.dev200)}">${fmt(r.dev200)}</span> <span class="sep">|</span> 롤링Z <span>${r.z200.toFixed(2)}</span> <span class="sep">|</span> 이탈 <b>${r.curStreak}거래일째</b></span>
         </div>
+        ${r.belowBaseline && r.breakout?.curBucket ? `<div class="chart-card-stats">
+          <span>200EMA 상향돌파확률(동구간 ${esc(r.breakout.curBucket.label)}) 20D <b>${fmtProb(r.breakout.byBucket[20])}</b> <span class="sep">|</span> 60D <b>${fmtProb(r.breakout.byBucket[60])}</b> <span class="sep">|</span> 120D <b>${fmtProb(r.breakout.byBucket[120])}</b></span>
+        </div>` : ''}
         <div class="chart-card-legend"><span><i style="border-color:var(--txt)"></i>종가</span><span><i class="dash" style="border-color:var(--sky)"></i>EMA5</span><span><i class="dash" style="border-color:var(--amber)"></i>EMA200(기준선)</span><span><i style="background:var(--txt2)"></i>평단 <span>${fmtV(r.avgPrice)}</span></span></div>
       </div>`;
 }
@@ -237,7 +307,10 @@ async function main() {
   for (const r of results) {
     if (r.error) { console.log(`${r.name}: ${r.error}`); continue; }
     const v = verdict(r);
-    console.log(`${r.name.padEnd(12)} 시장${(r.market||'─').padEnd(6)} 평단대비${fmt(r.unrealizedRet).padStart(9)}  EMA200괴리${fmt(r.dev200).padStart(9)}  Z${r.z200.toFixed(2).padStart(6)}  스트릭${String(r.curStreak).padStart(4)}일  판단: ${v.label}`);
+    const bo = r.belowBaseline && r.breakout?.curBucket
+      ? `  돌파확률(동구간)20D/60D/120D ${fmtProb(r.breakout.byBucket[20])}/${fmtProb(r.breakout.byBucket[60])}/${fmtProb(r.breakout.byBucket[120])}`
+      : '';
+    console.log(`${r.name.padEnd(12)} 시장${(r.market||'─').padEnd(6)} 평단대비${fmt(r.unrealizedRet).padStart(9)}  EMA200괴리${fmt(r.dev200).padStart(9)}  Z${r.z200.toFixed(2).padStart(6)}  스트릭${String(r.curStreak).padStart(4)}일  판단: ${v.label}${bo}`);
     okResults.push({ r, v });
   }
 

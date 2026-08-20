@@ -59,6 +59,62 @@ const MAX_BUY_LEGS = 2, RECOVER_TIMEOUT = 120, POST_RECOVER_HOLD = 60;
 const CALENDAR_DAYS = 2555; // ROLL(250) 워밍업 + minStreak + 7년치 확보(백테스트와 동일)
 const CHART_LEAD_DAYS = 15;
 
+// ─── 200EMA 상향돌파 확률(2026-08-20 추가, project_baseline_holdings_check.mjs와 동일 로직) ──────
+// 예상종목(워치) 탭에서 스트릭·Z조건이 같은 후보들 사이에 우선순위를 매길 때 참고 — 이미 위에서
+// 불러온 seq(7년치)를 그대로 재사용, 추가 API 호출 없음.
+const DEV_BUCKETS = [
+  { lo: -5,        hi: 0,   label: '0%~-5%' },
+  { lo: -10,       hi: -5,  label: '-5%~-10%' },
+  { lo: -15,       hi: -10, label: '-10%~-15%' },
+  { lo: -20,       hi: -15, label: '-15%~-20%' },
+  { lo: -Infinity, hi: -20, label: '-20% 이하' },
+];
+const BREAKOUT_HORIZONS = [20, 60, 120];
+
+function bucketOf(dev) { return DEV_BUCKETS.find(b => dev > b.lo && dev <= b.hi) || DEV_BUCKETS[DEV_BUCKETS.length - 1]; }
+
+function computeDaysToCross(seq) {
+  const n = seq.length;
+  const nextAboveIdx = new Array(n).fill(null);
+  let nearest = null;
+  for (let i = n - 1; i >= 0; i--) {
+    if (seq[i].close >= seq[i].ema200) nearest = i;
+    nextAboveIdx[i] = nearest;
+  }
+  return seq.map((r, i) => {
+    if (r.close >= r.ema200) return null;
+    const j = i + 1 < n ? nextAboveIdx[i + 1] : null;
+    return j != null ? j - i : Infinity;
+  });
+}
+
+function probAtHorizon(samples, h) {
+  let success = 0, denom = 0;
+  for (const s of samples) {
+    if (s.daysToCross <= h) { success++; denom++; }
+    else if (s.remain >= h) { denom++; }
+  }
+  return { p: denom ? success / denom * 100 : null, n: denom };
+}
+
+function breakoutProbability(seq) {
+  const n = seq.length;
+  const daysToCross = computeDaysToCross(seq);
+  const belowSamples = [];
+  for (let i = 0; i < n; i++) {
+    if (seq[i].close >= seq[i].ema200) continue;
+    belowSamples.push({ dev: seq[i].dev200, daysToCross: daysToCross[i], remain: n - 1 - i });
+  }
+  const cur = seq[n - 1];
+  const curBelow = cur.close < cur.ema200;
+  const curBucket = curBelow ? bucketOf(cur.dev200) : null;
+  const sameBucketSamples = curBucket ? belowSamples.filter(s => s.dev > curBucket.lo && s.dev <= curBucket.hi) : [];
+  const overall = {}, byBucket = {};
+  for (const h of BREAKOUT_HORIZONS) { overall[h] = probAtHorizon(belowSamples, h); byBucket[h] = probAtHorizon(sameBucketSamples, h); }
+  return { curBucket, overall, byBucket };
+}
+function fmtProb(p) { return p.p != null ? `${p.p.toFixed(0)}%(n=${p.n})` : '─'; }
+
 // ─── KIS API (당일 현재가 — 장중 Yahoo가 전일종가로 지연되는 문제 보완) ──────────────────
 // 인증·시세조회 함수는 kis_api.mjs에서 그대로 가져다 쓴다(자격증명 중복 방지).
 async function fetchKisPriceMap(stocks) {
@@ -334,7 +390,8 @@ async function loadStock(stock, kisMap, todayDate) {
   for (let i = ROLL - 1; i < seq.length; i++) {
     if (flags[i] && !flags[i - 1]) entries.push({ i, date: seq[i].date });
   }
-  return { ...stock, seq, streak, entries };
+  const breakout = breakoutProbability(seq);
+  return { ...stock, seq, streak, entries, breakout };
 }
 
 function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
@@ -410,6 +467,24 @@ function signalDatesLabel(signalDates) {
   return `<div style="color:var(--txt3);font-size:12.5px;margin-top:3px">신호: ${parts.join(' &middot; ')}</div>`;
 }
 
+// 2026-08-20: "돌파확률" 컬럼(회복 전이면 돌파확률 추정치, 회복됐으면 실제 돌파소요일수, 미회복 청산이면
+// "미돌파") — 회복 전(OPEN·미회복)만 예측(확률)이고 나머지는 이미 결과가 확정된 실측값이라 성격이 다름을
+// 셀 표기(퍼센트 vs D+N vs 텍스트)로 구분한다. 사용자 요청(2026-08-20): 최근신호 탭도 예상종목·보유종목과
+// 동일하게 돌파확률을 보여주되, 청산완료 행은 예측이 아니라 실제 돌파기간/미돌파로 표기.
+function recentSignalBreakoutCellHtml(row) {
+  if (row.recovered) {
+    return `<span title="진입 후 실제 기준선(EMA200) 돌파까지 걸린 거래일수">D+${row.recoverDay}</span>`;
+  }
+  if (row.status === 'CLOSED') {
+    return `<span class="t-neg">미돌파</span>`; // 회복 못하고 RECOVER_TIMEOUT으로 청산된 경우
+  }
+  const b = row.breakout?.curBucket ? row.breakout.byBucket[60] : null;
+  if (!b) return '<span class="t-flat">&mdash;</span>';
+  return b.p != null
+    ? `<span title="괴리율구간 ${esc(row.breakout.curBucket.label)}, 표본 n=${b.n}">${b.p.toFixed(0)}%</span>`
+    : '<span class="t-flat">표본부족</span>';
+}
+
 // 2026-08-14: "진행상황" 단일 컬럼에 상태·경과일·수익률·매수현황·신호일자가 다 뭉쳐 있어 컬럼 분리(사용자 요청)
 // 2026-08-18: "상태" 뱃지만으로는 현재 기준선(EMA200) 위/아래 위치를 알기 어렵다는 피드백 → 괴리율(dev200,
 // 현재가 기준) 컬럼 추가. 부호(+/-)가 그대로 기준선 위/아래를 나타내고 수치까지 보여줘 별도 위/아래
@@ -420,7 +495,7 @@ function tableRowHtml(row, seq) {
   const statusCell = badgeGroup(s);
   const noteCell = s.note ? s.note.replace(/^<span/, '<span').trim() : '<span class="t-flat">&mdash;</span>';
   const signalCell = row.signalDates && row.signalDates.length ? signalDatesLabel(row.signalDates).replace(/^<div[^>]*>|<\/div>$/g, '') : '<span class="t-flat">&mdash;</span>';
-  return `          <tr><td class="l">${row.date}</td><td class="l">${esc(row.name)}</td><td>${fmtV(cur.close)}</td><td class="${retClass(cur.dev200)}">${fmt(cur.dev200)}</td><td>${fmtV(row.entryClose)}</td><td class="l">${statusCell}</td><td class="c">D+${s.day}</td><td class="${retClass(row.ret)}">${fmt(row.ret)}</td><td class="l">${noteCell}</td><td class="l">${signalCell}</td></tr>`;
+  return `          <tr><td class="l">${row.date}</td><td class="l">${esc(row.name)}</td><td>${fmtV(cur.close)}</td><td class="${retClass(cur.dev200)}">${fmt(cur.dev200)}</td><td>${fmtV(row.entryClose)}</td><td class="l">${statusCell}</td><td class="c">D+${s.day}</td><td class="c">${recentSignalBreakoutCellHtml(row)}</td><td class="${retClass(row.ret)}">${fmt(row.ret)}</td><td class="l">${noteCell}</td><td class="l">${signalCell}</td></tr>`;
 }
 
 function buildChartSvg(rows, markers) {
@@ -488,11 +563,22 @@ function signalChartCardHtml(row, seq, entryIdx) {
         <div class="chart-card-stats">
           <span>${recovLabel}</span>
         </div>
+        ${!row.recovered && row.status === 'OPEN' && row.breakout?.curBucket ? `<div class="chart-card-stats">
+          <span>200EMA 상향돌파확률(동구간 ${esc(row.breakout.curBucket.label)}) 20D <b>${fmtProb(row.breakout.byBucket[20])}</b> <span class="sep">|</span> 60D <b>${fmtProb(row.breakout.byBucket[60])}</b> <span class="sep">|</span> 120D <b>${fmtProb(row.breakout.byBucket[120])}</b></span>
+        </div>` : ''}
         <div class="chart-card-stats">
           <span>신호일 ${(row.signalDates || []).map(b => b.executed ? `${b.leg}차 ${b.date}(${fmtV(b.price)})` : `<span style="opacity:.65">${b.leg}차(신호만) ${b.date}(${fmtV(b.price)})</span>`).join(' <span class="sep">|</span> ')}</span>
         </div>
         <div class="chart-card-legend"><span><i class="dash" style="border-color:var(--sky)"></i>EMA5</span><span><i class="dash" style="border-color:var(--amber)"></i>EMA200(기준선)</span><span><i style="background:var(--sky600)"></i>1차 진입가</span>${row.buyCount >= 2 ? '<span><i style="background:var(--purple)"></i>2차 진입가</span>' : ''}<span><i style="background:var(--${s.primary.cls === 'bdg-red' ? 'red' : s.primary.cls === 'bdg-purple' ? 'purple' : s.primary.cls === 'bdg-teal' ? 'teal' : 'gray600'})"></i>상태 <span>${s.primary.label}</span></span></div>
       </div>`;
+}
+
+function breakoutCellHtml(r) {
+  const b = r.breakout?.curBucket ? r.breakout.byBucket[60] : null;
+  if (!b) return '<span class="t-flat">&mdash;</span>';
+  return b.p != null
+    ? `<span title="괴리율구간 ${esc(r.breakout.curBucket.label)}, 표본 n=${b.n}">${b.p.toFixed(0)}%</span>`
+    : '<span class="t-flat">표본부족</span>';
 }
 
 function watchRowHtml(r) {
@@ -502,7 +588,7 @@ function watchRowHtml(r) {
   const zs = rollingZStats(seq, last);
   const zHit = zs.z <= Z_THRESHOLD;
   const badge = zHit ? '<span class="badge bdg-amber">Z충족&middot;돌파대기</span>' : '<span class="badge bdg-gray">관찰</span>';
-  return `          <tr><td class="l">${esc(r.name)}</td><td>${fmtV(cur.close)}</td><td>${fmtV(cur.ema200)}</td><td class="${retClass(cur.dev200)}">${fmt(cur.dev200)}</td><td>${zs.z.toFixed(2)}</td><td class="c">${r.curStreak}일</td><td class="c">${badge}</td></tr>`;
+  return `          <tr><td class="l">${esc(r.name)}</td><td>${fmtV(cur.close)}</td><td>${fmtV(cur.ema200)}</td><td class="${retClass(cur.dev200)}">${fmt(cur.dev200)}</td><td>${zs.z.toFixed(2)}</td><td class="c">${r.curStreak}일</td><td class="c">${breakoutCellHtml(r)}</td><td class="c">${badge}</td></tr>`;
 }
 
 function watchChartCardHtml(r) {
@@ -530,6 +616,9 @@ function watchChartCardHtml(r) {
         <div class="chart-card-stats">
           <span>EMA5 <span>${fmtV(cur.ema5)}</span> <span class="sep">|</span> 종가-EMA5 관계 <b>${aboveEma5 ? 'EMA5 위(상향돌파 완료 대기)' : 'EMA5 아래(상향돌파 대기)'}</b></span>
         </div>
+        ${r.breakout?.curBucket ? `<div class="chart-card-stats">
+          <span>200EMA 상향돌파확률(동구간 ${esc(r.breakout.curBucket.label)}) 20D <b>${fmtProb(r.breakout.byBucket[20])}</b> <span class="sep">|</span> 60D <b>${fmtProb(r.breakout.byBucket[60])}</b> <span class="sep">|</span> 120D <b>${fmtProb(r.breakout.byBucket[120])}</b></span>
+        </div>` : ''}
         <div class="chart-card-legend"><span><i style="border-color:var(--txt)"></i>종가</span><span><i class="dash" style="border-color:var(--sky)"></i>EMA5</span><span><i class="dash" style="border-color:var(--amber)"></i>EMA200(기준선)</span></div>
       </div>`;
 }
@@ -573,7 +662,7 @@ async function runMarket(universe, opts, todayDate, cutoffDate) {
       // 기준으로 계산되고 있었으므로 표시값만 buyLog 평균으로 맞춤(2회 매수면 1,2차 평균)
       const avgEntryClose = e.status.buyLog.reduce((a, b) => a + b.price, 0) / e.status.buyLog.length;
       const recoverDate = e.status.recovered && e.status.recoverDay != null ? r.seq[e.i + e.status.recoverDay].date : null;
-      rows.push({ date: e.date, name: r.name, code: r.code, entryClose: avgEntryClose, buyDates, signalDates, recoverDate, ...e.status });
+      rows.push({ date: e.date, name: r.name, code: r.code, entryClose: avgEntryClose, buyDates, signalDates, recoverDate, breakout: r.breakout, ...e.status });
       rowMeta.push({ seq: r.seq, entryIdx: e.i });
     }
   }
@@ -621,7 +710,7 @@ function computeWatch(valid, openNames, opts) {
     watchTableHtml: watchTop.map(watchRowHtml).join('\n'),
     stats: {
       total: watchCandidates.length, zHitCount: watchZHit.length, notYetCount: watchCandidates.length - watchZHit.length,
-      watchNames: watchTop.map(r => ({ name: r.name, streak: r.curStreak, z: r.curZ })),
+      watchNames: watchTop.map(r => ({ name: r.name, streak: r.curStreak, z: r.curZ, breakout60d: r.breakout?.curBucket ? r.breakout.byBucket[60] : null })),
     },
   };
 }
