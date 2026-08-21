@@ -243,7 +243,7 @@ function breakoutCellHtml(r) {
 }
 
 function tableRowHtml(r, v) {
-  return `          <tr><td class="l">${esc(r.name)}</td><td class="c">${r.market || '─'}</td><td class="${retClass(r.unrealizedRet)}">${fmt(r.unrealizedRet)}</td><td class="${retClass(r.dev200)}">${fmt(r.dev200)}</td><td>${r.z200.toFixed(2)}</td><td class="c">${r.curStreak}일</td><td class="c">${breakoutCellHtml(r)}</td><td class="c"><span class="badge bdg-${v.cls}">${esc(v.label)}</span></td></tr>`;
+  return `          <tr><td class="l">${esc(r.name)}</td><td class="c">${fmtV(r.close)}</td><td class="${retClass(r.unrealizedRet)}">${fmt(r.unrealizedRet)}</td><td class="${retClass(r.dev200)}">${fmt(r.dev200)}</td><td>${r.z200.toFixed(2)}</td><td class="c">${r.curStreak}일</td><td class="c">${breakoutCellHtml(r)}</td><td class="c"><span class="badge bdg-${v.cls}">${esc(v.label)}</span></td></tr>`;
 }
 
 function buildChartSvg(rows, avgPrice) {
@@ -313,6 +313,7 @@ async function main() {
     console.log(`${r.name.padEnd(12)} 시장${(r.market||'─').padEnd(6)} 평단대비${fmt(r.unrealizedRet).padStart(9)}  EMA200괴리${fmt(r.dev200).padStart(9)}  Z${r.z200.toFixed(2).padStart(6)}  스트릭${String(r.curStreak).padStart(4)}일  판단: ${v.label}${bo}`);
     okResults.push({ r, v });
   }
+  okResults.sort((a, b) => (b.r.unrealizedRet ?? -Infinity) - (a.r.unrealizedRet ?? -Infinity));
 
   const tableHtml = okResults.map(({ r, v }) => tableRowHtml(r, v)).join('\n');
   const chartHtml = okResults.map(({ r, v }) => chartCardHtml(r, v)).join('\n');
