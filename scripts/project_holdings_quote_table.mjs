@@ -6,7 +6,7 @@
  *   Yahoo Finance → EMA200 계산용 과거 종가(마지막날은 KIS 당일가로 덮어쓰기)
  *
  * 입력: data/holdings.json
- * 출력: 터미널 표(수익률 내림차순, "시장" 컬럼 없음, "200EMA괴리율" 컬럼 포함)
+ * 출력: 터미널 표(수익률 내림차순, "시장" 컬럼 없음, "200EMA" 컬럼 포함)
  */
 import https from 'https';
 import fs    from 'fs';
