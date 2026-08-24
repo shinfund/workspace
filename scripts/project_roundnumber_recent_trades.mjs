@@ -237,14 +237,16 @@ async function main() {
   });
 
   console.log(`\n총 ${all.length}건 (최근 ${opts.days}일 이내 진입)\n`);
-  console.log('종목명\t\t진입일\t\t레벨(L)\t진입가\tTP가\tSTOP가\t지지일수\t밀집도\t우선순위\t상태\t현재수익률');
+  console.log('종목명\t\t진입일\t\t현재가\t진입가\t레벨(L)\tTP가\tSTOP가\t지지일수\t밀집도\t우선순위\t상태\t현재수익률');
   order.forEach(i => {
     const t = all[i];
     const tp = t.level + t.step, stop = t.level * (1 - STOP_BUFFER_PCT / 100);
     const statusLabel = t.status === 'OPEN' ? `보유중(D+${t.day})` : t.status;
     const p = priorityOf[i];
     const prioLabel = p == null ? '-' : (p <= 3 ? `${p}순위` : `${p}순위 초과`);
-    console.log(`${t.name}\t${t.entryDate}\t${fmtWon(t.level)}\t${fmtWon(t.entryPrice)}\t${fmtWon(tp)}\t${fmtWon(stop)}\t${t.aboveCount}/20일\t${t.touchCount}봉\t${prioLabel}\t${statusLabel}\t${fmtPct(t.ret)}`);
+    // curClose는 OPEN 상태에서만 채워짐(오늘 종가) — 청산완료(TP/STOP/TIME) 건은 청산 트리거 당일 종가를 진입가×(1+수익률)로 역산
+    const curPrice = t.curClose ?? t.entryPrice * (1 + t.ret / 100);
+    console.log(`${t.name}\t${t.entryDate}\t${fmtWon(curPrice)}\t${fmtWon(t.entryPrice)}\t${fmtWon(t.level)}\t${fmtWon(tp)}\t${fmtWon(stop)}\t${t.aboveCount}/20일\t${t.touchCount}봉\t${prioLabel}\t${statusLabel}\t${fmtPct(t.ret)}`);
   });
 }
 
