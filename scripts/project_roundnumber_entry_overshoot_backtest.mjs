@@ -1,9 +1,16 @@
-// 라운드넘버(피겨라운드) 전략 — 최근 발생 신호(진입 이벤트) 샘플 조회 (2026-08-21)
-// project_roundnumber_strategy_backtest.mjs와 동일 규칙(확정 파라미터)으로 최근 --days(기본45)일
-// 이내에 실제 진입(재돌파)이 발생한 트레이드를 나열한다 — 백테스트의 pooled 통계용 시뮬레이션은
-// 미확정(청산 전) 트레이드를 표본에서 제외하지만, 이 스크립트는 반대로 "지금 보유중(OPEN)"인
-// 트레이드도 그대로 보여준다(실제 차트 대조 확인용).
-// 사용법: node scripts/project_roundnumber_recent_trades.mjs [--days 45] [--stocks 코드:이름:시장,...]
+// 라운드넘버 전략 — "진입일 갭업으로 진입가가 TP가(저항)를 이미 넘긴 경우" 성과 분리 백테스트 — 2026-08-24 신규
+// 배경: 2026-08-24 신규 진입신호 중 삼성SDI가 진입가(514,500)가 TP가(500,000)보다 이미 높은 상태로
+// 포착됨 — 재돌파일에 갭업이 크면 종가가 라운드레벨 L뿐 아니라 다음 레벨(L+step, 저항/TP)까지도
+// 하루 만에 넘어버릴 수 있음. 이런 "오버슈트" 진입이 정상 진입(진입가<TP가)과 성과가 다른지,
+// [[project_roundnumber_strategy]] 확정 매매그리드(150일/30틱)로 실증.
+//
+// 진입·청산 로직은 project_roundnumber_strategy_backtest.mjs와 100% 동일(같은 유니버스·같은 확정
+// 파라미터) — 이벤트를 진입가 vs TP가(level+step) 대소로 두 그룹으로 나눠 별도 집계만 추가.
+//
+// 사용법: node scripts/project_roundnumber_entry_overshoot_backtest.mjs [--window-days 150] [--target-ticks 30]
+//   [--min-touches 3] [--recent-lookback 20] [--prior-above-days 5] [--reclaim-window 5]
+//   [--stop-buffer-pct 2] [--max-hold 60] [--calendar-days 2555] [--stocks 코드:이름:시장,...]
+
 import https from 'https';
 
 const YF_HEADERS = {
@@ -19,14 +26,24 @@ const FALLBACK_KOSDAQ = [
 ];
 const DEFAULT_STOCKS = [...FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' })), ...FALLBACK_KOSDAQ];
 
-const WINDOW_DAYS = 150, TARGET_TICKS = 30, RECENT_LOOKBACK = 20, PRIOR_ABOVE_DAYS = 5, MIN_TOUCHES = 3;
-const RECLAIM_WINDOW = 5, STOP_BUFFER_PCT = 2, MAX_HOLD = 60, CALENDAR_DAYS = 2555;
-
 function parseArgs() {
   const argv = process.argv.slice(2);
-  const o = { stocks: DEFAULT_STOCKS, days: 45 };
+  const o = {
+    stocks: DEFAULT_STOCKS, calendarDays: 2555,
+    windowDays: 150, targetTicks: 30, minTouches: 3,
+    recentLookback: 20, priorAboveDays: 5, reclaimWindow: 5,
+    stopBufferPct: 2, maxHold: 60,
+  };
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '--days') o.days = parseInt(argv[++i]);
+    if (argv[i] === '--calendar-days') o.calendarDays = parseInt(argv[++i]);
+    if (argv[i] === '--window-days') o.windowDays = parseInt(argv[++i]);
+    if (argv[i] === '--target-ticks') o.targetTicks = parseInt(argv[++i]);
+    if (argv[i] === '--min-touches') o.minTouches = parseInt(argv[++i]);
+    if (argv[i] === '--recent-lookback') o.recentLookback = parseInt(argv[++i]);
+    if (argv[i] === '--prior-above-days') o.priorAboveDays = parseInt(argv[++i]);
+    if (argv[i] === '--reclaim-window') o.reclaimWindow = parseInt(argv[++i]);
+    if (argv[i] === '--stop-buffer-pct') o.stopBufferPct = parseFloat(argv[++i]);
+    if (argv[i] === '--max-hold') o.maxHold = parseInt(argv[++i]);
     if (argv[i] === '--stocks') {
       o.stocks = argv[++i].split(',').map(s => {
         const [code, name, market] = s.split(':');
@@ -71,6 +88,13 @@ function tsToKstDate(ts) {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
 }
 
+function mean(arr) { return arr.reduce((a, b) => a + b, 0) / arr.length; }
+function median(arr) {
+  const s = [...arr].sort((a, b) => a - b);
+  const n = s.length;
+  return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
+}
+
 async function batchAll(items, fn, concurrency = 5, delay = 150) {
   const results = new Array(items.length).fill(null);
   let idx = 0;
@@ -109,33 +133,35 @@ function computeStepAt(highs, lows, idx, windowDays, targetTicks) {
 function touchCountBefore(highs, lows, idx, level, windowDays) {
   const lo = Math.max(0, idx - windowDays);
   let count = 0;
-  for (let k = lo; k < idx; k++) if (lows[k] <= level && level <= highs[k]) count++;
+  for (let k = lo; k < idx; k++) {
+    if (lows[k] <= level && level <= highs[k]) count++;
+  }
   return count;
 }
 
-function detectRoundSignals(seq, highs, lows) {
+function detectRoundSignals(seq, highs, lows, opts) {
   const n = seq.length;
   const events = [];
   for (let i = 1; i < n; i++) {
     const prev = seq[i - 1].close, cur = seq[i].close;
-    const step = computeStepAt(highs, lows, i, WINDOW_DAYS, TARGET_TICKS);
+    const step = computeStepAt(highs, lows, i, opts.windowDays, opts.targetTicks);
     if (!step) continue;
     const L = Math.floor(prev / step) * step;
     const breached = prev >= L && cur < L;
     if (!breached || L <= 0) continue;
-    const lo = Math.max(0, i - 1 - RECENT_LOOKBACK);
+
+    const lo = Math.max(0, i - 1 - opts.recentLookback);
     let aboveCount = 0;
     for (let k = lo; k < i - 1; k++) if (seq[k].close >= L) aboveCount++;
-    if (aboveCount < PRIOR_ABOVE_DAYS) continue;
-    const touch = touchCountBefore(highs, lows, i, L, WINDOW_DAYS);
-    if (touch < MIN_TOUCHES) continue;
-    for (let f = i; f < Math.min(n, i + RECLAIM_WINDOW); f++) {
+    if (aboveCount < opts.priorAboveDays) continue;
+
+    const touch = touchCountBefore(highs, lows, i, L, opts.windowDays);
+    if (touch < opts.minTouches) continue;
+
+    for (let f = i; f < Math.min(n, i + opts.reclaimWindow); f++) {
       if (seq[f].close < L - step) break;
       if (seq[f].close >= L) {
-        // 2026-08-24 오버슈트 필터: 재돌파일 종가가 갭업으로 TP가(L+step)까지 이미 넘겨버리면
-        // 리스크(STOP까지)만 남고 리워드는 사실상 소진된 셋업 — 백테스트로 확인된 저품질(승률55%,
-        // 중앙값+0.28%) 케이스라 신호에서 제외(project_roundnumber_entry_overshoot_backtest.mjs 참고)
-        if (seq[f].close < L + step) events.push({ entryIdx: f, level: L, step, touchCount: touch, aboveCount });
+        events.push({ entryIdx: f, level: L, step, touchCount: touch, priorAboveCount: aboveCount, breachIdx: i });
         break;
       }
     }
@@ -143,78 +169,99 @@ function detectRoundSignals(seq, highs, lows) {
   return events;
 }
 
-// 백테스트(project_roundnumber_strategy_backtest.mjs)와 달리, 최대보유일 내 미확정 트레이드를
-// 표본에서 버리지 않고 "OPEN(보유중)"으로 그대로 보여준다(실제 차트 대조 확인이 목적이라 지금
-// 진행 중인 신호도 봐야 함).
-function simulateLive(seq, ev, latestIdx) {
+function simulateRoundTrade(seq, ev, opts) {
   const i0 = ev.entryIdx;
   const entry = seq[i0].close;
   const target = ev.level + ev.step;
-  const stop = ev.level * (1 - STOP_BUFFER_PCT / 100);
-  for (let d = 1; d <= MAX_HOLD; d++) {
+  const stop = ev.level * (1 - opts.stopBufferPct / 100);
+  for (let d = 1; d <= opts.maxHold; d++) {
     const j = i0 + d;
-    if (j > latestIdx) {
-      const cur = seq[latestIdx].close;
-      return { status: 'OPEN', day: latestIdx - i0, ret: (cur - entry) / entry * 100, curClose: cur, curDate: seq[latestIdx].date };
-    }
+    if (j >= seq.length) return null;
     const close = seq[j].close;
-    if (close <= stop) return { status: 'STOP', day: d, ret: (close - entry) / entry * 100, date: seq[j].date };
-    if (close >= target) return { status: 'TP', day: d, ret: (close - entry) / entry * 100, date: seq[j].date };
-    if (d === MAX_HOLD) return { status: 'TIME', day: d, ret: (close - entry) / entry * 100, date: seq[j].date };
+    if (close <= stop) return { ret: (close - entry) / entry * 100, day: d, reason: 'STOP', date: seq[j].date };
+    if (close >= target) return { ret: (close - entry) / entry * 100, day: d, reason: 'TP', date: seq[j].date };
+    if (d === opts.maxHold) return { ret: (close - entry) / entry * 100, day: d, reason: 'TIME', date: seq[j].date };
   }
   return null;
 }
 
-async function scanStock(stock, cutoffDate) {
+async function backtestStock(stock, opts) {
   const p2 = Math.floor(Date.now() / 1000);
-  const p1 = p2 - CALENDAR_DAYS * 24 * 3600;
+  const p1 = p2 - opts.calendarDays * 24 * 3600;
   const symbol = stock.market === 'KOSDAQ' ? `${stock.code}.KQ` : `${stock.code}.KS`;
+
   const chart = await fetchYahooChart(symbol, p1, p2);
   if (!chart || !chart.ts.length) return { ...stock, error: '데이터 조회 실패' };
 
   const dates = chart.ts.map(tsToKstDate);
+  const closes = chart.close;
+
   const seq = [], highs = [], lows = [];
   for (let i = 0; i < dates.length; i++) {
-    if (chart.close[i] == null) continue;
-    seq.push({ date: dates[i], close: chart.close[i] });
-    highs.push(chart.high[i] ?? chart.close[i]);
-    lows.push(chart.low[i] ?? chart.close[i]);
+    if (closes[i] == null) continue;
+    seq.push({ date: dates[i], close: closes[i] });
+    highs.push(chart.high[i] ?? closes[i]);
+    lows.push(chart.low[i] ?? closes[i]);
   }
-  const n = seq.length;
-  if (n < WINDOW_DAYS + RECENT_LOOKBACK + 10) return { ...stock, error: '데이터 부족' };
+  const minLen = opts.windowDays + opts.recentLookback + opts.maxHold + 10;
+  if (seq.length < minLen) return { ...stock, error: '데이터 부족' };
 
-  const events = detectRoundSignals(seq, highs, lows);
-  const latestIdx = n - 1;
-  const recentTrades = [];
+  const events = detectRoundSignals(seq, highs, lows, opts);
+  const trades = [];
   for (const ev of events) {
-    if (seq[ev.entryIdx].date < cutoffDate) continue;
-    const res = simulateLive(seq, ev, latestIdx);
-    if (res) recentTrades.push({ name: stock.name, entryDate: seq[ev.entryIdx].date, entryPrice: seq[ev.entryIdx].close, level: ev.level, step: ev.step, touchCount: ev.touchCount, aboveCount: ev.aboveCount, ...res });
+    const res = simulateRoundTrade(seq, ev, opts);
+    if (!res) continue;
+    const entryPrice = seq[ev.entryIdx].close;
+    const target = ev.level + ev.step;
+    const overshoot = entryPrice >= target; // 진입일 종가가 이미 TP가(저항)를 넘긴 "갭업 오버슈트" 케이스
+    trades.push({ name: stock.name, entryDate: seq[ev.entryIdx].date, level: ev.level, entryPrice, target, overshoot, touchCount: ev.touchCount, ...res });
   }
-  return { ...stock, recentTrades };
+  return { ...stock, trades, totalEvents: events.length };
 }
 
-function fmtWon(n) { return n != null ? Math.round(n).toLocaleString('ko-KR') : '─'; }
-function fmtPct(n) { return n != null ? `${n >= 0 ? '+' : ''}${n.toFixed(2)}%` : '─'; }
+function summarizeGroup(trades) {
+  if (!trades.length) return { n: 0 };
+  const rets = trades.map(t => t.ret);
+  const win = rets.filter(r => r > 0).length / rets.length * 100;
+  const reasonCount = {};
+  for (const t of trades) reasonCount[t.reason] = (reasonCount[t.reason] || 0) + 1;
+  return { n: rets.length, avg: mean(rets), med: median(rets), win, avgDays: mean(trades.map(t => t.day)), reasonCount };
+}
 
 async function main() {
   const opts = parseArgs();
-  const cutoff = new Date(Date.now() - opts.days * 24 * 3600 * 1000);
-  const cutoffDate = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}-${String(cutoff.getDate()).padStart(2, '0')}`;
-  console.error(`[라운드넘버 최근신호 조회] ${opts.stocks.length}종목, 최근 ${opts.days}일(기준일 ${cutoffDate} 이후) 진입 이벤트`);
+  console.error(`[라운드넘버 진입 오버슈트(진입가>=TP가) 성과 분리 백테스트] ${opts.stocks.length}종목, 그리드=최근${opts.windowDays}거래일÷${opts.targetTicks}눈금, 밀집도>=${opts.minTouches}회`);
 
-  const results = await batchAll(opts.stocks, s => scanStock(s, cutoffDate));
-  const all = [];
-  for (const r of results) { if (!r.error) all.push(...r.recentTrades); }
-  all.sort((a, b) => b.entryDate.localeCompare(a.entryDate));
-
-  console.log(`\n총 ${all.length}건 (최근 ${opts.days}일 이내 진입)\n`);
-  console.log('종목명\t\t진입일\t\t레벨(L)\t진입가\tTP가\tSTOP가\t지지일수\t밀집도\t상태\t현재수익률');
-  for (const t of all) {
-    const tp = t.level + t.step, stop = t.level * (1 - STOP_BUFFER_PCT / 100);
-    const statusLabel = t.status === 'OPEN' ? `보유중(D+${t.day})` : t.status;
-    console.log(`${t.name}\t${t.entryDate}\t${fmtWon(t.level)}\t${fmtWon(t.entryPrice)}\t${fmtWon(tp)}\t${fmtWon(stop)}\t${t.aboveCount}/20일\t${t.touchCount}봉\t${statusLabel}\t${fmtPct(t.ret)}`);
+  const results = await batchAll(opts.stocks, s => backtestStock(s, opts));
+  const pooled = [];
+  const errors = [];
+  for (const r of results) {
+    if (r.error) { errors.push(`${r.name}: ${r.error}`); continue; }
+    pooled.push(...r.trades);
   }
+  if (errors.length) console.error(`[조회실패] ${errors.join(', ')}`);
+
+  const overshoot = pooled.filter(t => t.overshoot);
+  const normal = pooled.filter(t => !t.overshoot);
+
+  console.log(`\n전체 유효표본: ${pooled.length}건 (오버슈트 ${overshoot.length}건 / 정상 ${normal.length}건)`);
+
+  const so = summarizeGroup(overshoot);
+  const sn = summarizeGroup(normal);
+
+  console.log(`\n━━━ 오버슈트(진입가≥TP가로 진입) ━━━`);
+  if (so.n) {
+    console.log(`n=${so.n}  평균 ${so.avg >= 0 ? '+' : ''}${so.avg.toFixed(2)}%  중앙값 ${so.med >= 0 ? '+' : ''}${so.med.toFixed(2)}%  승률 ${so.win.toFixed(0)}%  평균보유 ${so.avgDays.toFixed(1)}거래일`);
+    for (const [reason, cnt] of Object.entries(so.reasonCount)) console.log(`  ${reason.padEnd(6)}: ${cnt}건 (${(cnt / so.n * 100).toFixed(0)}%)`);
+  } else console.log('표본 없음');
+
+  console.log(`\n━━━ 정상(진입가<TP가로 진입) ━━━`);
+  if (sn.n) {
+    console.log(`n=${sn.n}  평균 ${sn.avg >= 0 ? '+' : ''}${sn.avg.toFixed(2)}%  중앙값 ${sn.med >= 0 ? '+' : ''}${sn.med.toFixed(2)}%  승률 ${sn.win.toFixed(0)}%  평균보유 ${sn.avgDays.toFixed(1)}거래일`);
+    for (const [reason, cnt] of Object.entries(sn.reasonCount)) console.log(`  ${reason.padEnd(6)}: ${cnt}건 (${(cnt / sn.n * 100).toFixed(0)}%)`);
+  } else console.log('표본 없음');
+
+  console.log('\n※ 오버슈트 = 진입일 종가가 이미 다음 라운드레벨(TP가/저항)을 넘어선 상태로 진입된 이벤트(갭업 재돌파)');
 }
 
 main().catch(e => { console.error('오류:', e.message); process.exit(1); });

@@ -43,6 +43,11 @@
 //      (터치카운트) >= `--min-touches`(기본3)여야 "검증된 라운드 레벨"로 인정.
 //   ④ ①②③ 충족 후 `--reclaim-window`(기본10)거래일 내 종가가 L을 다시 회복(재돌파)하는 첫날 진입
 //      (그 사이 L-step 아래로 한 번 더 떨어지면 지지 완전붕괴로 보고 포기)
+//   ⑤ 오버슈트 필터(2026-08-24 추가): 재돌파일 종가가 갭업으로 다음 라운드레벨(L+step, TP가)까지
+//      이미 넘겨버린 경우는 진입 제외 — project_roundnumber_entry_overshoot_backtest.mjs로 분리
+//      검증한 결과 오버슈트 케이스가 정상 케이스보다 뚜렷이 열위(승률55%/중앙값+0.28% vs
+//      정상 61%/+1.13%)라 확정 전략에서 제외. 필터 적용 후 전체 결과가 아래 "정상" 수치와 동일해짐
+//      (n=4,660, 승률61%, 중앙값+1.13%, 평균+0.31%, 평균보유2.5거래일 — 기존 59%/+0.72%/n=7,846에서 개선).
 //
 // 청산(먼저 오는 조건):
 //   TP: 종가가 다음 라운드 레벨(L+step, 저항)에 도달
@@ -239,7 +244,11 @@ function detectRoundSignals(seq, highs, lows, opts) {
     for (let f = i; f < Math.min(n, i + opts.reclaimWindow); f++) {
       if (seq[f].close < L - step) break;
       if (seq[f].close >= L) {
-        events.push({ entryIdx: f, level: L, step, touchCount: touch, priorAboveCount: aboveCount, breachIdx: i });
+        // 2026-08-24 오버슈트 필터: 재돌파일 종가가 갭업으로 TP가(L+step)까지 이미 넘겨버리면
+        // 리스크(STOP까지)만 남고 리워드는 사실상 소진된 셋업 — 별도 백테스트로 확인된 저품질
+        // (승률55%, 중앙값+0.28% vs 정상 61%/+1.13%, project_roundnumber_entry_overshoot_backtest.mjs)
+        // 라 신호에서 제외 확정.
+        if (seq[f].close < L + step) events.push({ entryIdx: f, level: L, step, touchCount: touch, priorAboveCount: aboveCount, breachIdx: i });
         break;
       }
     }
