@@ -226,9 +226,20 @@ async function main() {
     sorted.forEach((idx, pos) => { priorityOf[idx] = pos + 1; });
   }
 
+  // 표시 순서: 진입일 최신순, 같은 날짜 내에서는 우선순위(1→2→3→초과) 순
+  const order = all.map((t, i) => i).sort((a, b) => {
+    const dateCmp = all[b].entryDate.localeCompare(all[a].entryDate);
+    if (dateCmp !== 0) return dateCmp;
+    const ra = priorityOf[a] == null ? Infinity : priorityOf[a];
+    const rb = priorityOf[b] == null ? Infinity : priorityOf[b];
+    if (ra !== rb) return ra - rb;
+    return a - b;
+  });
+
   console.log(`\n총 ${all.length}건 (최근 ${opts.days}일 이내 진입)\n`);
   console.log('종목명\t\t진입일\t\t레벨(L)\t진입가\tTP가\tSTOP가\t지지일수\t밀집도\t우선순위\t상태\t현재수익률');
-  all.forEach((t, i) => {
+  order.forEach(i => {
+    const t = all[i];
     const tp = t.level + t.step, stop = t.level * (1 - STOP_BUFFER_PCT / 100);
     const statusLabel = t.status === 'OPEN' ? `보유중(D+${t.day})` : t.status;
     const p = priorityOf[i];
