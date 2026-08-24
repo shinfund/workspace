@@ -26,12 +26,13 @@ const RECLAIM_WINDOW = 5, STOP_BUFFER_PCT = 2, MAX_HOLD = 60, CALENDAR_DAYS = 25
 
 function parseArgs() {
   const argv = process.argv.slice(2);
-  const o = { stocks: DEFAULT_STOCKS, days: 45, budget: 2_000_000, capital: 10_000_000, pnlSummary: true };
+  const o = { stocks: DEFAULT_STOCKS, days: 45, budget: 2_000_000, capital: 10_000_000, pnlSummary: true, compound: false };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--days') o.days = parseInt(argv[++i]);
     if (argv[i] === '--budget') o.budget = parseInt(argv[++i]);
     if (argv[i] === '--capital') o.capital = parseInt(argv[++i]);
     if (argv[i] === '--no-pnl-summary') o.pnlSummary = false;
+    if (argv[i] === '--compound') o.compound = true;
     if (argv[i] === '--stocks') {
       o.stocks = argv[++i].split(',').map(s => {
         const [code, name, market] = s.split(':');
@@ -253,6 +254,7 @@ async function main() {
   });
 
   if (opts.pnlSummary) printPnlSummary(all, priorityOf, opts.budget, opts.capital);
+  if (opts.compound) printCompoundSummary(all, priorityOf, opts.budget, opts.capital);
 }
 
 // 2026-08-24 확정: 종목당 예산(기본 200만원)으로 실제 매수 가능한 정수 주식수(내림)를 기준으로
@@ -334,6 +336,45 @@ function printPnlSummary(all, priorityOf, budget, capital) {
     const capPct = (s.pnl / capital * 100).toFixed(1);
     console.log(`${y}: 손익 ${fmtWon(s.pnl)}원 / 자본 ${fmtWon(capital)}원 = ${capPct}%`);
   }
+}
+
+// 2026-08-24 추가: 수익금 재투자(복리) 시뮬레이션 — 연도 단위로만 재투자를 반영한다(트레이드 단위
+// 슬롯 회전은 이 스크립트가 정확한 청산일 기반 자본 흐름을 추적하지 않아 근사가 부정확해짐).
+// 슬롯 수(capital/budget, 예: 5)는 고정하고, 매 연도 시작 시점의 자본을 슬롯 수로 나눠 그 해의
+// 종목당 예산을 갱신 → 그 예산으로 그 해 트레이드 손익을 계산 → 손익을 자본에 합산해 다음 해로 이월.
+function printCompoundSummary(all, priorityOf, initialBudget, initialCapital) {
+  const trades = all.map((t, i) => {
+    const p = priorityOf[i];
+    if (p != null && p > 3) return null; // 4순위 초과 제외
+    return { date: t.entryDate, entryPrice: t.entryPrice, ret: t.ret };
+  }).filter(Boolean);
+
+  const byYear = {};
+  for (const t of trades) (byYear[t.date.slice(0, 4)] ||= []).push(t);
+  const years = Object.keys(byYear).sort();
+  if (!years.length) return;
+
+  const slots = Math.max(1, Math.round(initialCapital / initialBudget));
+  let capital = initialCapital;
+  console.log(`\n━━━ 복리 재투자(수익금 재투자, ${slots}슬롯 고정) 연도별 자동집계 — 종목당 예산이 기말자본에 비례해 매년 갱신 ━━━`);
+  console.log('연도\t종목당예산(연초)\t건수\t투입금액\t손익금액\t수익률(건당평균)\t기말자본\t연간증감률');
+  for (const y of years) {
+    const budgetYear = Math.round(capital / slots);
+    let n = 0, invested = 0, pnl = 0;
+    for (const t of byYear[y]) {
+      const shares = Math.floor(budgetYear / t.entryPrice);
+      const inv = shares * t.entryPrice;
+      const p = Math.round(inv * t.ret / 100);
+      n++; invested += inv; pnl += p;
+    }
+    const pct = invested ? (pnl / invested * 100).toFixed(2) : '0.00';
+    const capStart = capital;
+    capital += pnl;
+    const capPct = (capital - capStart) / capStart * 100;
+    console.log(`${y}\t${fmtWon(budgetYear)}원\t${n}건\t${fmtWon(invested)}원\t${fmtWon(pnl)}원\t${pct}%\t${fmtWon(capital)}원\t${capPct >= 0 ? '+' : ''}${capPct.toFixed(1)}%`);
+  }
+  const totalPct = (capital - initialCapital) / initialCapital * 100;
+  console.log(`\n[누적] 최초자본 ${fmtWon(initialCapital)}원 → 최종자본 ${fmtWon(capital)}원 (총 ${totalPct >= 0 ? '+' : ''}${totalPct.toFixed(1)}%, ${years.length}개년)`);
 }
 
 main().catch(e => { console.error('오류:', e.message); process.exit(1); });
