@@ -6,8 +6,9 @@
  *   Yahoo Finance → EMA·라운드넘버 계산용 과거 종가/고가/저가(마지막날은 KIS 당일가로 덮어쓰기)
  *
  * 입력: TARGETS (개별종목 감시 리스트, 하단 기본값) 또는 CLI 인자 "코드:종목명,코드:종목명,..."
- * 출력: 터미널 표 — 종목명,현재가,등락률,5EMA,200EMA(각 EMA는 괴리율 %),라운드지지,라운드저항,판단
+ * 출력: 터미널 표 — 종목명,현재가,등락률,200EMA(괴리율 %),라운드지지,라운드저항,판단
  *   (2026-08-24: 20/50/100EMA 컬럼 삭제, 판단 컬럼 추가 — 보유종목 시세표 judgeRow 규칙을 종목 신호용으로 재구성)
+ *   (2026-08-24: 5EMA 표시 컬럼 삭제 — 판단 컬럼 로직(눌림목 매수 관심 판정)에는 계속 사용, 화면 표시만 제외)
  *
  * Usage: node project_stock_quote_ema_table.mjs [코드:이름,코드:이름,...]
  */
@@ -42,11 +43,6 @@ const YF_HEADERS = {
 };
 const EMA_PERIODS = [5, 200];
 const WARMUP_DAYS = Math.max(...EMA_PERIODS) * 6;
-
-const USE_COLOR = process.stdout.isTTY || process.env.FORCE_COLOR === '1';
-const UP    = USE_COLOR ? '\x1b[31m' : ''; // 상향돌파: 빨강
-const DOWN  = USE_COLOR ? '\x1b[34m' : ''; // 하향돌파: 파랑
-const RESET = USE_COLOR ? '\x1b[0m'  : '';
 
 async function getKisToken() {
   try {
@@ -215,12 +211,9 @@ function nearestRoundLevels(highs, lows, price) {
 }
 
 function fmtWon(n) { return n != null ? Number(Math.round(n)).toLocaleString('ko-KR') : '─'; }
-function fmtPct(n, cross) {
+function fmtPct(n) {
   if (n == null) return '─';
-  const s = `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
-  if (cross === 'up')   return `${UP}▲ ${s}${RESET}`;
-  if (cross === 'down') return `${DOWN}▼ ${s}${RESET}`;
-  return s;
+  return `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
 }
 function fmtRound(level, distPct, touch) { return level != null ? `${fmtWon(level)}(${distPct >= 0 ? '+' : ''}${distPct.toFixed(1)}%,${touch}봉)` : '─'; }
 
@@ -262,39 +255,22 @@ async function main() {
     if (현재가 && closes.length) closes[closes.length - 1] = 현재가;
     const round = highs.length ? nearestRoundLevels(highs, lows, 현재가) : null;
 
-    const yestCloses = closes.slice(0, -1);
-    const yestClose = closes.length >= 2 ? closes[closes.length - 2] : null;
-
     const devByPeriod = {};
-    const crossByPeriod = {};
     for (const period of EMA_PERIODS) {
       const ema = closes.length >= period ? buildEma(closes, period) : null;
-      const dev = (ema && 현재가) ? (현재가 - ema) / ema * 100 : null;
-      devByPeriod[period] = dev;
-
-      let cross = null;
-      if (dev != null && yestClose != null && yestCloses.length >= period) {
-        const yestEma = buildEma(yestCloses, period);
-        const yestDev = yestEma ? (yestClose - yestEma) / yestEma * 100 : null;
-        if (yestDev != null) {
-          if (yestDev <= 0 && dev > 0) cross = 'up';
-          else if (yestDev >= 0 && dev < 0) cross = 'down';
-        }
-      }
-      crossByPeriod[period] = cross;
+      devByPeriod[period] = (ema && 현재가) ? (현재가 - ema) / ema * 100 : null;
     }
 
-    rows.push({ 종목명: h.종목명, 현재가, 등락률: kis?.등락률, dev: devByPeriod, cross: crossByPeriod, round });
+    rows.push({ 종목명: h.종목명, 현재가, 등락률: kis?.등락률, dev: devByPeriod, round });
   }
 
-  console.log('\n종목명\t\t현재가\t등락률\t5EMA\t200EMA\t라운드지지\t라운드저항\t판단');
+  console.log('\n종목명\t\t현재가\t등락률\t200EMA\t라운드지지\t라운드저항\t판단');
   for (const r of rows) {
-    const cols = EMA_PERIODS.map(p => fmtPct(r.dev[p], r.cross[p])).join('\t');
+    const col200 = fmtPct(r.dev[200]);
     const 지지 = r.round ? fmtRound(r.round.support, -r.round.supportDistPct, r.round.supportTouch) : '─';
     const 저항 = r.round ? fmtRound(r.round.resistance, r.round.resistanceDistPct, r.round.resistanceTouch) : '─';
-    console.log(`${r.종목명}\t${fmtWon(r.현재가)}\t${fmtPct(r.등락률)}\t${cols}\t${지지}\t${저항}\t${judgeRow(r)}`);
+    console.log(`${r.종목명}\t${fmtWon(r.현재가)}\t${fmtPct(r.등락률)}\t${col200}\t${지지}\t${저항}\t${judgeRow(r)}`);
   }
-  console.log(`\n${UP}■${RESET} 당일 상향돌파   ${DOWN}■${RESET} 당일 하향돌파`);
 }
 
 main().catch(e => { console.error(e); process.exit(1); });
