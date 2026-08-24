@@ -164,8 +164,8 @@ async function main() {
   const noLevel = results.filter(r => !r.error && r.watchLevel == null);
   const errors = results.filter(r => r.error);
 
-  // 앱 표시 기준(2026-08-24 확정): 거리 1%이내만 "예상종목"으로 표시, 전체 유니버스를 나열하면 너무 방대해짐
-  const NEAR_THRESHOLD_PCT = 1;
+  // 앱 표시 기준(2026-08-24 재조정): 거리 0.5%이내만 "예상종목"으로 표시(기존 1%컷도 방대하다는 피드백)
+  const NEAR_THRESHOLD_PCT = 0.5;
   const near = ok.filter(r => r.distPct <= NEAR_THRESHOLD_PCT);
   const far = ok.filter(r => r.distPct > NEAR_THRESHOLD_PCT);
 
