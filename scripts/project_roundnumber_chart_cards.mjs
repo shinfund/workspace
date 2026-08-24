@@ -143,13 +143,14 @@ function parsePanel(html, panelId) {
   return m2 ? m2[1] : '';
 }
 function parseSignalRows(panelHtml) {
-  const rowRe = /<tr><td class="l">([^<]+)<\/td><td class="l">([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td class="c">([^<]+)<\/td><td class="c">([^<]+)<\/td><td class="l"><span class="badge (bdg-\w+)">([^<]+)<\/span><\/td><td class="([^"]+)">([^<]+)<\/td><\/tr>/g;
+  // 컬럼: 진입일,종목,현재가,진입가,레벨(L),TP가,STOP가,지지일수,밀집도,상태,수익률 (11컬럼, 2026-08-24 현재가 컬럼 반영해 정규식 보정)
+  const rowRe = /<tr><td class="l">([^<]+)<\/td><td class="l">([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td class="c">([^<]+)<\/td><td class="c">([^<]+)<\/td><td class="l"><span class="badge (bdg-\w+)">([^<]+)<\/span><\/td><td class="([^"]+)">([^<]+)<\/td><\/tr>/g;
   const rows = [];
   let mm;
   while ((mm = rowRe.exec(panelHtml))) {
     rows.push({
-      entryDate: mm[1], name: mm[2], entryPrice: num(mm[3]), level: num(mm[4]), tp: num(mm[5]), stop: num(mm[6]),
-      aboveCount: mm[7], touchCount: mm[8], badgeClass: mm[9], statusLabel: mm[10], ret: num(mm[12]),
+      entryDate: mm[1], name: mm[2], entryPrice: num(mm[4]), level: num(mm[5]), tp: num(mm[6]), stop: num(mm[7]),
+      aboveCount: mm[8], touchCount: mm[9], badgeClass: mm[10], statusLabel: mm[11], ret: num(mm[13]),
     });
   }
   return rows;
@@ -167,7 +168,8 @@ function parseWatchRows(panelHtml) {
   return rows;
 }
 function parseHoldingRows(panelHtml) {
-  const rowRe = /<tr><td class="l">([^<]+)<\/td><td class="c">([^<]+)<\/td><td class="[^"]+">([^<]+)<\/td><td>([^<]+)<\/td><td class="[^"]+">([^<]+)<\/td><td class="[^"]+">([^<]+)<\/td><td class="l">([^<]+)<\/td><td class="l">([^<]+)<\/td><\/tr>/g;
+  // 컬럼: 종목명,현재가,등락률,평단가,수익률,200EMA괴리,라운드지지,라운드저항,판단(뱃지) (9컬럼, 2026-08-24 판단 뱃지 컬럼 반영해 정규식 보정)
+  const rowRe = /<tr><td class="l">([^<]+)<\/td><td class="c">([^<]+)<\/td><td class="[^"]+">([^<]+)<\/td><td>([^<]+)<\/td><td class="[^"]+">([^<]+)<\/td><td class="[^"]+">([^<]+)<\/td><td class="l">([^<]+)<\/td><td class="l">([^<]+)<\/td><td class="l"><span class="badge (bdg-\w+)">([^<]+)<\/span><\/td><\/tr>/g;
   const rows = [];
   let mm;
   while ((mm = rowRe.exec(panelHtml))) {
