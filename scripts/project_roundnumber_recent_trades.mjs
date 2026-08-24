@@ -26,9 +26,12 @@ const RECLAIM_WINDOW = 5, STOP_BUFFER_PCT = 2, MAX_HOLD = 60, CALENDAR_DAYS = 25
 
 function parseArgs() {
   const argv = process.argv.slice(2);
-  const o = { stocks: DEFAULT_STOCKS, days: 45 };
+  const o = { stocks: DEFAULT_STOCKS, days: 45, budget: 2_000_000, capital: 10_000_000, pnlSummary: true };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--days') o.days = parseInt(argv[++i]);
+    if (argv[i] === '--budget') o.budget = parseInt(argv[++i]);
+    if (argv[i] === '--capital') o.capital = parseInt(argv[++i]);
+    if (argv[i] === '--no-pnl-summary') o.pnlSummary = false;
     if (argv[i] === '--stocks') {
       o.stocks = argv[++i].split(',').map(s => {
         const [code, name, market] = s.split(':');
@@ -248,6 +251,89 @@ async function main() {
     const curPrice = t.curClose ?? t.entryPrice * (1 + t.ret / 100);
     console.log(`${t.name}\t${t.entryDate}\t${fmtWon(curPrice)}\t${fmtWon(t.entryPrice)}\t${fmtWon(t.level)}\t${fmtWon(tp)}\t${fmtWon(stop)}\t${t.aboveCount}/20일\t${t.touchCount}봉\t${prioLabel}\t${statusLabel}\t${fmtPct(t.ret)}`);
   });
+
+  if (opts.pnlSummary) printPnlSummary(all, priorityOf, opts.budget, opts.capital);
+}
+
+// 2026-08-24 확정: 종목당 예산(기본 200만원)으로 실제 매수 가능한 정수 주식수(내림)를 기준으로
+// 가상 손익금액을 계산 — 단순 수익률 평균이 아니라 "이 예산으로 정말 몇 주를 살 수 있었는지"를
+// 반영해야 고가주(효성중공업·삼성바이오로직스 등)가 왜곡 없이 잡힌다(사용자 확정 방식).
+// 4순위 초과 신호는 실전 매매 제외 대상이라 손익 집계에서도 배제한다.
+function weekBucket(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  const day = d.getUTCDay();
+  const diff = (day === 0 ? -6 : 1 - day);
+  const monday = new Date(d); monday.setUTCDate(d.getUTCDate() + diff);
+  const sunday = new Date(monday); sunday.setUTCDate(monday.getUTCDate() + 6);
+  const fmt = (x) => `${String(x.getUTCMonth() + 1).padStart(2, '0')}/${String(x.getUTCDate()).padStart(2, '0')}`;
+  return `${fmt(monday)}~${fmt(sunday)}`;
+}
+
+function printPnlSummary(all, priorityOf, budget, capital) {
+  const trades = all.map((t, i) => {
+    const p = priorityOf[i];
+    if (p != null && p > 3) return null; // 4순위 초과 제외
+    const shares = Math.floor(budget / t.entryPrice);
+    const invested = shares * t.entryPrice;
+    const pnl = Math.round(invested * t.ret / 100);
+    return { date: t.entryDate, invested, pnl };
+  }).filter(Boolean);
+
+  const byMonth = {};
+  for (const t of trades) {
+    const month = t.date.slice(0, 7);
+    const wk = weekBucket(t.date);
+    byMonth[month] ||= {};
+    byMonth[month][wk] ||= { n: 0, invested: 0, pnl: 0 };
+    byMonth[month][wk].n++;
+    byMonth[month][wk].invested += t.invested;
+    byMonth[month][wk].pnl += t.pnl;
+  }
+
+  console.log(`\n━━━ 가상 손익률(종목당 ${fmtWon(budget)}원, 4순위 초과 제외, 실제 매수가능 주식수 기준) ━━━`);
+  let totalN = 0, totalInvested = 0, totalPnl = 0;
+  const byYear = {}; // 연도별 롤업(월별 표와 별개로 자동 집계)
+  for (const month of Object.keys(byMonth).sort()) {
+    console.log(`\n[${month}]`);
+    console.log('주(월~일)\t건수\t투입금액\t손익금액\t수익률');
+    let mn = 0, minv = 0, mpnl = 0;
+    for (const wk of Object.keys(byMonth[month]).sort()) {
+      const s = byMonth[month][wk];
+      const pct = s.invested ? (s.pnl / s.invested * 100).toFixed(2) : '0.00';
+      console.log(`${wk}\t${s.n}건\t${fmtWon(s.invested)}원\t${fmtWon(s.pnl)}원\t${pct}%`);
+      mn += s.n; minv += s.invested; mpnl += s.pnl;
+    }
+    const mpct = minv ? (mpnl / minv * 100).toFixed(2) : '0.00';
+    console.log(`합계\t${mn}건\t${fmtWon(minv)}원\t${fmtWon(mpnl)}원\t${mpct}%`);
+    totalN += mn; totalInvested += minv; totalPnl += mpnl;
+    const year = month.slice(0, 4);
+    byYear[year] ||= { n: 0, invested: 0, pnl: 0 };
+    byYear[year].n += mn; byYear[year].invested += minv; byYear[year].pnl += mpnl;
+  }
+  const totalPct = totalInvested ? (totalPnl / totalInvested * 100).toFixed(2) : '0.00';
+  console.log(`\n[전체 합계] ${totalN}건, 투입 ${fmtWon(totalInvested)}원, 손익 ${fmtWon(totalPnl)}원, 수익률 ${totalPct}%`);
+
+  const years = Object.keys(byYear).sort();
+  if (years.length > 1) {
+    console.log(`\n━━━ 연도별 합계 (건당 평균 수익률) ━━━`);
+    console.log('연도\t건수\t투입금액\t손익금액\t수익률');
+    for (const y of years) {
+      const s = byYear[y];
+      const pct = s.invested ? (s.pnl / s.invested * 100).toFixed(2) : '0.00';
+      console.log(`${y}\t${s.n}건\t${fmtWon(s.invested)}원\t${fmtWon(s.pnl)}원\t${pct}%`);
+    }
+  }
+
+  // 건당 평균 수익률(위 표)과는 별개로, 슬롯 회전(청산→재투입)을 가정한 실제 보유자본 기준
+  // 환산 수익률 — 종목당 예산(budget)으로 나온 슬롯 수(capital/budget)만큼 항상 풀가동됐다는
+  // 이상적 가정이라 수수료·공백기 미반영 상한치다(2026-08-24 사용자 확정 방식).
+  const slots = Math.max(1, Math.round(capital / budget));
+  console.log(`\n━━━ 실보유자본(${fmtWon(capital)}원, ${slots}슬롯×${fmtWon(budget)}원) 기준 환산 수익률 — 이상적 상한치, 수수료·공백기 미반영 ━━━`);
+  for (const y of years) {
+    const s = byYear[y];
+    const capPct = (s.pnl / capital * 100).toFixed(1);
+    console.log(`${y}: 손익 ${fmtWon(s.pnl)}원 / 자본 ${fmtWon(capital)}원 = ${capPct}%`);
+  }
 }
 
 main().catch(e => { console.error('오류:', e.message); process.exit(1); });
