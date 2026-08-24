@@ -15,7 +15,7 @@
  * 계산(project_roundnumber_strategy_backtest.mjs와 동일 로직).
  *
  * 입력: data/holdings.json
- * 출력: 터미널 표(수익률 내림차순, "시장" 컬럼 없음, "200EMA"·"라운드지지"·"라운드저항" 컬럼 포함)
+ * 출력: 터미널 표(수익률 내림차순) — 종목명·현재가·등락률·수익률·200EMA·라운드지지·라운드저항 7컬럼(2026-08-24 확정, 평균단가·보유수량·매입금액·평가손익 컬럼 제외)
  */
 import https from 'https';
 import fs    from 'fs';
@@ -204,6 +204,19 @@ function fmtWon(n) { return n != null ? Number(Math.round(n)).toLocaleString('ko
 function fmtPct(n) { return n != null ? `${n >= 0 ? '+' : ''}${n.toFixed(2)}%` : '─'; }
 function fmtRound(level, distPct, touch) { return level != null ? `${fmtWon(level)}(${distPct >= 0 ? '+' : ''}${distPct.toFixed(1)}%,${touch}봉)` : '─'; }
 
+// 판단 컬럼(2026-08-24 추가): 사용자 확정 매매기준(SL8%/TP10%, EMA200 추세필터, 라운드넘버 지지/저항) 재사용한 규칙기반 1줄 판정
+// 우선순위: 손절검토(손실≤-8%) > 지지이탈(현재가<지지) > 익절고려(수익≥+10%) > 지지근접(0~3%) > 200EMA추세(위/아래)
+function judgeRow(r) {
+  if (r.손익률 == null) return '─';
+  if (r.손익률 <= -8) return '손절 검토';
+  const supportDist = r.round ? -r.round.supportDistPct : null; // 음수=지지 위, 양수=지지 이탈(현재가<지지)
+  if (supportDist != null && supportDist > 0) return '지지 이탈·주의';
+  if (r.손익률 >= 10) return '익절 고려';
+  if (supportDist != null && supportDist >= -3) return '지지 근접';
+  if (r.dev200 != null && r.dev200 > 0) return '홀딩(상승추세)';
+  return '관망(추세약함)';
+}
+
 async function main() {
   const holdings = JSON.parse(fs.readFileSync('C:\\Users\\shinf\\workspace\\data\\holdings.json', 'utf8'));
   const token = await getKisToken();
@@ -238,18 +251,18 @@ async function main() {
 
   rows.sort((a, b) => (b.손익률 ?? -Infinity) - (a.손익률 ?? -Infinity));
 
-  console.log('\n종목명\t\t현재가\t등락률\t평균단가\t보유수량\t매입금액\t평가손익\t수익률\t200EMA\t라운드지지\t라운드저항');
+  console.log('\n종목명\t\t현재가\t등락률\t수익률\t200EMA\t라운드지지\t라운드저항\t판단');
   let 총매입 = 0, 총평가 = 0;
   for (const r of rows) {
     총매입 += r.매입금액;
     if (r.평가금액 != null) 총평가 += r.평가금액;
     console.log(
-      `${r.종목명}\t${fmtWon(r.현재가)}\t${fmtPct(r.등락률)}\t${fmtWon(r.평균단가)}\t${r.보유수량}\t${fmtWon(r.매입금액)}\t${fmtWon(r.손익)}\t${fmtPct(r.손익률)}\t${fmtPct(r.dev200)}\t${r.round ? fmtRound(r.round.support, -r.round.supportDistPct, r.round.supportTouch) : '─'}\t${r.round ? fmtRound(r.round.resistance, r.round.resistanceDistPct, r.round.resistanceTouch) : '─'}`
+      `${r.종목명}\t${fmtWon(r.현재가)}\t${fmtPct(r.등락률)}\t${fmtPct(r.손익률)}\t${fmtPct(r.dev200)}\t${r.round ? fmtRound(r.round.support, -r.round.supportDistPct, r.round.supportTouch) : '─'}\t${r.round ? fmtRound(r.round.resistance, r.round.resistanceDistPct, r.round.resistanceTouch) : '─'}\t${judgeRow(r)}`
     );
   }
   const 총손익 = 총평가 - 총매입;
   const 총손익률 = (총손익 / 총매입) * 100;
-  console.log(`\n합계\t\t\t\t\t${fmtWon(총매입)}\t${fmtWon(총손익)}\t${fmtPct(총손익률)}`);
+  console.log(`\n합계\t\t\t\t${fmtPct(총손익률)}`);
 }
 
 main().catch(e => { console.error(e); process.exit(1); });
