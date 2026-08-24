@@ -49,6 +49,15 @@
 //      정상 61%/+1.13%)라 확정 전략에서 제외. 필터 적용 후 전체 결과가 아래 "정상" 수치와 동일해짐
 //      (n=4,660, 승률61%, 중앙값+1.13%, 평균+0.31%, 평균보유2.5거래일 — 기존 59%/+0.72%/n=7,846에서 개선).
 //
+// 코스피 전용 확정(2026-08-24): 시장별(코스피/코스닥) 성과 분리 결과 코스피 n=3,337(승률63%,
+// 평균+0.35%, TP비율63%) vs 코스닥 n=1,323(승률56%, 평균+0.21%, TP비율56%) — 중앙값은 거의 동일
+// (+1.13%/+1.12%)해서 "이긴 트레이드 크기"는 같지만 코스닥이 STOP에 더 자주 먼저 닿아 승률만 낮음.
+// 코스닥 전용 STOP버퍼 스윕(2~5%)으로도 해소 안 됨 — 버퍼를 넓히면 승률은 56%→64%(4%)까지 오르지만
+// 평균수익률은 +0.21%→+0.23%로 거의 그대로고, perDay(하루당 기대치)는 0.091%→0.072%로 오히려
+// 하락(코스피 기준값 0.130%에 한참 못 미침). 변동성이 커서 라운드 지지가 코스피만큼 안정적으로
+// 안 지켜지는 구조적 문제로 판단, 사용자 승인으로 기본 유니버스를 코스피 전용으로 확정
+// (project_roundnumber_recent_trades.mjs·project_roundnumber_recent_signals.mjs도 동일 적용).
+//
 // 청산(먼저 오는 조건):
 //   TP: 종가가 다음 라운드 레벨(L+step, 저항)에 도달
 //   STOP: 종가가 L×(1-stopBufferPct/100) 아래로 하락(라운드 지지가 결국 무너짐)
@@ -68,10 +77,13 @@ const YF_HEADERS = {
 const FALLBACK_KOSPI = [
   { code: '005930', name: '삼성전자' }, { code: '000660', name: 'SK하이닉스' }, { code: '402340', name: 'SK스퀘어' }, { code: '009150', name: '삼성전기' }, { code: '005380', name: '현대차' }, { code: '373220', name: 'LG에너지솔루션' }, { code: '207940', name: '삼성바이오로직스' }, { code: '032830', name: '삼성생명' }, { code: '028260', name: '삼성물산' }, { code: '012450', name: '한화에어로스페이스' }, { code: '105560', name: 'KB금융' }, { code: '000270', name: '기아' }, { code: '034020', name: '두산에너빌리티' }, { code: '329180', name: 'HD현대중공업' }, { code: '055550', name: '신한지주' }, { code: '012330', name: '현대모비스' }, { code: '068270', name: '셀트리온' }, { code: '034730', name: 'SK' }, { code: '006400', name: '삼성SDI' }, { code: '086790', name: '하나금융지주' }, { code: '035420', name: 'NAVER' }, { code: '066570', name: 'LG전자' }, { code: '010120', name: 'LS ELECTRIC' }, { code: '042660', name: '한화오션' }, { code: '267260', name: 'HD현대일렉트릭' }, { code: '000810', name: '삼성화재' }, { code: '298040', name: '효성중공업' }, { code: '009540', name: 'HD한국조선해양' }, { code: '005490', name: 'POSCO홀딩스' }, { code: '010130', name: '고려아연' }, { code: '316140', name: '우리금융지주' }, { code: '096770', name: 'SK이노베이션' }, { code: '042700', name: '한미반도체' }, { code: '017670', name: 'SK텔레콤' }, { code: '011200', name: 'HMM' }, { code: '015760', name: '한국전력' }, { code: '006800', name: '미래에셋증권' }, { code: '000150', name: '두산' }, { code: '051910', name: 'LG화학' }, { code: '010140', name: '삼성중공업' }, { code: '018260', name: '삼성에스디에스' }, { code: '267250', name: 'HD현대' }, { code: '033780', name: 'KT&G' }, { code: '003550', name: 'LG' }, { code: '079550', name: 'LIG디펜스앤에어로스페이스' }, { code: '035720', name: '카카오' }, { code: '010950', name: 'S-Oil' }, { code: '024110', name: '기업은행' }, { code: '064350', name: '현대로템' }, { code: '086280', name: '현대글로비스' },
 ];
+// 2026-08-24 코스닥 제외 확정(아래 시장별 성과분리 결과 참고) — 백테스트용 참조 목록으로만 보존,
+// 기본 유니버스에서는 제외.
 const FALLBACK_KOSDAQ = [
   { code: '196170', name: '알테오젠', market: 'KOSDAQ' }, { code: '086520', name: '에코프로', market: 'KOSDAQ' }, { code: '247540', name: '에코프로비엠', market: 'KOSDAQ' }, { code: '277810', name: '레인보우로보틱스', market: 'KOSDAQ' }, { code: '036930', name: '주성엔지니어링', market: 'KOSDAQ' }, { code: '028300', name: 'HLB', market: 'KOSDAQ' }, { code: '240810', name: '원익IPS', market: 'KOSDAQ' }, { code: '058470', name: '리노공업', market: 'KOSDAQ' }, { code: '039030', name: '이오테크닉스', market: 'KOSDAQ' }, { code: '087010', name: '펩트론', market: 'KOSDAQ' }, { code: '298380', name: '에이비엘바이오', market: 'KOSDAQ' }, { code: '000250', name: '삼천당제약', market: 'KOSDAQ' }, { code: '141080', name: '리가켐바이오', market: 'KOSDAQ' }, { code: '222800', name: '심텍', market: 'KOSDAQ' }, { code: '214450', name: '파마리서치', market: 'KOSDAQ' }, { code: '108490', name: '로보티즈', market: 'KOSDAQ' }, { code: '319660', name: '피에스케이', market: 'KOSDAQ' }, { code: '095340', name: 'ISC', market: 'KOSDAQ' }, { code: '403870', name: 'HPSP', market: 'KOSDAQ' }, { code: '440110', name: '파두', market: 'KOSDAQ' },
 ];
-const DEFAULT_STOCKS = [...FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' })), ...FALLBACK_KOSDAQ];
+// 기본 유니버스는 코스피 전용(2026-08-24부). 코스닥 포함 비교가 필요하면 --stocks로 FALLBACK_KOSDAQ 직접 지정.
+const DEFAULT_STOCKS = FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' }));
 
 const BASE_PERIOD = 200; // EMA200(국면 진단용, 진입조건 아님)
 
@@ -301,7 +313,7 @@ async function backtestStock(stock, opts) {
     if (!res) continue;
     const entryEma200 = seq[ev.entryIdx].ema200;
     const uptrend = entryEma200 != null ? seq[ev.entryIdx].close >= entryEma200 : null;
-    trades.push({ name: stock.name, entryDate: seq[ev.entryIdx].date, level: ev.level, touchCount: ev.touchCount, priorAboveCount: ev.priorAboveCount, uptrend, ...res });
+    trades.push({ name: stock.name, market: stock.market, entryDate: seq[ev.entryIdx].date, level: ev.level, touchCount: ev.touchCount, priorAboveCount: ev.priorAboveCount, uptrend, ...res });
   }
   return { ...stock, trades, totalEvents: events.length };
 }
@@ -334,7 +346,17 @@ function summarizeTrades(trades) {
     down: down.length ? { n: down.length, avg: mean(down.map(t => t.ret)), win: down.filter(t => t.ret > 0).length / down.length * 100 } : null,
   };
 
-  return { n: rets.length, avg: mean(rets), med: median(rets), win, best: Math.max(...rets), worst: Math.min(...rets), avgDays, reasonCount, touchSplit, regimeSplit };
+  // 시장별(코스피/코스닥) 성과 분리 — 2026-08-24 사용자 요청("코스닥 승률이 낮아 보인다")
+  const kospi = trades.filter(t => t.market === 'KOSPI');
+  const kosdaq = trades.filter(t => t.market === 'KOSDAQ');
+  const marketStat = g => g.length ? {
+    n: g.length, avg: mean(g.map(t => t.ret)), med: median(g.map(t => t.ret)),
+    win: g.filter(t => t.ret > 0).length / g.length * 100, avgDays: mean(g.map(t => t.day)),
+    tpRate: g.filter(t => t.reason === 'TP').length / g.length * 100,
+  } : null;
+  const marketSplit = { KOSPI: marketStat(kospi), KOSDAQ: marketStat(kosdaq) };
+
+  return { n: rets.length, avg: mean(rets), med: median(rets), win, best: Math.max(...rets), worst: Math.min(...rets), avgDays, reasonCount, touchSplit, regimeSplit, marketSplit };
 }
 
 function byStockSummary(results) {
@@ -386,6 +408,12 @@ async function main() {
   else console.log(`  상승국면: 해당 없음`);
   if (s.regimeSplit.down) console.log(`  하락국면(종가<EMA200): n=${s.regimeSplit.down.n}  평균 ${s.regimeSplit.down.avg >= 0 ? '+' : ''}${s.regimeSplit.down.avg.toFixed(2)}%  승률${s.regimeSplit.down.win.toFixed(0)}%`);
   else console.log(`  하락국면: 해당 없음`);
+
+  console.log(`\n[시장별(코스피/코스닥) 성과 분리]`);
+  for (const [mkt, st] of Object.entries(s.marketSplit)) {
+    if (!st) { console.log(`  ${mkt}: 해당 없음`); continue; }
+    console.log(`  ${mkt}: n=${st.n}  평균 ${st.avg >= 0 ? '+' : ''}${st.avg.toFixed(2)}%  중앙값 ${st.med >= 0 ? '+' : ''}${st.med.toFixed(2)}%  승률${st.win.toFixed(0)}%  TP비율${st.tpRate.toFixed(0)}%  평균보유${st.avgDays.toFixed(1)}거래일`);
+  }
 
   console.log(`\n━━━ 종목별 신호수 ━━━`);
   const byStock = byStockSummary(results);
