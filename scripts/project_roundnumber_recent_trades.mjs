@@ -210,13 +210,31 @@ async function main() {
   for (const r of results) { if (!r.error) all.push(...r.recentTrades); }
   all.sort((a, b) => b.entryDate.localeCompare(a.entryDate));
 
+  // 동시신호 우선순위: 트레이드당10%·총노출상한30%(=3건) 규칙 — 같은 진입일 3건 이상 몰릴 때만
+  // 밀집도(touchCount) desc, 지지일수(aboveCount) desc 순으로 순위 부여. 1~3순위=상한 이내, 4순위+=초과(스킵 권장).
+  const byDate = {};
+  all.forEach((t, i) => { (byDate[t.entryDate] ||= []).push(i); });
+  const priorityOf = new Array(all.length).fill(null);
+  for (const date in byDate) {
+    const idxs = byDate[date];
+    if (idxs.length < 3) continue;
+    const sorted = [...idxs].sort((a, b) => {
+      if (all[b].touchCount !== all[a].touchCount) return all[b].touchCount - all[a].touchCount;
+      if (all[b].aboveCount !== all[a].aboveCount) return all[b].aboveCount - all[a].aboveCount;
+      return a - b;
+    });
+    sorted.forEach((idx, pos) => { priorityOf[idx] = pos + 1; });
+  }
+
   console.log(`\n총 ${all.length}건 (최근 ${opts.days}일 이내 진입)\n`);
-  console.log('종목명\t\t진입일\t\t레벨(L)\t진입가\tTP가\tSTOP가\t지지일수\t밀집도\t상태\t현재수익률');
-  for (const t of all) {
+  console.log('종목명\t\t진입일\t\t레벨(L)\t진입가\tTP가\tSTOP가\t지지일수\t밀집도\t우선순위\t상태\t현재수익률');
+  all.forEach((t, i) => {
     const tp = t.level + t.step, stop = t.level * (1 - STOP_BUFFER_PCT / 100);
     const statusLabel = t.status === 'OPEN' ? `보유중(D+${t.day})` : t.status;
-    console.log(`${t.name}\t${t.entryDate}\t${fmtWon(t.level)}\t${fmtWon(t.entryPrice)}\t${fmtWon(tp)}\t${fmtWon(stop)}\t${t.aboveCount}/20일\t${t.touchCount}봉\t${statusLabel}\t${fmtPct(t.ret)}`);
-  }
+    const p = priorityOf[i];
+    const prioLabel = p == null ? '-' : (p <= 3 ? `${p}순위` : `${p}순위 초과`);
+    console.log(`${t.name}\t${t.entryDate}\t${fmtWon(t.level)}\t${fmtWon(t.entryPrice)}\t${fmtWon(tp)}\t${fmtWon(stop)}\t${t.aboveCount}/20일\t${t.touchCount}봉\t${prioLabel}\t${statusLabel}\t${fmtPct(t.ret)}`);
+  });
 }
 
 main().catch(e => { console.error('오류:', e.message); process.exit(1); });
