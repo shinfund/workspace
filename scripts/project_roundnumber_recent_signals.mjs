@@ -164,10 +164,18 @@ async function main() {
   const noLevel = results.filter(r => !r.error && r.watchLevel == null);
   const errors = results.filter(r => r.error);
 
-  console.log(`\n━━━ 감시 레벨과 가까운 순(이탈 시 조건 충족 가능성 높은 순) ━━━`);
+  // 앱 표시 기준(2026-08-24 확정): 거리 1%이내만 "예상종목"으로 표시, 전체 유니버스를 나열하면 너무 방대해짐
+  const NEAR_THRESHOLD_PCT = 1;
+  const near = ok.filter(r => r.distPct <= NEAR_THRESHOLD_PCT);
+  const far = ok.filter(r => r.distPct > NEAR_THRESHOLD_PCT);
+
+  console.log(`\n━━━ 감시 레벨과 가까운 순, 거리${NEAR_THRESHOLD_PCT}%이내(${near.length}/${ok.length}종목, 이탈 시 조건 충족 가능성 높은 순) ━━━`);
   console.log('종목명\t\t현재가\tstep\t감시레벨(지지)\t거리\t트랙레코드\t밀집도\tTP\tSTOP');
-  for (const r of ok) {
+  for (const r of near) {
     console.log(`${r.name}\t${fmtWon(r.price)}\t${fmtWon(r.step)}\t${fmtWon(r.watchLevel)}\t${r.distPct.toFixed(1)}%\t${r.aboveCount}/${20}일\t${r.touch}봉\t${fmtWon(r.tp)}\t${fmtWon(r.stop)}`);
+  }
+  if (far.length) {
+    console.log(`\n(거리 ${NEAR_THRESHOLD_PCT}% 초과 ${far.length}종목은 표시 생략)`);
   }
 
   if (noLevel.length) {
