@@ -9,6 +9,8 @@
  * 출력: 터미널 표 — 종목명,현재가,등락률,200EMA(괴리율 %),라운드지지,라운드저항,판단
  *   (2026-08-24: 20/50/100EMA 컬럼 삭제, 판단 컬럼 추가 — 보유종목 시세표 judgeRow 규칙을 종목 신호용으로 재구성)
  *   (2026-08-24: 5EMA 표시 컬럼 삭제 — 판단 컬럼 로직(눌림목 매수 관심 판정)에는 계속 사용, 화면 표시만 제외)
+ *   (2026-08-24: 라운드지지/저항 그리드를 200일/10틱(HTS축표시용)→150일/30틱(매매성과 기준 확정그리드)로
+ *    교체 — 화면 지지/저항이 실제 전략 신호(TP/STOP 레벨)와 항상 일치하도록, project_holdings_quote_table.mjs와 동일 결정)
  *
  * Usage: node project_stock_quote_ema_table.mjs [코드:이름,코드:이름,...]
  */
@@ -159,8 +161,8 @@ function fillForward(closes) {
   return closes.map(c => { if (c != null) last = c; return c == null ? last : c; });
 }
 
-const ROUND_WINDOW_DAYS = 200;   // 2026-08-21 검증(삼성전자·SK하이닉스 실HTS 대조): 최근 200거래일 창이 실축과 일치
-const ROUND_TARGET_TICKS = 10;
+const ROUND_WINDOW_DAYS = 150;   // 2026-08-24 매매용 그리드로 통일(기존 200/10 HTS축표시용 → 150/30 백테스트 확정 매매그리드) — 화면 저항/지지가 실제 전략 신호와 항상 일치하도록
+const ROUND_TARGET_TICKS = 30;
 const NICE_FAMILY = [1, 2, 2.5, 5, 10];
 
 function niceStep(rawStep) {
