@@ -1,12 +1,13 @@
 /**
- * project_holdings_quote_table.mjs — 보유종목 시세 표 (수익률 desc 정렬 + 5EMA·200EMA 괴리율)
+ * project_holdings_quote_table.mjs — 보유종목 시세 표 (수익률 desc 정렬 + 5/20/50/100/200 EMA 괴리율)
  *
  * 데이터 소스:
  *   KIS API       → 당일 현재가 실시간
- *   Yahoo Finance → EMA5·EMA200 계산용 과거 종가(마지막날은 KIS 당일가로 덮어쓰기)
+ *   Yahoo Finance → EMA 계산용 과거 종가(마지막날은 KIS 당일가로 덮어쓰기)
  *
  * 입력: data/holdings.json
- * 출력: 터미널 표(수익률 내림차순) — 종목명·현재가·등락률·수익률·5EMA·200EMA 6컬럼(2026-08-25 확정, 라운드지지·라운드저항·판단 컬럼 삭제)
+ * 출력: 터미널 표(수익률 내림차순) — 종목명·현재가·등락률·수익률·5/20/50/100/200EMA 9컬럼(2026-08-25 확정,
+ *   라운드지지·라운드저항·판단 컬럼 삭제, EMA 괴리율 앞 돌파 삼각형 ▲/▼ 표시)
  */
 import https from 'https';
 import fs    from 'fs';
@@ -22,9 +23,8 @@ const YF_HEADERS = {
   'Accept': 'application/json',
   'Accept-Language': 'ko-KR,ko;q=0.9',
 };
-const EMA_PERIOD = 200;
-const EMA_PERIOD_5 = 5;
-const WARMUP_DAYS = EMA_PERIOD * 6;
+const EMA_PERIODS = [5, 20, 50, 100, 200];
+const WARMUP_DAYS = Math.max(...EMA_PERIODS) * 6;
 
 async function getKisToken() {
   try {
@@ -178,33 +178,31 @@ async function main() {
     let closes = chart ? fillForward(chart.close) : [];
     // 마지막 종가를 KIS 당일가로 덮어쓰기(장중·Yahoo 지연 오차 방지)
     if (현재가 && closes.length) closes[closes.length - 1] = 현재가;
-    const ema5Series = buildEmaSeries(closes, EMA_PERIOD_5);
-    const ema5 = ema5Series[ema5Series.length - 1];
-    const dev5 = (ema5 && 현재가) ? (현재가 - ema5) / ema5 * 100 : null;
-    const cross5 = crossMarker(closes, ema5Series);
-    const ema200Series = buildEmaSeries(closes, EMA_PERIOD);
-    const ema200 = ema200Series[ema200Series.length - 1];
-    const dev200 = (ema200 && 현재가) ? (현재가 - ema200) / ema200 * 100 : null;
-    const cross200 = crossMarker(closes, ema200Series);
+    const devByPeriod = {}, crossByPeriod = {};
+    for (const period of EMA_PERIODS) {
+      const series = buildEmaSeries(closes, period);
+      const ema = series[series.length - 1];
+      devByPeriod[period] = (ema && 현재가) ? (현재가 - ema) / ema * 100 : null;
+      crossByPeriod[period] = crossMarker(closes, series);
+    }
 
     const 평가금액 = 현재가 != null ? 현재가 * h.보유수량 : null;
     const 매입금액 = h.평균단가 * h.보유수량;
     const 손익 = 평가금액 != null ? 평가금액 - 매입금액 : null;
     const 손익률 = 평가금액 != null ? (손익 / 매입금액) * 100 : null;
 
-    rows.push({ ...h, 현재가, 등락률: kis?.등락률, 평가금액, 매입금액, 손익, 손익률, dev5, cross5, dev200, cross200 });
+    rows.push({ ...h, 현재가, 등락률: kis?.등락률, 평가금액, 매입금액, 손익, 손익률, dev: devByPeriod, cross: crossByPeriod });
   }
 
   rows.sort((a, b) => (b.손익률 ?? -Infinity) - (a.손익률 ?? -Infinity));
 
-  console.log('\n종목명\t\t현재가\t등락률\t수익률\t5EMA\t200EMA');
+  console.log(`\n종목명\t\t현재가\t등락률\t수익률\t${EMA_PERIODS.map(p => `${p}EMA`).join('\t')}`);
   let 총매입 = 0, 총평가 = 0;
   for (const r of rows) {
     총매입 += r.매입금액;
     if (r.평가금액 != null) 총평가 += r.평가금액;
-    console.log(
-      `${r.종목명}\t${fmtWon(r.현재가)}\t${fmtPct(r.등락률)}\t${fmtPct(r.손익률)}\t${fmtDev(r.dev5, r.cross5)}\t${fmtDev(r.dev200, r.cross200)}`
-    );
+    const emaCols = EMA_PERIODS.map(p => fmtDev(r.dev[p], r.cross[p])).join('\t');
+    console.log(`${r.종목명}\t${fmtWon(r.현재가)}\t${fmtPct(r.등락률)}\t${fmtPct(r.손익률)}\t${emaCols}`);
   }
   const 총손익 = 총평가 - 총매입;
   const 총손익률 = (총손익 / 총매입) * 100;

@@ -1,13 +1,13 @@
 /**
- * project_stock_quote_ema_table.mjs — 개별종목 시세표 (5EMA·200EMA 괴리율 + 돌파 삼각형)
+ * project_stock_quote_ema_table.mjs — 개별종목 시세표 (5/20/50/100/200 EMA 괴리율 + 돌파 삼각형)
  *
  * 데이터 소스:
  *   KIS API       → 당일 현재가 실시간
  *   Yahoo Finance → EMA 계산용 과거 종가(마지막날은 KIS 당일가로 덮어쓰기)
  *
  * 입력: TARGETS (개별종목 감시 리스트, 하단 기본값) 또는 CLI 인자 "코드:종목명,코드:종목명,..."
- * 출력: 터미널 표 — 종목명,현재가,등락률,5EMA(괴리율 %),200EMA(괴리율 %)
- *   (2026-08-25: 라운드지지·라운드저항·판단 컬럼 삭제, 5EMA 컬럼 재추가. 이평선 상향/하향 돌파 시
+ * 출력: 터미널 표 — 종목명,현재가,등락률,5/20/50/100/200EMA(괴리율 %)
+ *   (2026-08-25: 라운드지지·라운드저항·판단 컬럼 삭제, 20/50/100EMA 컬럼 재추가. 이평선 상향/하향 돌파 시
  *    괴리율 앞에 ▲/▼ 표시 — project_holdings_quote_table.mjs와 동일 결정)
  *
  * Usage: node project_stock_quote_ema_table.mjs [코드:이름,코드:이름,...]
@@ -41,7 +41,7 @@ const YF_HEADERS = {
   'Accept': 'application/json',
   'Accept-Language': 'ko-KR,ko;q=0.9',
 };
-const EMA_PERIODS = [5, 200];
+const EMA_PERIODS = [5, 20, 50, 100, 200];
 const WARMUP_DAYS = Math.max(...EMA_PERIODS) * 6;
 
 async function getKisToken() {
@@ -210,9 +210,10 @@ async function main() {
     rows.push({ 종목명: h.종목명, 현재가, 등락률: kis?.등락률, dev: devByPeriod, cross: crossByPeriod });
   }
 
-  console.log('\n종목명\t\t현재가\t등락률\t5EMA\t200EMA');
+  console.log(`\n종목명\t\t현재가\t등락률\t${EMA_PERIODS.map(p => `${p}EMA`).join('\t')}`);
   for (const r of rows) {
-    console.log(`${r.종목명}\t${fmtWon(r.현재가)}\t${fmtPct(r.등락률)}\t${fmtDev(r.dev[5], r.cross[5])}\t${fmtDev(r.dev[200], r.cross[200])}`);
+    const emaCols = EMA_PERIODS.map(p => fmtDev(r.dev[p], r.cross[p])).join('\t');
+    console.log(`${r.종목명}\t${fmtWon(r.현재가)}\t${fmtPct(r.등락률)}\t${emaCols}`);
   }
 }
 
