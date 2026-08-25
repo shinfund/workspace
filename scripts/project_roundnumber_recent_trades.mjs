@@ -26,13 +26,14 @@ const RECLAIM_WINDOW = 5, STOP_BUFFER_PCT = 2, MAX_HOLD = 60, CALENDAR_DAYS = 25
 
 function parseArgs() {
   const argv = process.argv.slice(2);
-  const o = { stocks: DEFAULT_STOCKS, days: 45, budget: 2_000_000, capital: 10_000_000, pnlSummary: true, compound: false };
+  const o = { stocks: DEFAULT_STOCKS, days: 45, budget: 2_000_000, capital: 10_000_000, pnlSummary: true, compound: false, cap: 3 };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--days') o.days = parseInt(argv[++i]);
     if (argv[i] === '--budget') o.budget = parseInt(argv[++i]);
     if (argv[i] === '--capital') o.capital = parseInt(argv[++i]);
     if (argv[i] === '--no-pnl-summary') o.pnlSummary = false;
     if (argv[i] === '--compound') o.compound = true;
+    if (argv[i] === '--cap') o.cap = parseInt(argv[++i]); // 동시신호 우선순위 상한(기본3=총노출30%) — 2로 주면 1,2순위만 채택
     if (argv[i] === '--stocks') {
       o.stocks = argv[++i].split(',').map(s => {
         const [code, name, market] = s.split(':');
@@ -225,14 +226,15 @@ async function main() {
   for (const r of results) { if (!r.error) all.push(...r.recentTrades); }
   all.sort((a, b) => b.entryDate.localeCompare(a.entryDate));
 
-  // 동시신호 우선순위: 트레이드당10%·총노출상한30%(=3건) 규칙 — 같은 진입일 3건 이상 몰릴 때만
-  // 밀집도(touchCount) desc, 지지일수(aboveCount) desc 순으로 순위 부여. 1~3순위=상한 이내, 4순위+=초과(스킵 권장).
+  // 동시신호 우선순위: 트레이드당10%·총노출상한 cap건(기본3=30%) 규칙 — 같은 진입일 cap건 이상 몰릴 때만
+  // 밀집도(touchCount) desc, 지지일수(aboveCount) desc 순으로 순위 부여. 1~cap순위=상한 이내, cap+1순위+=초과(스킵 권장).
+  const cap = opts.cap;
   const byDate = {};
   all.forEach((t, i) => { (byDate[t.entryDate] ||= []).push(i); });
   const priorityOf = new Array(all.length).fill(null);
   for (const date in byDate) {
     const idxs = byDate[date];
-    if (idxs.length < 3) continue;
+    if (idxs.length < cap) continue;
     const sorted = [...idxs].sort((a, b) => {
       if (all[b].touchCount !== all[a].touchCount) return all[b].touchCount - all[a].touchCount;
       if (all[b].aboveCount !== all[a].aboveCount) return all[b].aboveCount - all[a].aboveCount;
@@ -258,14 +260,14 @@ async function main() {
     const tp = t.level + t.step, stop = t.level * (1 - STOP_BUFFER_PCT / 100);
     const statusLabel = t.status === 'OPEN' ? `보유중(D+${t.day})` : t.status;
     const p = priorityOf[i];
-    const prioLabel = p == null ? '-' : (p <= 3 ? `${p}순위` : `${p}순위 초과`);
+    const prioLabel = p == null ? '-' : (p <= cap ? `${p}순위` : `${p}순위 초과`);
     // curClose는 OPEN 상태에서만 채워짐(오늘 종가) — 청산완료(TP/STOP/TIME) 건은 청산 트리거 당일 종가를 진입가×(1+수익률)로 역산
     const curPrice = t.curClose ?? t.entryPrice * (1 + t.ret / 100);
     console.log(`${t.name}\t${t.entryDate}\t${fmtWon(curPrice)}\t${fmtWon(t.entryPrice)}\t${fmtWon(t.level)}\t${fmtWon(tp)}\t${fmtWon(stop)}\t${t.aboveCount}/20일\t${t.touchCount}봉\t${prioLabel}\t${statusLabel}\t${fmtPct(t.ret)}`);
   });
 
-  if (opts.pnlSummary) printPnlSummary(all, priorityOf, opts.budget, opts.capital);
-  if (opts.compound) printCompoundSummary(all, priorityOf, opts.budget, opts.capital);
+  if (opts.pnlSummary) printPnlSummary(all, priorityOf, opts.budget, opts.capital, cap);
+  if (opts.compound) printCompoundSummary(all, priorityOf, opts.budget, opts.capital, cap);
 }
 
 // 2026-08-24 확정: 종목당 예산(기본 200만원)으로 실제 매수 가능한 정수 주식수(내림)를 기준으로
@@ -282,10 +284,10 @@ function weekBucket(dateStr) {
   return `${fmt(monday)}~${fmt(sunday)}`;
 }
 
-function printPnlSummary(all, priorityOf, budget, capital) {
+function printPnlSummary(all, priorityOf, budget, capital, cap) {
   const trades = all.map((t, i) => {
     const p = priorityOf[i];
-    if (p != null && p > 3) return null; // 4순위 초과 제외
+    if (p != null && p > cap) return null; // cap순위 초과 제외
     const shares = Math.floor(budget / t.entryPrice);
     const invested = shares * t.entryPrice;
     const pnl = Math.round(invested * t.ret / 100);
@@ -303,7 +305,7 @@ function printPnlSummary(all, priorityOf, budget, capital) {
     byMonth[month][wk].pnl += t.pnl;
   }
 
-  console.log(`\n━━━ 가상 손익률(종목당 ${fmtWon(budget)}원, 4순위 초과 제외, 실제 매수가능 주식수 기준) ━━━`);
+  console.log(`\n━━━ 가상 손익률(종목당 ${fmtWon(budget)}원, ${cap}순위 초과 제외, 실제 매수가능 주식수 기준) ━━━`);
   let totalN = 0, totalInvested = 0, totalPnl = 0;
   const byYear = {}; // 연도별 롤업(월별 표와 별개로 자동 집계)
   for (const month of Object.keys(byMonth).sort()) {
@@ -353,10 +355,10 @@ function printPnlSummary(all, priorityOf, budget, capital) {
 // 슬롯 회전은 이 스크립트가 정확한 청산일 기반 자본 흐름을 추적하지 않아 근사가 부정확해짐).
 // 슬롯 수(capital/budget, 예: 5)는 고정하고, 매 연도 시작 시점의 자본을 슬롯 수로 나눠 그 해의
 // 종목당 예산을 갱신 → 그 예산으로 그 해 트레이드 손익을 계산 → 손익을 자본에 합산해 다음 해로 이월.
-function printCompoundSummary(all, priorityOf, initialBudget, initialCapital) {
+function printCompoundSummary(all, priorityOf, initialBudget, initialCapital, cap) {
   const trades = all.map((t, i) => {
     const p = priorityOf[i];
-    if (p != null && p > 3) return null; // 4순위 초과 제외
+    if (p != null && p > cap) return null; // cap순위 초과 제외
     return { date: t.entryDate, entryPrice: t.entryPrice, ret: t.ret };
   }).filter(Boolean);
 
