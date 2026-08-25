@@ -161,8 +161,8 @@ function fillForward(closes) {
   return closes.map(c => { if (c != null) last = c; return c == null ? last : c; });
 }
 
-const ROUND_WINDOW_DAYS = 200;   // 2026-08-25 200일/10틱으로 재변경
-const ROUND_TARGET_TICKS = 10;
+const ROUND_WINDOW_DAYS = 150;   // 2026-08-25 150일/30틱으로 재환원(화면 판단컬럼이 실제 전략 TP/STOP과 항상 일치하도록)
+const ROUND_TARGET_TICKS = 30;
 const NICE_FAMILY = [1, 2, 2.5, 5, 10];
 
 function niceStep(rawStep) {
