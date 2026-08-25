@@ -1,16 +1,14 @@
 /**
- * project_stock_quote_ema_table.mjs — 개별종목 시세표 (5/200 EMA 괴리율 + 라운드지지/라운드저항 + 판단)
+ * project_stock_quote_ema_table.mjs — 개별종목 시세표 (5EMA·200EMA 괴리율 + 돌파 삼각형)
  *
  * 데이터 소스:
  *   KIS API       → 당일 현재가 실시간
- *   Yahoo Finance → EMA·라운드넘버 계산용 과거 종가/고가/저가(마지막날은 KIS 당일가로 덮어쓰기)
+ *   Yahoo Finance → EMA 계산용 과거 종가(마지막날은 KIS 당일가로 덮어쓰기)
  *
  * 입력: TARGETS (개별종목 감시 리스트, 하단 기본값) 또는 CLI 인자 "코드:종목명,코드:종목명,..."
- * 출력: 터미널 표 — 종목명,현재가,등락률,200EMA(괴리율 %),라운드지지,라운드저항,판단
- *   (2026-08-24: 20/50/100EMA 컬럼 삭제, 판단 컬럼 추가 — 보유종목 시세표 judgeRow 규칙을 종목 신호용으로 재구성)
- *   (2026-08-24: 5EMA 표시 컬럼 삭제 — 판단 컬럼 로직(눌림목 매수 관심 판정)에는 계속 사용, 화면 표시만 제외)
- *   (2026-08-24: 라운드지지/저항 그리드를 200일/10틱(HTS축표시용)→150일/30틱(매매성과 기준 확정그리드)로
- *    교체 — 화면 지지/저항이 실제 전략 신호(TP/STOP 레벨)와 항상 일치하도록, project_holdings_quote_table.mjs와 동일 결정)
+ * 출력: 터미널 표 — 종목명,현재가,등락률,5EMA(괴리율 %),200EMA(괴리율 %)
+ *   (2026-08-25: 라운드지지·라운드저항·판단 컬럼 삭제, 5EMA 컬럼 재추가. 이평선 상향/하향 돌파 시
+ *    괴리율 앞에 ▲/▼ 표시 — project_holdings_quote_table.mjs와 동일 결정)
  *
  * Usage: node project_stock_quote_ema_table.mjs [코드:이름,코드:이름,...]
  */
@@ -139,21 +137,36 @@ async function fetchChartAutoMarket(code, p1, p2) {
   return ksLen >= kqLen ? ks : kq;
 }
 
-function buildEma(closes, period) {
+function buildEmaSeries(closes, period) {
   const k = 2 / (period + 1);
+  const series = new Array(closes.length).fill(null);
   let ema = null;
   const seedBuf = [];
-  for (const price of closes) {
-    if (price == null) continue;
+  for (let i = 0; i < closes.length; i++) {
+    const price = closes[i];
+    if (price == null) { series[i] = ema; continue; }
     if (ema === null) {
       seedBuf.push(price);
-      if (seedBuf.length < period) continue;
+      if (seedBuf.length < period) { series[i] = null; continue; }
       ema = seedBuf.reduce((a, b) => a + b, 0) / seedBuf.length;
     } else {
       ema = price * k + ema * (1 - k);
     }
+    series[i] = ema;
   }
-  return ema;
+  return series;
+}
+
+// 이평선 상향/하향 돌파(전일 종가 vs 전일EMA → 당일 종가 vs 당일EMA 부호 반전) 감지
+function crossMarker(closes, emaSeries) {
+  const n = closes.length;
+  if (n < 2) return '';
+  const c1 = closes[n - 1], c0 = closes[n - 2];
+  const e1 = emaSeries[n - 1], e0 = emaSeries[n - 2];
+  if (c1 == null || c0 == null || e1 == null || e0 == null) return '';
+  if (c0 < e0 && c1 >= e1) return '▲';
+  if (c0 > e0 && c1 <= e1) return '▼';
+  return '';
 }
 
 function fillForward(closes) {
@@ -161,80 +174,12 @@ function fillForward(closes) {
   return closes.map(c => { if (c != null) last = c; return c == null ? last : c; });
 }
 
-const ROUND_WINDOW_DAYS = 150;   // 2026-08-25 150일/30틱으로 재환원(화면 판단컬럼이 실제 전략 TP/STOP과 항상 일치하도록)
-const ROUND_TARGET_TICKS = 30;
-const NICE_FAMILY = [1, 2, 2.5, 5, 10];
-
-function niceStep(rawStep) {
-  if (!(rawStep > 0)) return null;
-  const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
-  const norm = rawStep / mag;
-  let best = NICE_FAMILY[0], bestDist = Infinity;
-  for (const f of NICE_FAMILY) {
-    const dist = Math.abs(Math.log(norm) - Math.log(f));
-    if (dist < bestDist) { bestDist = dist; best = f; }
-  }
-  return best * mag;
-}
-function computeVisibleStep(highs, lows) {
-  const n = highs.length;
-  const lo = Math.max(0, n - ROUND_WINDOW_DAYS);
-  let hi = -Infinity, low = Infinity;
-  for (let k = lo; k < n; k++) {
-    if (highs[k] != null && highs[k] > hi) hi = highs[k];
-    if (lows[k] != null && lows[k] < low) low = lows[k];
-  }
-  if (hi === -Infinity || low === Infinity) return null;
-  return niceStep((hi - low) / ROUND_TARGET_TICKS);
-}
-function touchCount(highs, lows, step, level) {
-  const n = highs.length;
-  const lo = Math.max(0, n - ROUND_WINDOW_DAYS);
-  let count = 0;
-  for (let k = lo; k < n; k++) {
-    if (highs[k] == null || lows[k] == null) continue;
-    if (lows[k] <= level && level <= highs[k]) count++;
-  }
-  return count;
-}
-function nearestRoundLevels(highs, lows, price) {
-  if (!price) return null;
-  const step = computeVisibleStep(highs, lows);
-  if (!step) return null;
-  const support = Math.floor(price / step) * step;
-  const resistance = support + step;
-  return {
-    support, resistance, step,
-    supportDistPct: (price - support) / price * 100,
-    resistanceDistPct: (resistance - price) / price * 100,
-    supportTouch: touchCount(highs, lows, step, support),
-    resistanceTouch: touchCount(highs, lows, step, resistance),
-  };
-}
-
 function fmtWon(n) { return n != null ? Number(Math.round(n)).toLocaleString('ko-KR') : '─'; }
 function fmtPct(n) {
   if (n == null) return '─';
   return `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
 }
-function fmtRound(level, distPct, touch) { return level != null ? `${fmtWon(level)}(${distPct >= 0 ? '+' : ''}${distPct.toFixed(1)}%,${touch}봉)` : '─'; }
-
-// 판단 컬럼(2026-08-24 추가): 5EMA(단기)·200EMA(추세)·라운드지지/저항 신호를 규칙기반으로 종합
-// 우선순위: 지지이탈 > 과매도+지지근접(하락추세 저점매수 관심) > 상승추세 눌림(눌림목 매수 관심) > 저항근접 > 추세방향(홀딩/관망)
-function judgeRow(r) {
-  if (!r.round || r.현재가 == null) return '─';
-  const supportDist = r.round.supportDistPct;     // 양수=지지 위(정상), 음수=지지 이탈
-  const resistanceDist = r.round.resistanceDistPct; // 양수=저항 아래(정상, 값이 작을수록 저항 근접)
-  const dev5 = r.dev[5], dev200 = r.dev[200];
-
-  if (supportDist < 0) return '지지 이탈·주의';
-  if (dev200 != null && dev200 < 0 && supportDist <= 3) return '저점매수 관심';
-  if (dev200 != null && dev200 > 0 && dev5 != null && dev5 <= 0) return '눌림목 매수 관심';
-  if (resistanceDist <= 3) return '저항 근접·관찰';
-  if (dev200 != null && dev200 > 0) return '홀딩(상승추세)';
-  if (dev200 != null && dev200 < 0) return '관망(하락추세)';
-  return '관망';
-}
+function fmtDev(n, marker) { return n == null ? '─' : `${marker ? marker + ' ' : ''}${fmtPct(n)}`; }
 
 async function main() {
   const token = await getKisToken();
@@ -251,27 +196,23 @@ async function main() {
 
     const 현재가 = kis ? kis.현재가 : null;
     let closes = chart ? fillForward(chart.close) : [];
-    const highs = chart ? fillForward(chart.high) : [];
-    const lows = chart ? fillForward(chart.low) : [];
     // 마지막 종가를 KIS 당일가로 덮어쓰기(장중·Yahoo 지연 오차 방지)
     if (현재가 && closes.length) closes[closes.length - 1] = 현재가;
-    const round = highs.length ? nearestRoundLevels(highs, lows, 현재가) : null;
 
-    const devByPeriod = {};
+    const devByPeriod = {}, crossByPeriod = {};
     for (const period of EMA_PERIODS) {
-      const ema = closes.length >= period ? buildEma(closes, period) : null;
+      const series = buildEmaSeries(closes, period);
+      const ema = series[series.length - 1];
       devByPeriod[period] = (ema && 현재가) ? (현재가 - ema) / ema * 100 : null;
+      crossByPeriod[period] = crossMarker(closes, series);
     }
 
-    rows.push({ 종목명: h.종목명, 현재가, 등락률: kis?.등락률, dev: devByPeriod, round });
+    rows.push({ 종목명: h.종목명, 현재가, 등락률: kis?.등락률, dev: devByPeriod, cross: crossByPeriod });
   }
 
-  console.log('\n종목명\t\t현재가\t등락률\t200EMA\t라운드지지\t라운드저항\t판단');
+  console.log('\n종목명\t\t현재가\t등락률\t5EMA\t200EMA');
   for (const r of rows) {
-    const col200 = fmtPct(r.dev[200]);
-    const 지지 = r.round ? fmtRound(r.round.support, -r.round.supportDistPct, r.round.supportTouch) : '─';
-    const 저항 = r.round ? fmtRound(r.round.resistance, r.round.resistanceDistPct, r.round.resistanceTouch) : '─';
-    console.log(`${r.종목명}\t${fmtWon(r.현재가)}\t${fmtPct(r.등락률)}\t${col200}\t${지지}\t${저항}\t${judgeRow(r)}`);
+    console.log(`${r.종목명}\t${fmtWon(r.현재가)}\t${fmtPct(r.등락률)}\t${fmtDev(r.dev[5], r.cross[5])}\t${fmtDev(r.dev[200], r.cross[200])}`);
   }
 }
 
