@@ -15,21 +15,14 @@ const HOLDINGS_JSON = 'C:\\Users\\shinf\\workspace\\data\\holdings.json';
 const CALENDAR_DAYS = 400;
 const HOLDINGS_CHART_DAYS = 60;
 
-// 표(p2)에 이미 반영한 라이브 값과 100% 동일해야 함(project_holdings_quote_table.mjs 2026-08-24 장마감 실행 결과)
+// 표(p2)에 이미 반영한 라이브 값과 100% 동일해야 함(2026-08-25 장마감 최종 갱신 실행 결과)
 const HOLDINGS = [
-  { name: '두산에너빌리티', price: 73000, avgPrice: 66300, ret: 10.11, support: 72500, supportDistPct: -0.7, resistance: 75000, resistanceDistPct: 2.7, verdict: '지지 임박·이탈시 손절검토', badge: 'bdg-red' },
-  { name: 'LG화학', price: 273000, avgPrice: 258250, ret: 5.71, support: 270000, supportDistPct: -1.1, resistance: 280000, resistanceDistPct: 2.6, verdict: '지지 임박·이탈시 손절검토', badge: 'bdg-red' },
-  { name: 'POSCO홀딩스', price: 327500, avgPrice: 310750, ret: 5.39, support: 320000, supportDistPct: -2.3, resistance: 330000, resistanceDistPct: 0.8, verdict: '저항 근접·돌파시 익절검토', badge: 'bdg-amber' },
-  { name: '카카오', price: 35800, avgPrice: 34250, ret: 4.53, support: 35000, supportDistPct: -2.2, resistance: 36000, resistanceDistPct: 0.6, verdict: '저항 근접·돌파시 익절검토', badge: 'bdg-amber' },
-  { name: '현대로템', price: 134200, avgPrice: 129200, ret: 3.87, support: 130000, supportDistPct: -3.1, resistance: 135000, resistanceDistPct: 0.6, verdict: '저항 근접·돌파시 익절검토', badge: 'bdg-amber' },
-  { name: '기아', price: 131500, avgPrice: 127033, ret: 3.52, support: 130000, supportDistPct: -1.1, resistance: 132500, resistanceDistPct: 0.8, verdict: '지지 임박·이탈시 손절검토', badge: 'bdg-red' },
-  { name: 'LS ELECTRIC', price: 192300, avgPrice: 192300, ret: 0.00, support: 190000, supportDistPct: -1.2, resistance: 200000, resistanceDistPct: 4.0, verdict: '지지 임박·이탈시 손절검토', badge: 'bdg-red', code: '010120', market: 'KOSPI' },
-  { name: '셀트리온', price: 194000, avgPrice: 194000, ret: 0.00, support: 192500, supportDistPct: -0.8, resistance: 195000, resistanceDistPct: 0.5, verdict: '지지 임박·이탈시 손절검토', badge: 'bdg-red' },
-  { name: '한화오션', price: 83400, avgPrice: 83500, ret: -0.12, support: 82500, supportDistPct: -1.1, resistance: 85000, resistanceDistPct: 1.9, verdict: '지지 임박·이탈시 손절검토', badge: 'bdg-red' },
-  { name: 'HD현대중공업', price: 455500, avgPrice: 472000, ret: -3.50, support: 450000, supportDistPct: -1.2, resistance: 460000, resistanceDistPct: 1.0, verdict: '지지 임박·이탈시 손절검토', badge: 'bdg-red' },
-  { name: '리노공업', price: 64600, avgPrice: 68000, ret: -5.00, support: 62500, supportDistPct: -3.3, resistance: 65000, resistanceDistPct: 0.6, verdict: '저항 근접·돌파시 익절검토', badge: 'bdg-amber' },
-  { name: '삼성중공업', price: 20100, avgPrice: 21350, ret: -5.85, support: 20000, supportDistPct: -0.5, resistance: 20500, resistanceDistPct: 2.0, verdict: '지지 임박·이탈시 손절검토', badge: 'bdg-red' },
-  { name: '두산로보틱스', price: 69700, avgPrice: 79706, ret: -12.55, support: 65000, supportDistPct: -6.7, resistance: 70000, resistanceDistPct: 0.4, verdict: '저항 근접·돌파시 익절검토', badge: 'bdg-amber' },
+  { name: 'POSCO홀딩스', price: 332000, avgPrice: 316333, ret: 4.95, support: 325000, supportDistPct: -2.11, resistance: 350000, resistanceDistPct: 5.42, verdict: '박스권 홀드', badge: 'bdg-gray', code: '005490', market: 'KOSPI' },
+  { name: 'LS ELECTRIC', price: 195400, avgPrice: 193850, ret: 0.80, support: 175000, supportDistPct: -10.44, resistance: 200000, resistanceDistPct: 2.35, verdict: '박스권 홀드', badge: 'bdg-gray', code: '010120', market: 'KOSPI' },
+  { name: '한미반도체', price: 217500, avgPrice: 217500, ret: 0.00, support: 200000, supportDistPct: -8.05, resistance: 225000, resistanceDistPct: 3.45, verdict: '박스권 홀드', badge: 'bdg-gray', code: '042700', market: 'KOSPI' },
+  { name: 'HD현대중공업', price: 464500, avgPrice: 472000, ret: -1.59, support: 450000, supportDistPct: -3.12, resistance: 475000, resistanceDistPct: 2.26, verdict: '박스권 홀드', badge: 'bdg-gray', code: '329180', market: 'KOSPI' },
+  { name: '삼성중공업', price: 20450, avgPrice: 21350, ret: -4.22, support: 20000, supportDistPct: -2.20, resistance: 22000, resistanceDistPct: 7.58, verdict: '박스권 홀드', badge: 'bdg-gray', code: '010140', market: 'KOSPI' },
+  { name: '두산로보틱스', price: 70200, avgPrice: 79706, ret: -11.93, support: 70000, supportDistPct: -0.28, resistance: 80000, resistanceDistPct: 13.96, verdict: '지지 임박·이탈시 손절검토', badge: 'bdg-red', code: '454910', market: 'KOSPI' },
 ];
 
 function httpGetJson(url) {

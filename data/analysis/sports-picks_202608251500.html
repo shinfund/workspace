@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<title>스포츠 승리팀 분석 — KBO·NPB 2026-08-25</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --sky:#0366D6; --sky50:#E9F1FE; --sky100:#C7DCF6; --sky600:#005CC5; --sky800:#032F62;
+  --teal:#1D9E75; --teal50:#E1F5EE; --teal100:#9FE1CB; --teal600:#0F6E56;
+  --coral:#D85A30; --coral50:#FAECE7; --coral100:#F5C4B3;
+  --amber:#BA7517; --amber50:#FAEEDA; --amber100:#FAC775;
+  --purple:#534AB7; --purple50:#EEEDFE; --purple100:#CECBF6;
+  --gray50:#F1EFE8; --gray100:#D3D1C7; --gray600:#5F5E5A;
+  --bg:#FFFFFF; --card:#FFFFFF; --border:#E1E4E8; --border2:#F6F8FA;
+  --txt:#24292E; --txt2:#3A4453; --txt3:#6A737D;
+  --red:var(--coral); --red50:var(--coral50); --blue:var(--sky); --blue50:var(--sky50);
+  --hdrbg:#0C447C; --hdr-text:#fff; --hdr-text-dim:rgba(255,255,255,.85);
+  --hdr-btn-bg:rgba(255,255,255,.15); --hdr-btn-border:rgba(255,255,255,.35);
+  --hdr-btn-hover-bg:rgba(255,255,255,.25); --hdr-btn-text:#fff;
+  --hdr-shadow:0 2px 8px rgba(12,68,124,.3);
+  --r6:6px; --r8:8px; --r10:10px; --r12:12px; --r14:14px; --r16:16px; --r20:20px;
+  --shadow:none; --shadow-h:0 20px 60px rgba(0,0,0,.2);
+}
+html[data-theme="light"]{
+  --hdrbg:#FFFFFF; --hdr-text:#032F62; --hdr-text-dim:#355E82;
+  --hdr-btn-bg:#E6F1FB; --hdr-btn-border:#B7CEE8; --hdr-btn-hover-bg:#D3E7FA; --hdr-btn-text:#005CC5;
+  --hdr-shadow:0 2px 8px rgba(12,68,124,.12);
+}
+html[data-theme="dark"]{
+  --bg:#24292E; --card:#1C2024;
+  --border:rgba(255,255,255,.13); --border2:rgba(255,255,255,.09);
+  --txt:rgba(255,255,255,.92); --txt2:rgba(255,255,255,.75); --txt3:rgba(255,255,255,.5);
+  --shadow:none; --shadow-h:0 20px 60px rgba(0,0,0,.5);
+  --hdrbg:#24292E; --hdr-shadow:0 2px 10px rgba(0,0,0,.4);
+  --sky:#2E8FFF; --sky50:rgba(46,143,255,.16); --sky100:rgba(46,143,255,.32); --sky600:#79B8FF; --sky800:#C8E1FF;
+  --teal:#4FD8AC; --teal50:rgba(29,158,117,.16); --teal100:rgba(29,158,117,.32); --teal600:#4FD8AC;
+  --coral:#F2896A; --coral50:rgba(216,90,48,.16); --coral100:rgba(216,90,48,.32);
+  --red:var(--coral); --red50:var(--coral50); --blue:var(--sky); --blue50:var(--sky50);
+  --amber:#E8A93D; --amber50:rgba(186,117,23,.22); --amber100:rgba(186,117,23,.38);
+  --purple:#B4A6FF; --purple50:rgba(83,74,183,.26); --purple100:rgba(83,74,183,.4);
+  --gray50:rgba(255,255,255,.10); --gray600:#C9C7BF;
+}
+*{box-sizing:border-box;}
+body{margin:0;font-family:'Noto Sans KR',-apple-system,BlinkMacSystemFont,sans-serif;font-size:14.5px;
+     background:var(--bg);color:var(--txt);word-break:keep-all;transition:background .18s ease,color .18s ease;}
+.hdr-wrap{position:fixed;top:0;left:0;right:0;z-index:50;box-shadow:var(--hdr-shadow);}
+.header{background:var(--hdrbg);padding:max(12px,env(safe-area-inset-top)) 16px 12px;
+        display:flex;align-items:center;justify-content:space-between;transition:background .18s ease;}
+.header-left{display:flex;align-items:center;gap:10px;flex:1;min-width:0;overflow:hidden;}
+.logo-mark{width:34px;height:34px;background:linear-gradient(155deg,#7FB4FF 0%,#0366D6 55%,#032F62 100%);
+           border-radius:var(--r8);display:flex;align-items:center;justify-content:center;flex-shrink:0;
+           box-shadow:0 2px 6px rgba(3,102,214,.35);}
+.logo-info{display:flex;flex-direction:column;gap:1px;min-width:0;overflow:hidden;}
+.logo-title{font-size:17px;font-weight:800;color:var(--hdr-text);letter-spacing:-.02em;
+            overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:color .18s ease;}
+.logo-sub{font-size:11.5px;color:var(--hdr-text-dim);overflow:hidden;text-overflow:ellipsis;
+          white-space:nowrap;transition:color .18s ease;}
+.header-right{display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:10px;}
+.hdr-date-wrap{display:flex;flex-direction:column;align-items:flex-end;gap:2px;}
+.hdr-date{font-size:12.5px;font-weight:700;color:var(--hdr-text);white-space:nowrap;}
+.hdr-meta{font-size:11px;color:var(--hdr-text-dim);white-space:nowrap;}
+.hdr-btn{background:var(--hdr-btn-bg);border:1px solid var(--hdr-btn-border);color:var(--hdr-btn-text);
+         font-size:12px;font-weight:700;padding:6px 12px;border-radius:16px;cursor:pointer;
+         white-space:nowrap;font-family:inherit;transition:background .12s;}
+.hdr-btn:hover{background:var(--hdr-btn-hover-bg);}
+.top-nav{background:var(--card);border-bottom:1.5px solid var(--border);display:flex;padding:0 4px;
+         overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;overscroll-behavior-x:contain;}
+.top-nav::-webkit-scrollbar{display:none;}
+.tab-btn{flex:1;flex-shrink:0;min-width:64px;display:flex;align-items:center;justify-content:center;
+         border:none;background:transparent;color:var(--txt);font-size:13.5px;font-weight:700;
+         font-family:inherit;cursor:pointer;padding:13px 6px;touch-action:manipulation;
+         transition:color .15s;position:relative;white-space:nowrap;}
+.tab-btn.on{color:var(--sky600);}
+.tab-btn.on::after{content:'';position:absolute;bottom:0;left:8%;right:8%;height:2.5px;
+                    background:var(--sky);border-radius:2px 2px 0 0;}
+.nav-spacer{height:calc(104px + env(safe-area-inset-top,0px));}
+.wrap{max-width:1100px;margin:0 auto;}
+.main{padding:0 16px 24px;}
+.panel{display:none;}
+.panel.on{display:block;animation:fade .22s;}
+@keyframes fade{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+.kpi-row{display:flex;gap:9px;margin-bottom:14px;padding-top:14px;flex-wrap:wrap;}
+.kpi-card{flex:1;min-width:80px;background:var(--card);border:1px solid var(--border);
+          border-radius:var(--r12);padding:12px 10px;text-align:center;box-shadow:var(--shadow);}
+.kpi-card .num{font-size:20px;font-weight:800;line-height:1.1;}
+.kpi-card .lbl{font-size:13px;margin-top:4px;font-weight:700;color:var(--txt);}
+.kpi-sky .num,.kpi-sky .lbl{color:var(--sky600);}
+.kpi-red .num,.kpi-red .lbl{color:var(--red);}
+.kpi-teal .num,.kpi-teal .lbl{color:var(--teal600);}
+.kpi-coral .num,.kpi-coral .lbl{color:var(--coral);}
+.kpi-amber .num,.kpi-amber .lbl{color:var(--amber);}
+.kpi-purple .num,.kpi-purple .lbl{color:var(--purple);}
+.sc{background:var(--card);border-radius:var(--r12);border:1px solid var(--border);padding:16px;
+    margin-bottom:14px;box-shadow:var(--shadow);}
+.sc-title{font-size:14.5px;font-weight:800;color:var(--txt);margin-bottom:12px;
+          display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
+.sc-title .sub{font-size:12px;font-weight:600;color:var(--txt2);}
+.sc-note{font-size:12.5px;color:var(--txt2);margin-bottom:12px;line-height:1.6;
+         padding:8px 10px;background:var(--bg);border-radius:var(--r8);}
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:var(--r8);overscroll-behavior-x:contain;}
+table{min-width:100%;border-collapse:collapse;font-size:13.5px;}
+thead th{background:var(--sky50);color:var(--sky800);font-weight:800;font-size:12.5px;
+         padding:9px 8px;text-align:right;white-space:nowrap;}
+thead th.l{text-align:left;} thead th.c{text-align:center;}
+tbody td{padding:9px 8px;border-bottom:1px solid var(--border2);text-align:right;
+         white-space:nowrap;color:var(--txt);}
+tbody td.l{text-align:left;white-space:normal;} tbody td.c{text-align:center;}
+tbody tr:hover{background:var(--sky50);}
+.stock-cards{display:none;}
+.stock-cards-target{display:block;}
+.stock-card{background:var(--bg);border:1px solid var(--border);border-radius:var(--r12);
+            padding:13px 14px;margin-bottom:10px;}
+.sc-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.sc-name{font-size:15px;font-weight:800;color:var(--txt);}
+.sc-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px 12px;}
+.sc-item{display:flex;flex-direction:column;gap:1px;}
+.sc-item-l{font-size:12.5px;color:var(--txt);font-weight:700;}
+.sc-item-v{font-size:14px;font-weight:700;color:var(--txt);}
+.badge{font-size:11.5px;font-weight:700;padding:2px 9px;border-radius:10px;white-space:nowrap;}
+.bdg-red{background:var(--red50);color:var(--red);}
+.bdg-blue{background:var(--blue50);color:var(--blue);}
+.bdg-sky{background:var(--sky50);color:var(--sky600);}
+.bdg-teal{background:var(--teal50);color:var(--teal600);}
+.bdg-amber{background:var(--amber50);color:var(--amber);}
+.bdg-coral{background:var(--coral50);color:var(--coral);}
+.bdg-gray{background:var(--gray50);color:var(--gray600);}
+.stars{color:var(--amber);letter-spacing:1px;font-size:13px;}
+.game-hd{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;}
+.game-title{font-size:15px;font-weight:800;color:var(--txt);}
+.game-sub{font-size:12px;color:var(--txt2);font-weight:600;}
+.verdict-box{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--sky50);
+             border-radius:var(--r10);margin:10px 0;flex-wrap:wrap;}
+.verdict-team{font-size:15px;font-weight:900;color:var(--sky800);}
+.verdict-reason{font-size:12.5px;color:var(--txt2);line-height:1.55;flex:1;min-width:180px;}
+.variable-box{font-size:12.5px;color:var(--txt2);line-height:1.6;padding:8px 10px;
+              background:var(--amber50);border-radius:var(--r8);border-left:3px solid var(--amber);}
+.ai-sc{background:linear-gradient(135deg,var(--sky50) 0%,var(--card) 100%);border:1px solid var(--sky100);
+       border-left:4px solid var(--sky);border-radius:var(--r12);padding:16px;margin-bottom:14px;box-shadow:var(--shadow);}
+.ai-title{font-size:14.5px;font-weight:800;color:var(--sky800);margin-bottom:12px;
+          display:flex;align-items:center;gap:8px;}
+.ai-badge{margin-left:auto;}
+.ai-list{display:flex;flex-direction:column;gap:7px;}
+.ai-item{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--txt);line-height:1.55;}
+.ai-dot{flex-shrink:0;width:6px;height:6px;border-radius:50%;margin-top:8px;}
+.ai-dot-red{background:var(--red);} .ai-dot-teal{background:var(--teal);}
+.ai-dot-sky{background:var(--sky);} .ai-dot-amber{background:var(--amber);} .ai-dot-purple{background:var(--purple);}
+.verify-ok{color:var(--teal600);font-weight:700;}
+.verify-warn{color:var(--amber);font-weight:700;}
+#settingsModal{display:none;position:fixed;inset:0;z-index:200;}
+#settingsModal.modal-open{display:block;}
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:20px;}
+.modal-box{background:var(--card);border-radius:var(--r16);padding:20px;width:100%;max-width:320px;box-shadow:var(--shadow-h);}
+.modal-title{font-size:16px;font-weight:800;color:var(--txt);margin-bottom:14px;}
+.modal-section{font-size:12.5px;font-weight:700;color:var(--txt2);margin-bottom:8px;}
+.theme-opts{display:flex;gap:10px;}
+.theme-opt{flex:1;cursor:pointer;text-align:center;border:2px solid var(--border);border-radius:var(--r12);padding:8px;transition:border-color .15s;}
+.theme-opt.on{border-color:var(--sky);}
+.theme-swatch{width:100%;height:44px;border-radius:var(--r8);margin-bottom:6px;position:relative;overflow:hidden;}
+.theme-swatch-dark{background:#24292E;}
+.theme-swatch-light{background:#FFFFFF;border:1px solid var(--border);}
+.ts-side{position:absolute;left:0;top:0;bottom:0;width:30%;background:rgba(255,255,255,.08);}
+.theme-opt-label{font-size:12px;font-weight:700;color:var(--txt);}
+@media(max-width:374px){
+  .logo-sub{display:none} .tab-btn{font-size:12px;padding:11px 2px;min-width:52px}
+  .kpi-card .num{font-size:16px} .kpi-card .lbl{font-size:11px}
+}
+@media(max-width:600px){
+  .nav-spacer{height:calc(108px + env(safe-area-inset-top,0px))}
+  .main{padding:0 10px max(20px,env(safe-area-inset-bottom))}
+  .sc{padding:12px 12px} .tab-btn{font-size:13px;padding:12px 4px}
+  .kpi-card .num{font-size:19px} .kpi-card .lbl{font-size:12.5px}
+  table{font-size:12.5px} thead th,tbody td{padding:8px 5px}
+  .stock-cards{display:block} .stock-cards-target{display:none}
+  .hdr-meta{display:none}
+}
+@media(min-width:769px){
+  .nav-spacer{height:calc(106px + env(safe-area-inset-top,0px))}
+  .main{padding:0 20px max(20px,env(safe-area-inset-bottom))}
+  .sc{padding:18px 20px} .sc-title{font-size:15px}
+  .kpi-card .num{font-size:22px} .kpi-card .lbl{font-size:13px}
+  table{font-size:14px} thead th,tbody td{padding:10px 9px}
+}
+@media(min-width:1024px){ .kpi-row{gap:12px} .kpi-card .num{font-size:24px} }
+</style>
+</head>
+<body>
+<script>(function(){try{document.documentElement.setAttribute('data-theme',localStorage.getItem('theme')||'dark');}catch(e){}})();</script>
+
+<div id="settingsModal">
+  <div class="modal-backdrop" onclick="closeSettingsModal()">
+    <div class="modal-box" onclick="event.stopPropagation()">
+      <div class="modal-title">설정</div>
+      <div class="modal-section">화면모드</div>
+      <div class="theme-opts">
+        <div class="theme-opt" id="theme-opt-dark" onclick="setTheme('dark')">
+          <div class="theme-swatch theme-swatch-dark"><span class="ts-side"></span></div>
+          <div class="theme-opt-label">다크</div>
+        </div>
+        <div class="theme-opt" id="theme-opt-light" onclick="setTheme('light')">
+          <div class="theme-swatch theme-swatch-light"><span class="ts-side"></span></div>
+          <div class="theme-opt-label">라이트</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="hdr-wrap">
+  <div class="header">
+    <div class="header-left">
+      <div class="logo-mark">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M4.9 4.9c3 3 3 11.2 0 14.2M19.1 4.9c-3 3-3 11.2 0 14.2"/></svg>
+      </div>
+      <div class="logo-info">
+        <div class="logo-title">스포츠 승리팀 전문가 분석</div>
+        <div class="logo-sub">KBO · NPB — 공식 데이터·현지 매체 기반</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="hdr-date-wrap">
+        <div class="hdr-date">2026-08-25</div>
+        <div class="hdr-meta">/sports-picks 자동분석</div>
+      </div>
+      <button class="hdr-btn" onclick="openSettingsModal()" aria-label="설정">⚙ 설정</button>
+    </div>
+  </div>
+  <nav class="top-nav">
+    <button class="tab-btn on" data-tab="0">KBO</button>
+    <button class="tab-btn" data-tab="1">NPB</button>
+  </nav>
+</div>
+<div class="nav-spacer"></div>
+
+<div class="wrap"><div class="main">
+
+<!-- ============ KBO 패널 ============ -->
+<div class="panel on" id="p0">
+
+  <div class="kpi-row">
+    <div class="kpi-card kpi-sky"><div class="num">5</div><div class="lbl">오늘 경기수</div></div>
+    <div class="kpi-card kpi-coral"><div class="num">LG</div><div class="lbl">베스트픽 1순위</div></div>
+    <div class="kpi-card kpi-teal"><div class="num">★★★★☆</div><div class="lbl">최고 신뢰도</div></div>
+    <div class="kpi-card kpi-amber"><div class="num">3</div><div class="lbl">선발투수 미확인 경기</div></div>
+  </div>
+
+  <div class="sc">
+    <div class="sc-title">오늘의 경기 일정 <span class="sub">2026-08-25 · 5경기, 대부분 18:30(5경기 시작시간 일부 미확인)</span></div>
+    <div class="sc-note">각 구단 공식 홈페이지 일정 페이지로 홈/원정·구장 직접 확인(당일자 newspim AI프리뷰 기사는 검색시점 미색인). 한화-SSG전·삼성-키움전은 양팀 선발 모두 공식 미확정.</div>
+    <div class="tbl-wrap stock-cards-target">
+      <table>
+        <thead><tr><th class="c">#</th><th class="l">원정</th><th class="l">홈</th><th class="l">구장</th><th class="l">원정 선발(ERA)</th><th class="l">홈 선발(ERA)</th></tr></thead>
+        <tbody>
+          <tr><td class="c">1</td><td class="l">한화(7위)</td><td class="l">SSG(9위)</td><td class="l">인천 SSG랜더스필드</td><td class="l">미확인</td><td class="l">미확인</td></tr>
+          <tr><td class="c">2</td><td class="l">LG(3위)</td><td class="l">NC(8위)</td><td class="l">창원 NC파크</td><td class="l">톨허스트 (4.53)</td><td class="l">테일러 (4.40)</td></tr>
+          <tr><td class="c">3</td><td class="l">롯데(6위)</td><td class="l">KIA(4위)</td><td class="l">광주-기아 챔피언스필드</td><td class="l">비슬리 (4.09)</td><td class="l">미확인(시라카와 거론)</td></tr>
+          <tr><td class="c">4</td><td class="l">두산(5위)</td><td class="l">KT(1위)</td><td class="l">수원 KT위즈파크</td><td class="l">최민석 (추정 2점대 후반)</td><td class="l">배제성 (4.70)</td></tr>
+          <tr><td class="c">5</td><td class="l">삼성(2위)</td><td class="l">키움(10위)</td><td class="l">고척스카이돔</td><td class="l">미확인</td><td class="l">미확인(알칸타라 거론)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="stock-cards">
+      <div class="stock-card"><div class="sc-head"><span class="sc-name">한화 @ SSG</span><span class="badge bdg-amber">선발 미확인</span></div>
+        <div class="sc-grid"><div class="sc-item"><span class="sc-item-l">원정선발</span><span class="sc-item-v">미확인</span></div><div class="sc-item"><span class="sc-item-l">홈선발</span><span class="sc-item-v">미확인</span></div></div></div>
+      <div class="stock-card"><div class="sc-head"><span class="sc-name">LG @ NC</span><span class="badge bdg-sky">창원</span></div>
+        <div class="sc-grid"><div class="sc-item"><span class="sc-item-l">원정선발</span><span class="sc-item-v">톨허스트 4.53</span></div><div class="sc-item"><span class="sc-item-l">홈선발</span><span class="sc-item-v">테일러 4.40</span></div></div></div>
+      <div class="stock-card"><div class="sc-head"><span class="sc-name">롯데 @ KIA</span><span class="badge bdg-red">강수확률60%</span></div>
+        <div class="sc-grid"><div class="sc-item"><span class="sc-item-l">원정선발</span><span class="sc-item-v">비슬리 4.09</span></div><div class="sc-item"><span class="sc-item-l">홈선발</span><span class="sc-item-v">미확인</span></div></div></div>
+      <div class="stock-card"><div class="sc-head"><span class="sc-name">두산 @ KT</span><span class="badge bdg-sky">수원</span></div>
+        <div class="sc-grid"><div class="sc-item"><span class="sc-item-l">원정선발</span><span class="sc-item-v">최민석(추정)</span></div><div class="sc-item"><span class="sc-item-l">홈선발</span><span class="sc-item-v">배제성 4.70</span></div></div></div>
+      <div class="stock-card"><div class="sc-head"><span class="sc-name">삼성 @ 키움</span><span class="badge bdg-amber">선발 미확인</span></div>
+        <div class="sc-grid"><div class="sc-item"><span class="sc-item-l">원정선발</span><span class="sc-item-v">미확인</span></div><div class="sc-item"><span class="sc-item-l">홈선발</span><span class="sc-item-v">미확인</span></div></div></div>
+    </div>
+  </div>
+
+  <div class="sc">
+    <div class="sc-title">리그 순위 <span class="sub">2026-08-25 기준</span></div>
+    <div class="tbl-wrap"><table><thead><tr><th class="c">순위</th><th class="l">팀</th><th>승</th><th>패</th><th>무</th><th>승률</th><th>팀ERA</th><th>팀타율</th><th class="l">최근10경기</th></tr></thead><tbody>
+      <tr><td class="c">1</td><td class="l">KT</td><td>64</td><td>41</td><td>3</td><td>.610</td><td>4.38</td><td>.279</td><td class="l">4승1무5패</td></tr>
+      <tr><td class="c">2</td><td class="l">삼성</td><td>65</td><td>44</td><td>2</td><td>.596</td><td>4.26</td><td>.278</td><td class="l">6승0무4패</td></tr>
+      <tr><td class="c">3</td><td class="l">LG</td><td>61</td><td>50</td><td>1</td><td>.550</td><td>4.93</td><td>.268</td><td class="l">5승0무5패</td></tr>
+      <tr><td class="c">4</td><td class="l">KIA</td><td>60</td><td>50</td><td>2</td><td>.545</td><td>4.39</td><td>.272</td><td class="l">6승0무4패</td></tr>
+      <tr><td class="c">5</td><td class="l">두산</td><td>58</td><td>50</td><td>4</td><td>.537</td><td>3.71</td><td>.270</td><td class="l">5승0무5패</td></tr>
+      <tr><td class="c">6</td><td class="l">롯데</td><td>50</td><td>58</td><td>2</td><td>.463</td><td>4.45</td><td>.267</td><td class="l">6승0무4패</td></tr>
+      <tr><td class="c">7</td><td class="l">한화</td><td>49</td><td>57</td><td>3</td><td>.462</td><td>4.99</td><td>.276</td><td class="l">2승0무8패</td></tr>
+      <tr><td class="c">8</td><td class="l">NC</td><td>48</td><td>56</td><td>2</td><td>.462</td><td>4.79</td><td>.273</td><td class="l">5승0무5패</td></tr>
+      <tr><td class="c">9</td><td class="l">SSG</td><td>45</td><td>64</td><td>5</td><td>.413</td><td>5.54</td><td>.261</td><td class="l">5승1무4패</td></tr>
+      <tr><td class="c">10</td><td class="l">키움</td><td>42</td><td>72</td><td>2</td><td>.368</td><td>5.22</td><td>.246</td><td class="l">3승0무7패</td></tr>
+    </tbody></table></div>
+    <div class="sc-note">koreabaseball.com·scorebase.kr 두 독립 소스 완전 일치로 교차검증. 8/24(월)는 리그 공통 휴식일로 확인되어, 오늘 경기 전 전 구단 최소 1일 휴식 확보.</div>
+  </div>
+
+  <div class="sc">
+    <div class="sc-title">선발투수 성적 <span class="sub">ERA 오름차순(확정분)</span></div>
+    <div class="tbl-wrap"><table><thead><tr><th class="l">투수</th><th class="l">팀</th><th>승-패</th><th>ERA</th><th class="l">비고</th></tr></thead><tbody>
+      <tr><td class="l">최민석</td><td class="l">두산</td><td class="l">전반기 9승2패</td><td class="l">추정 2점대 후반</td><td class="l">전반기 ERA2.33·최연소10승, 8월 2주 휴식 후 복귀 컨디션 관건</td></tr>
+      <tr><td class="l">비슬리</td><td class="l">롯데</td><td>8-4</td><td>4.09</td><td class="l">103.1이닝(19경기), 팀 1선발, 최근 다수 등판 연승 흐름</td></tr>
+      <tr><td class="l">테일러</td><td class="l">NC</td><td>7-5</td><td>4.40</td><td class="l">102.1이닝, 6월 이후 안정화</td></tr>
+      <tr><td class="l">톨허스트</td><td class="l">LG</td><td>11-9</td><td>4.53</td><td class="l">8/19 잠실 KT전 7이닝 무실점 QS+, 최근 폼 최고조</td></tr>
+      <tr><td class="l">배제성</td><td class="l">KT</td><td>0-2</td><td>4.70</td><td class="l">23이닝 소량표본, 시즌 대부분 결장한 대체선발</td></tr>
+      <tr><td class="l">시라카와(KIA) / 알칸타라(키움)</td><td class="l">KIA·키움</td><td class="l">미확인</td><td class="l">미확인</td><td class="l">일부 매체 거론 수준, 공식 예고 미확정</td></tr>
+    </tbody></table></div>
+  </div>
+
+  <div class="sc-title" style="margin:20px 4px 8px;">경기별 심층 분석</div>
+
+  <div class="sc">
+    <div class="game-hd"><div class="game-title">경기1: 한화 vs SSG</div><div class="game-sub">인천 SSG랜더스필드 · 투수유리·해풍변수</div></div>
+    <div class="tbl-wrap"><table><thead><tr><th class="l">구분</th><th class="l">한화(원정)</th><th class="l">SSG(홈)</th></tr></thead><tbody>
+      <tr><td class="l">순위/승률</td><td class="l">7위 .462</td><td class="l">9위 .413</td></tr>
+      <tr><td class="l">팀ERA/팀타율</td><td class="l">4.99(8위) / .276(3위)</td><td class="l">5.54(10위,최하위) / .261(9위)</td></tr>
+      <tr><td class="l">최근10경기</td><td class="l">2승0무8패(최악)</td><td class="l">5승1무4패</td></tr>
+      <tr><td class="l">직전3경기(개별확인)</td><td class="l">8/21 승(15-11)·8/22 우천취소·8/23 패(3-12) → 1승1패</td><td class="l">8/21 무(3-3,11회연장)·8/22 우천취소·8/23 패(1-3) → 1무1패</td></tr>
+      <tr><td class="l">선발</td><td class="l">미확인</td><td class="l">미확인</td></tr>
+    </tbody></table></div>
+    <div class="variable-box"><b>변수</b> — 양팀 선발 모두 미확정. 인천 날씨는 강수확률 15%·풍속 낮음으로 경기 진행 지장 없음.</div>
+    <div class="verdict-box"><span class="badge bdg-amber">우세</span><span class="verdict-team">SSG (근소)</span><span class="verdict-reason">한화 최근10경기 2승8패로 극심한 부진, SSG 최근10경기가 오히려 우위 + 홈 이점</span></div>
+    <div style="margin-top:8px;display:flex;align-items:center;gap:8px;"><span class="stars">★☆☆☆☆</span><span class="badge bdg-amber">프로토픽: SSG 승(박빙)</span></div>
+  </div>
+
+  <div class="sc">
+    <div class="game-hd"><div class="game-title">경기2: LG vs NC</div><div class="game-sub">창원 NC파크 · 중립, 넓은 외야</div></div>
+    <div class="tbl-wrap"><table><thead><tr><th class="l">구분</th><th class="l">LG(원정)</th><th class="l">NC(홈)</th></tr></thead><tbody>
+      <tr><td class="l">순위/승률</td><td class="l">3위 .550</td><td class="l">8위 .462</td></tr>
+      <tr><td class="l">팀ERA/팀타율</td><td class="l">4.93(7위) / .268(7위)</td><td class="l">4.79(6위) / .273(4위)</td></tr>
+      <tr><td class="l">최근10경기</td><td class="l">5승0무5패</td><td class="l">5승0무5패</td></tr>
+      <tr><td class="l">직전3경기(개별확인)</td><td class="l">8/21 패(11-15)·8/22 우천취소·8/23 승(12-3) → 1승1패</td><td class="l">8/21 승(3-2)·8/22 패(6-8)·8/23 패(1-2) → 1승2패</td></tr>
+      <tr><td class="l">선발</td><td class="l">톨허스트 4.53, 직전등판 QS+ 최근폼 최고조</td><td class="l">테일러 4.40, 안정화 흐름</td></tr>
+    </tbody></table></div>
+    <div class="variable-box"><b>변수</b> — NC 홈 이점, 넓은 외야 구장 특성상 장타보다 정교한 타격 필요.</div>
+    <div class="verdict-box"><span class="badge bdg-teal">우세</span><span class="verdict-team">LG</span><span class="verdict-reason">선발 톨허스트 최근 폼 최고조(QS+ 무실점), 순위·전력 우위, NC 직전 2연패</span></div>
+    <div style="margin-top:8px;display:flex;align-items:center;gap:8px;"><span class="stars">★★★★☆</span><span class="badge bdg-teal">프로토픽: LG 승</span></div>
+  </div>
+
+  <div class="sc">
+    <div class="game-hd"><div class="game-title">경기3: 롯데 vs KIA</div><div class="game-sub">광주-기아 챔피언스필드 · 중립~타자약간유리</div></div>
+    <div class="tbl-wrap"><table><thead><tr><th class="l">구분</th><th class="l">롯데(원정)</th><th class="l">KIA(홈)</th></tr></thead><tbody>
+      <tr><td class="l">순위/승률</td><td class="l">6위 .463</td><td class="l">4위 .545</td></tr>
+      <tr><td class="l">팀ERA/팀타율</td><td class="l">4.45(5위) / .267(8위)</td><td class="l">4.39(4위) / .272(5위)</td></tr>
+      <tr><td class="l">최근10경기</td><td class="l">6승0무4패</td><td class="l">6승0무4패</td></tr>
+      <tr><td class="l">직전3경기(개별확인)</td><td class="l">8/21 승(11-4)·8/22 우천취소·8/23 패(1-3, 5연승 저지) → 1승1패</td><td class="l">8/21 승(11-1,6연승)·8/22 패(1-3)·8/23 패(7-8, 9회말 끝내기 만루홈런 피홈런) → 1승2패</td></tr>
+      <tr><td class="l">선발</td><td class="l">비슬리 4.09, 팀 1선발 최고 컨디션</td><td class="l">미확인(시라카와 거론)</td></tr>
+    </tbody></table></div>
+    <div class="variable-box"><b>주의</b> — 광주 강수확률 60%(오후 소나기 가능성)로 경기 지연·취소 가능성. KIA 불펜은 직전 끝내기 피홈런으로 심리적 충격 우려.</div>
+    <div class="verdict-box"><span class="badge bdg-amber">우세</span><span class="verdict-team">KIA (근소)</span><span class="verdict-reason">팀 전력·순위는 우위이나 직전 2연패, 선발 미확정, 강수 리스크로 불확실성 매우 큼</span></div>
+    <div style="margin-top:8px;display:flex;align-items:center;gap:8px;"><span class="stars">★★☆☆☆</span><span class="badge bdg-amber">프로토픽: KIA 승(강수 변수 유의)</span></div>
+  </div>
+
+  <div class="sc">
+    <div class="game-hd"><div class="game-title">경기4: 두산 vs KT</div><div class="game-sub">수원 KT위즈파크 · 투수 유리</div></div>
+    <div class="tbl-wrap"><table><thead><tr><th class="l">구분</th><th class="l">두산(원정)</th><th class="l">KT(홈)</th></tr></thead><tbody>
+      <tr><td class="l">순위/승률</td><td class="l">5위 .537</td><td class="l">1위 .610</td></tr>
+      <tr><td class="l">팀ERA/팀타율</td><td class="l">3.71(리그1위) / .270(6위)</td><td class="l">4.38(3위) / .279(리그1위)</td></tr>
+      <tr><td class="l">최근10경기</td><td class="l">5승0무5패</td><td class="l">4승1무5패</td></tr>
+      <tr><td class="l">직전3경기(개별확인)</td><td class="l">8/21 패(4-11)·8/22 우천취소·8/23 승(3-1, 곽빈 호투) → 1승1패</td><td class="l">8/21 무(3-3,11회연장)·8/22 우천취소·8/23 승(3-1, 로건 6이닝 무실점) → 1승1무</td></tr>
+      <tr><td class="l">선발</td><td class="l">최민석, 전반기 ERA2.33 우수·2주 휴식 후 복귀</td><td class="l">배제성 4.70, 0승2패·23이닝 표본 극소</td></tr>
+      <tr><td class="l">불펜(원칙3 적용)</td><td class="l">연장없음</td><td class="l">8/21 11회연장이나 4일 전, 이후 8/24 휴식일 거쳐 회복 — 당일 소모 변수 아님</td></tr>
+    </tbody></table></div>
+    <div class="variable-box"><b>변수</b> — 최민석의 휴식 후 구위 회복 여부, 배제성은 표본 부족(23이닝)으로 변동성 큼.</div>
+    <div class="verdict-box"><span class="badge bdg-teal">우세</span><span class="verdict-team">두산</span><span class="verdict-reason">리그 최고 팀ERA(3.71), 직전 경기 곽빈 호투, KT 선발 배제성은 대체자원으로 부진(0승2패 4.70)</span></div>
+    <div style="margin-top:8px;display:flex;align-items:center;gap:8px;"><span class="stars">★★★☆☆</span><span class="badge bdg-teal">프로토픽: 두산 승</span></div>
+  </div>
+
+  <div class="sc">
+    <div class="game-hd"><div class="game-title">경기5: 삼성 vs 키움</div><div class="game-sub">고척스카이돔 · 돔구장, 날씨무관</div></div>
+    <div class="tbl-wrap"><table><thead><tr><th class="l">구분</th><th class="l">삼성(원정)</th><th class="l">키움(홈)</th></tr></thead><tbody>
+      <tr><td class="l">순위/승률</td><td class="l">2위 .596</td><td class="l">10위 .368</td></tr>
+      <tr><td class="l">팀ERA/팀타율</td><td class="l">4.26(2위) / .278(2위)</td><td class="l">5.22(9위) / .246(리그 최하위)</td></tr>
+      <tr><td class="l">최근10경기</td><td class="l">6승0무4패</td><td class="l">3승0무7패</td></tr>
+      <tr><td class="l">직전3경기(개별확인)</td><td class="l">8/21 패(2-3)·8/22 승(8-6)·8/23 승(2-1) → 2승1패</td><td class="l">8/21 패(1-11)·8/22 승(3-1)·8/23 승(8-7, 9회말 끝내기 만루홈런) → 2승1패</td></tr>
+      <tr><td class="l">선발</td><td class="l">미확인</td><td class="l">미확인(알칸타라 거론)</td></tr>
+    </tbody></table></div>
+    <div class="variable-box"><b>변수</b> — 양팀 선발 모두 미확정. 키움은 8/23 끝내기 승리로 상승 조짐.</div>
+    <div class="verdict-box"><span class="badge bdg-teal">우세</span><span class="verdict-team">삼성</span><span class="verdict-reason">팀ERA·팀타율·순위 전 지표 압도적 우위(2위 vs 10위)</span></div>
+    <div style="margin-top:8px;display:flex;align-items:center;gap:8px;"><span class="stars">★★★★☆</span><span class="badge bdg-teal">프로토픽: 삼성 승</span></div>
+  </div>
+
+  <div class="sc">
+    <div class="sc-title">종합 픽 테이블</div>
+    <div class="tbl-wrap stock-cards-target">
+      <table><thead><tr><th class="l">경기</th><th class="l">예상 우세팀</th><th class="c">신뢰도</th></tr></thead><tbody>
+        <tr><td class="l">LG @ NC</td><td class="l">LG</td><td class="c"><span class="stars">★★★★☆</span></td></tr>
+        <tr><td class="l">삼성 @ 키움</td><td class="l">삼성</td><td class="c"><span class="stars">★★★★☆</span></td></tr>
+        <tr><td class="l">두산 @ KT</td><td class="l">두산</td><td class="c"><span class="stars">★★★☆☆</span></td></tr>
+        <tr><td class="l">롯데 @ KIA</td><td class="l">KIA</td><td class="c"><span class="stars">★★☆☆☆</span></td></tr>
+        <tr><td class="l">한화 @ SSG</td><td class="l">SSG</td><td class="c"><span class="stars">★☆☆☆☆</span></td></tr>
+      </tbody></table>
+    </div>
+  </div>
+
+  <div class="ai-sc">
+    <div class="ai-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg> 오늘의 베스트 픽 3<span class="badge bdg-sky ai-badge" style="font-size:11px">AI 분석</span></div>
+    <div class="ai-list">
+      <div class="ai-item"><div class="ai-dot ai-dot-teal"></div><div><b>1위 LG 승</b> (★★★★☆) — 톨허스트 최근 폼 최고조(QS+ 무실점) + 순위·전력 우위, NC 직전 2연패</div></div>
+      <div class="ai-item"><div class="ai-dot ai-dot-sky"></div><div><b>2위 삼성 승</b> (★★★★☆) — 팀ERA·팀타율·순위 전 지표 압도적(2위 vs 10위)</div></div>
+      <div class="ai-item"><div class="ai-dot ai-dot-amber"></div><div><b>3위 두산 승</b> (★★★☆☆) — 리그 최고 팀ERA(3.71) + 직전 곽빈 호투, KT 선발 표본 부족(0승2패, 23이닝)</div></div>
+    </div>
+  </div>
+
+  <div class="sc">
+    <div class="sc-title">주의 사항 <span class="sub">이변 가능성</span></div>
+    <div class="tbl-wrap"><table><thead><tr><th class="l">경기</th><th class="l">주의 내용</th><th class="c">위험도</th></tr></thead><tbody>
+      <tr><td class="l">롯데 vs KIA</td><td class="l">광주 강수확률 60% — 경기 지연·취소 가능성, KIA 선발도 미확정</td><td class="c"><span class="badge bdg-red">높음</span></td></tr>
+      <tr><td class="l">한화 vs SSG</td><td class="l">양팀 선발투수 모두 공식 미확인 — 픽 신뢰도 자체가 낮음</td><td class="c"><span class="badge bdg-red">높음</span></td></tr>
+      <tr><td class="l">삼성 vs 키움</td><td class="l">양팀 선발투수 모두 공식 미확인</td><td class="c"><span class="badge bdg-amber">중</span></td></tr>
+      <tr><td class="l">두산 vs KT</td><td class="l">KT 선발 배제성 표본 극소(23이닝)로 변동성 큼</td><td class="c"><span class="badge bdg-amber">중</span></td></tr>
+      <tr><td class="l">전 경기 공통</td><td class="l">좌우타 구성비율·득점권타율·팀OPS·홈원정 분리성적·불펜 3일 누적이닝·부상자 상세 명단 확인 불가</td><td class="c"><span class="badge bdg-gray">참고</span></td></tr>
+    </tbody></table></div>
+  </div>
+
+  <div class="sc">
+    <div class="sc-title">자체 검증 결과</div>
+    <div class="tbl-wrap"><table><thead><tr><th class="l">검증 항목</th><th class="l">상태</th><th class="l">비고</th></tr></thead><tbody>
+      <tr><td class="l">홈/원정·구장</td><td class="l"><span class="verify-ok">확인</span></td><td class="l">5경기 모두 각 구단 공식 홈페이지로 직접 확인. 당일자 newspim AI프리뷰 기사는 검색시점 미색인으로 대체 소스 사용</td></tr>
+      <tr><td class="l">선발투수 배정</td><td class="l"><span class="verify-warn">부분확인</span></td><td class="l">LG-NC·두산-KT 4명은 공식 소스 기준 확정, 비슬리는 다수 언론 보도로 신뢰도 높음. KIA·SSG·삼성·키움 4개 선발은 미확인</td></tr>
+      <tr><td class="l">픽 논리 일관성</td><td class="l"><span class="verify-ok">확인</span></td><td class="l">경기별 심층분석 판단과 종합 픽 테이블·베스트픽3 일치</td></tr>
+      <tr><td class="l">미확인 항목</td><td class="l"><span class="verify-warn">다수 존재</span></td><td class="l">선발투수 4건, 팀OPS·득점권타율·좌우타비율·홈원정분리성적·부상자 상세를 모두 명시</td></tr>
+      <tr><td class="l">오타·수치</td><td class="l"><span class="verify-ok">확인</span></td><td class="l">순위표는 두 독립 소스 완전 일치. 두산-롯데 3경기 결과는 1차 검색 불일치분을 개별 기사로 재검증</td></tr>
+    </tbody></table></div>
+  </div>
+
+</div>
+
+<!-- ============ NPB 패널 ============ -->
+<div class="panel" id="p1">
+
+  <div class="kpi-row">
+    <div class="kpi-card kpi-sky"><div class="num">6</div><div class="lbl">오늘 경기수</div></div>
+    <div class="kpi-card kpi-coral"><div class="num">세이부</div><div class="lbl">베스트픽 1순위</div></div>
+    <div class="kpi-card kpi-teal"><div class="num">★★★★★</div><div class="lbl">최고 신뢰도</div></div>
+    <div class="kpi-card kpi-amber"><div class="num">60%</div><div class="lbl">ZOZO마린 강수확률</div></div>
+  </div>
+
+  <div class="sc">
+    <div class="sc-title">오늘의 경기 일정 <span class="sub">2026-08-25 · 6경기, 전 경기 18:00</span></div>
+    <div class="sc-note">npb.jp/announcement/starter/ 공식 예고선발 페이지 직접 확인, 6개 구장 모두 홈팀 소유 구장 개별 대조 완료. 8/24(월)는 전 구단 공통 휴식일로 확인되어 오늘 전 경기 불펜 최소 1일 휴식 확보(원칙3 적용).</div>
+    <div class="tbl-wrap stock-cards-target">
+      <table>
+        <thead><tr><th class="c">#</th><th class="l">원정</th><th class="l">홈</th><th class="l">구장</th><th class="l">원정 선발(ERA)</th><th class="l">홈 선발(ERA)</th></tr></thead>
+        <tbody>
+          <tr><td class="c">1</td><td class="l">요미우리(2위)</td><td class="l">야쿠르트(4위)</td><td class="l">신궁구장</td><td class="l">노리모토 다카히로 (4.94)</td><td class="l">요시무라 코지로 (4.05)</td></tr>
+          <tr><td class="c">2</td><td class="l">한신(1위)</td><td class="l">주니치(5위)</td><td class="l">반테린돔 나고야</td><td class="l">니시 유키 (2.40)</td><td class="l">오노 유다이 (2.09)</td></tr>
+          <tr><td class="c">3</td><td class="l">DeNA(3위)</td><td class="l">히로시마(6위)</td><td class="l">마쓰다 스타디움</td><td class="l">후카자와 오스케 (2.58)</td><td class="l">도코다 히로키 (2.70)</td></tr>
+          <tr><td class="c">4</td><td class="l">닛폰햄(3위)</td><td class="l">세이부(2위)</td><td class="l">베루나돔</td><td class="l">이토 히로미 (3.20)</td><td class="l">타이라 카이마 (1.55)</td></tr>
+          <tr><td class="c">5</td><td class="l">소프트뱅크(1위)</td><td class="l">롯데(5위)</td><td class="l">ZOZO마린</td><td class="l">모이네로 (0.75)</td><td class="l">요시카와 유토 (5.40)</td></tr>
+          <tr><td class="c">6</td><td class="l">라쿠텐(6위)</td><td class="l">오릭스(4위)</td><td class="l">교세라돔 오사카</td><td class="l">이토 이츠키 (18.00)</td><td class="l">쿠리 아렌 (2.97)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="stock-cards">
+      <div class="stock-card"><div class="sc-head"><span class="sc-name">요미우리 @ 야쿠르트</span><span class="badge bdg-sky">신궁구장</span></div>
+        <div class="sc-grid"><div class="sc-item"><span class="sc-item-l">원정선발</span><span class="sc-item-v">노리모토 4.94</span></div><div class="sc-item"><span class="sc-item-l">홈선발</span><span class="sc-item-v">요시무라 4.05</span></div></div></div>
+      <div class="stock-card"><div class="sc-head"><span class="sc-name">한신 @ 주니치</span><span class="badge bdg-sky">반테린돔</span></div>
+        <div class="sc-grid"><div class="sc-item"><span class="sc-item-l">원정선발</span><span class="sc-item-v">니시유키 2.40</span></div><div class="sc-item"><span class="sc-item-l">홈선발</span><span class="sc-item-v">오노유다이 2.09</span></div></div></div>
+      <div class="stock-card"><div class="sc-head"><span class="sc-name">DeNA @ 히로시마</span><span class="badge bdg-sky">마쓰다</span></div>
+        <div class="sc-grid"><div class="sc-item"><span class="sc-item-l">원정선발</span><span class="sc-item-v">후카자와 2.58</span></div><div class="sc-item"><span class="sc-item-l">홈선발</span><span class="sc-item-v">도코다 2.70</span></div></div></div>
+      <div class="stock-card"><div class="sc-head"><span class="sc-name">닛폰햄 @ 세이부</span><span class="badge bdg-amber">낙뢰주의보</span></div>
+        <div class="sc-grid"><div class="sc-item"><span class="sc-item-l">원정선발</span><span class="sc-item-v">이토히로미 3.20</span></div><div class="sc-item"><span class="sc-item-l">홈선발</span><span class="sc-item-v">타이라카이마 1.55</span></div></div></div>
+      <div class="stock-card"><div class="sc-head"><span class="sc-name">소프트뱅크 @ 롯데</span><span class="badge bdg-red">강수확률60%</span></div>
+        <div class="sc-grid"><div class="sc-item"><span class="sc-item-l">원정선발</span><span class="sc-item-v">모이네로 0.75</span></div><div class="sc-item"><span class="sc-item-l">홈선발</span><span class="sc-item-v">요시카와유토 5.40</span></div></div></div>
+      <div class="stock-card"><div class="sc-head"><span class="sc-name">라쿠텐 @ 오릭스</span><span class="badge bdg-sky">교세라돔</span></div>
+        <div class="sc-grid"><div class="sc-item"><span class="sc-item-l">원정선발</span><span class="sc-item-v">이토이츠키 18.00</span></div><div class="sc-item"><span class="sc-item-l">홈선발</span><span class="sc-item-v">쿠리아렌 2.97</span></div></div></div>
+    </div>
+  </div>
+
+  <div class="sc">
+    <div class="sc-title">리그 순위 <span class="sub">2026-08-24 기준 npb.jp 공식</span></div>
+    <div style="font-weight:800;font-size:13px;color:var(--sky800);margin-bottom:6px;">센트럴리그</div>
+    <div class="tbl-wrap"><table><thead><tr><th class="c">순위</th><th class="l">팀</th><th>승</th><th>패</th><th>무</th><th>승률</th><th>팀ERA</th><th>팀타율</th></tr></thead><tbody>
+      <tr><td class="c">1</td><td class="l">한신</td><td>63</td><td>47</td><td>1</td><td>.572</td><td>2.88</td><td>.246</td></tr>
+      <tr><td class="c">2</td><td class="l">요미우리</td><td>60</td><td>51</td><td>2</td><td>.540</td><td>2.91</td><td>.235</td></tr>
+      <tr><td class="c">3</td><td class="l">DeNA</td><td>50</td><td>59</td><td>3</td><td>.458</td><td>3.51</td><td>.244</td></tr>
+      <tr><td class="c">4</td><td class="l">야쿠르트</td><td>50</td><td>60</td><td>1</td><td>.454</td><td>3.49</td><td>.234</td></tr>
+      <tr><td class="c">5</td><td class="l">주니치</td><td>49</td><td>65</td><td>1</td><td>.429</td><td>3.26</td><td>.228</td></tr>
+      <tr><td class="c">6</td><td class="l">히로시마</td><td>44</td><td>60</td><td>4</td><td>.423</td><td>3.34</td><td>.227</td></tr>
+    </tbody></table></div>
+    <div style="font-weight:800;font-size:13px;color:var(--sky800);margin:14px 0 6px;">퍼시픽리그</div>
+    <div class="tbl-wrap"><table><thead><tr><th class="c">순위</th><th class="l">팀</th><th>승</th><th>패</th><th>무</th><th>승률</th><th>팀ERA</th><th>팀타율</th></tr></thead><tbody>
+      <tr><td class="c">1</td><td class="l">소프트뱅크</td><td>69</td><td>41</td><td>2</td><td>.627</td><td>3.08</td><td>.258</td></tr>
+      <tr><td class="c">2</td><td class="l">세이부</td><td>65</td><td>48</td><td>3</td><td>.575</td><td>2.85</td><td>.246</td></tr>
+      <tr><td class="c">3</td><td class="l">닛폰햄</td><td>63</td><td>52</td><td>1</td><td>.547</td><td>3.31</td><td>.251</td></tr>
+      <tr><td class="c">4</td><td class="l">오릭스</td><td>55</td><td>57</td><td>2</td><td>.491</td><td>3.81</td><td>.245</td></tr>
+      <tr><td class="c">5</td><td class="l">롯데</td><td>51</td><td>55</td><td>3</td><td>.481</td><td>3.74</td><td>.237</td></tr>
+      <tr><td class="c">6</td><td class="l">라쿠텐</td><td>43</td><td>67</td><td>1</td><td>.390</td><td>3.76</td><td>.240</td></tr>
+    </tbody></table></div>
+  </div>
+
+  <div class="sc">
+    <div class="sc-title">선발투수 성적 <span class="sub">ERA 오름차순</span></div>
+    <div class="tbl-wrap"><table><thead><tr><th class="l">투수</th><th class="l">팀</th><th>승-패</th><th>ERA</th><th>WHIP</th><th class="l">비고</th></tr></thead><tbody>
+      <tr><td class="l">모이네로</td><td class="l">소프트뱅크</td><td>2-0</td><td>0.75</td><td>0.58</td><td class="l">원래 마무리, 선발전환 2경기(8/11 첫선발 6이닝 무실점)</td></tr>
+      <tr><td class="l">타이라 카이마</td><td class="l">세이부</td><td>9-3</td><td>1.55</td><td>1.04</td><td class="l">오늘 등판 12명 중 최고 성적</td></tr>
+      <tr><td class="l">오노 유다이</td><td class="l">주니치</td><td>8-4</td><td>2.09</td><td>0.96</td><td class="l">8/11·8/18 2경기 연속 QS승</td></tr>
+      <tr><td class="l">니시 유키</td><td class="l">한신</td><td>3-2</td><td>2.40</td><td>1.13</td><td class="l">표본 6경기로 적음</td></tr>
+      <tr><td class="l">후카자와 오스케</td><td class="l">DeNA</td><td>4-1</td><td>2.58</td><td>1.20</td><td class="l">8/2 5.1이닝 1실점</td></tr>
+      <tr><td class="l">도코다 히로키</td><td class="l">히로시마</td><td>4-4</td><td>2.70</td><td>1.28</td><td class="l">최근 등판 세부 미확인</td></tr>
+      <tr><td class="l">쿠리 아렌</td><td class="l">오릭스</td><td>8-8</td><td>2.97</td><td>1.21</td><td class="l">8/18 직전등판 3.1이닝 6실점, 시즌 최악</td></tr>
+      <tr><td class="l">이토 히로미</td><td class="l">닛폰햄</td><td>8-8</td><td>3.20</td><td>1.27</td><td class="l">8/18 3이닝 5실점, 8경기 연속 무승</td></tr>
+      <tr><td class="l">요시무라 코지로</td><td class="l">야쿠르트</td><td>4-8</td><td>4.05</td><td>1.07</td><td class="l">8/18 7이닝 1실점 호투</td></tr>
+      <tr><td class="l">노리모토 다카히로</td><td class="l">요미우리</td><td>2-4</td><td>4.94</td><td>1.47</td><td class="l">이적 후 부진, 부상·우천으로 등판 간격 김</td></tr>
+      <tr><td class="l">요시카와 유토</td><td class="l">롯데</td><td>0-1</td><td>5.40</td><td>1.60</td><td class="l">커리어 통산 1경기(8/21 데뷔 첫승), 표본 극소</td></tr>
+      <tr><td class="l">이토 이츠키</td><td class="l">라쿠텐</td><td>0-0</td><td>18.00</td><td>3.00</td><td class="l">2025 드래프트 2위 신인, 커리어 통산 1경기(2이닝)</td></tr>
+    </tbody></table></div>
+  </div>
+
+  <div class="sc-title" style="margin:20px 4px 8px;">경기별 심층 분석</div>
+
+  <div class="sc">
+    <div class="game-hd"><div class="game-title">경기1: 요미우리 vs 야쿠르트</div><div class="game-sub">신궁구장 · 컴팩트, 타자 유리</div></div>
+    <div class="tbl-wrap"><table><thead><tr><th class="l">구분</th><th class="l">요미우리(원정)</th><th class="l">야쿠르트(홈)</th></tr></thead><tbody>
+      <tr><td class="l">선발 ERA/WHIP</td><td class="l">4.94 / 1.47</td><td class="l">4.05 / 1.07</td></tr>
+      <tr><td class="l">팀ERA/팀타율</td><td class="l">2.91(2위) / .235</td><td class="l">3.49(4위) / .234</td></tr>
+      <tr><td class="l">직전3경기(개별확인)</td><td class="l">8/21 승(2-0)·8/22 승(5-0)·8/23 패(2-3) → 2승1패</td><td class="l">8/21 패(0-3)·8/22 패(4-5)·8/23 패(2-3) → 0승3패(주니치전 스윕패)</td></tr>
+      <tr><td class="l">시즌 상대전적</td><td class="l">9승10패</td><td class="l">10승9패(근소 우위)</td></tr>
+      <tr><td class="l">부상/결장</td><td class="l">에이스 야마자키 이오리 우측 어깨 상태불량으로 등판 회피</td><td class="l">특이사항 없음</td></tr>
+    </tbody></table></div>
+    <div class="variable-box"><b>변수</b> — 야쿠르트 3연패 중인 팀 분위기, 요미우리 전체 전력 우위. 신궁구장은 도쿄 강수확률 10~20%로 지장 없음.</div>
+    <div class="verdict-box"><span class="badge bdg-amber">우세</span><span class="verdict-team">야쿠르트 (근소)</span><span class="verdict-reason">홈 이점 + 선발 매치업 우위(4.05 vs 4.94) + 시즌 상대전적 근소 우위</span></div>
+    <div style="margin-top:8px;display:flex;align-items:center;gap:8px;"><span class="stars">★★☆☆☆</span><span class="badge bdg-amber">프로토픽: 야쿠르트 승(박빙)</span></div>
+  </div>
+
+  <div class="sc">
+    <div class="game-hd"><div class="game-title">경기2: 한신 vs 주니치</div><div class="game-sub">반테린돔 나고야 · 돔구장, 투수 유리</div></div>
+    <div class="tbl-wrap"><table><thead><tr><th class="l">구분</th><th class="l">한신(원정)</th><th class="l">주니치(홈)</th></tr></thead><tbody>
+      <tr><td class="l">선발 ERA/WHIP</td><td class="l">2.40 / 1.13</td><td class="l">2.09 / 0.96</td></tr>
+      <tr><td class="l">팀ERA/팀타율</td><td class="l">2.88(리그1위) / .246(리그최고)</td><td class="l">3.26(5위) / .228</td></tr>
+      <tr><td class="l">직전3경기(개별확인)</td><td class="l">8/21 승(4-1)·8/22 우천중지·8/23 승(5-3) → 2연승</td><td class="l">8/21 승(3-0)·8/22 승(5-4)·8/23 승(3-2) → 3연승(야쿠르트 스윕)</td></tr>
+      <tr><td class="l">시즌 상대전적</td><td class="l">13승6패(압도)</td><td class="l">6승13패</td></tr>
+    </tbody></table></div>
+    <div class="variable-box"><b>변수</b> — 주니치 최근 3연승했지만 상대가 하위권 야쿠르트였다는 점 감안 필요. 오노(2.09)의 절정 컨디션은 위협 요소.</div>
+    <div class="verdict-box"><span class="badge bdg-teal">우세</span><span class="verdict-team">한신</span><span class="verdict-reason">시즌 상대전적 압도적 우위(13-6), 리그 1위 전력, 팀 타격 지표 우위</span></div>
+    <div style="margin-top:8px;display:flex;align-items:center;gap:8px;"><span class="stars">★★★★☆</span><span class="badge bdg-teal">프로토픽: 한신 승</span></div>
+  </div>
+
+  <div class="sc">
+    <div class="game-hd"><div class="game-title">경기3: DeNA vs 히로시마</div><div class="game-sub">마쓰다 스타디움 · 중립</div></div>
+    <div class="tbl-wrap"><table><thead><tr><th class="l">구분</th><th class="l">DeNA(원정)</th><th class="l">히로시마(홈)</th></tr></thead><tbody>
+      <tr><td class="l">선발 ERA/WHIP</td><td class="l">2.58 / 1.20</td><td class="l">2.70 / 1.28</td></tr>
+      <tr><td class="l">팀ERA/팀타율</td><td class="l">3.51(최다실점 허용) / .244</td><td class="l">3.34 / .227(리그 최저)</td></tr>
+      <tr><td class="l">직전3경기(개별확인)</td><td class="l">8/20 패(3-6)·8/21 패(1-4)·8/23 패(3-5) → 3연패</td><td class="l">8/21 패(0-2)·8/22 패(0-5)·8/23 승(3-2) → 1승2패</td></tr>
+      <tr><td class="l">시즌 상대전적</td><td class="l">11승5패2무(우세)</td><td class="l">5승11패2무</td></tr>
+      <tr><td class="l">부상/결장</td><td class="l">특이사항 없음</td><td class="l">주전 유격수 오조노 카이토 부진으로 8/18 2군행</td></tr>
+    </tbody></table></div>
+    <div class="variable-box"><b>변수</b> — 마쓰다 스타디움 폭염(최고37도), 강수확률 낮음. DeNA 3연패 침체 vs 히로시마 최근10경기 우위로 이변 가능성 있는 경기.</div>
+    <div class="verdict-box"><span class="badge bdg-amber">우세</span><span class="verdict-team">DeNA (근소, 확신도 낮음)</span><span class="verdict-reason">시즌 상대전적·팀 타력 우위이나 3연패 중 침체로 확신도 낮음</span></div>
+    <div style="margin-top:8px;display:flex;align-items:center;gap:8px;"><span class="stars">★★☆☆☆</span><span class="badge bdg-amber">프로토픽: DeNA 승(박빙)</span></div>
+  </div>
+
+  <div class="sc">
+    <div class="game-hd"><div class="game-title">경기4: 닛폰햄 vs 세이부</div><div class="game-sub">베루나돔 · 개방형 지붕, 타자 유리</div></div>
+    <div class="tbl-wrap"><table><thead><tr><th class="l">구분</th><th class="l">닛폰햄(원정)</th><th class="l">세이부(홈)</th></tr></thead><tbody>
+      <tr><td class="l">선발 ERA/WHIP</td><td class="l">3.20 / 1.27</td><td class="l">1.55 / 1.04</td></tr>
+      <tr><td class="l">팀ERA/팀타율</td><td class="l">3.31 / .251(리그2위)</td><td class="l">2.85(리그1위) / .246</td></tr>
+      <tr><td class="l">직전3경기(개별확인)</td><td class="l">8/20 무(5-5)·8/21 패(3-4)·8/23 패(2-3) → 2연패</td><td class="l">8/21 승(6-4)·8/22 승(2-0)·8/23 승(3-1) → 3연승(라쿠텐 스윕)</td></tr>
+      <tr><td class="l">시즌 상대전적</td><td class="l">11승9패(우세)</td><td class="l">9승11패</td></tr>
+      <tr><td class="l">부상/결장</td><td class="l">주포 만파 나카마사 좌복사근 부상 이탈(6~8주 예상)</td><td class="l">외야진 다수 이탈 중이나 스타급 결장은 상대적으로 적음</td></tr>
+    </tbody></table></div>
+    <div class="variable-box"><b>주의</b> — 사이타마 지역 낙뢰주의보 발효, 오후 뇌우 가능성(돔형이라 취소 가능성은 낮음). 닛폰햄 에이스 이토 히로미 8경기 연속 무승 + 주포 만파 이탈로 타선 약화.</div>
+    <div class="verdict-box"><span class="badge bdg-teal">우세</span><span class="verdict-team">세이부</span><span class="verdict-reason">선발 압도적 우위(1.55) + 3연승 기세 + 팀ERA 리그1위 + 상대 에이스 부진·주포 이탈</span></div>
+    <div style="margin-top:8px;display:flex;align-items:center;gap:8px;"><span class="stars">★★★★★</span><span class="badge bdg-teal">프로토픽: 세이부 승</span></div>
+  </div>
+
+  <div class="sc">
+    <div class="game-hd"><div class="game-title">경기5: 소프트뱅크 vs 롯데</div><div class="game-sub">ZOZO마린 · 해풍 변수, 투수 유리</div></div>
+    <div class="tbl-wrap"><table><thead><tr><th class="l">구분</th><th class="l">소프트뱅크(원정)</th><th class="l">롯데(홈)</th></tr></thead><tbody>
+      <tr><td class="l">선발 ERA/WHIP</td><td class="l">0.75 / 0.58</td><td class="l">5.40 / 1.60</td></tr>
+      <tr><td class="l">팀ERA/팀타율</td><td class="l">3.08 / .258(리그1위)</td><td class="l">3.74 / .237(리그 최저)</td></tr>
+      <tr><td class="l">직전3경기(개별확인)</td><td class="l">8/20 무(5-5)·8/22 승(7-1)·8/23 패(0-3) → 1승1무1패</td><td class="l">8/20 승(4-3)·8/21 승(4-3)·8/23 승(3-2) → 3연승(닛폰햄 스윕)</td></tr>
+      <tr><td class="l">시즌 상대전적</td><td class="l">11승5패(압도)</td><td class="l">5승11패</td></tr>
+    </tbody></table></div>
+    <div class="variable-box"><b>주의</b> — ZOZO마린 강수확률 60%(우천 취소·중단 가능성), 풍속 수치 미확인. 모이네로는 원래 마무리로 선발 표본 2경기뿐이라 변동성 존재.</div>
+    <div class="verdict-box"><span class="badge bdg-teal">우세</span><span class="verdict-team">소프트뱅크</span><span class="verdict-reason">리그 최강 타선 + 시즌 상대전적 압도(11-5) + 선발 매치업 우위, 단 강수 변수 주의</span></div>
+    <div style="margin-top:8px;display:flex;align-items:center;gap:8px;"><span class="stars">★★★★☆</span><span class="badge bdg-teal">프로토픽: 소프트뱅크 승</span></div>
+  </div>
+
+  <div class="sc">
+    <div class="game-hd"><div class="game-title">경기6: 라쿠텐 vs 오릭스</div><div class="game-sub">교세라돔 오사카 · 돔구장, 투수 유리</div></div>
+    <div class="tbl-wrap"><table><thead><tr><th class="l">구분</th><th class="l">라쿠텐(원정)</th><th class="l">오릭스(홈)</th></tr></thead><tbody>
+      <tr><td class="l">선발 ERA/WHIP</td><td class="l">18.00 / 3.00 (표본 2이닝)</td><td class="l">2.97 / 1.21</td></tr>
+      <tr><td class="l">팀ERA/팀타율</td><td class="l">3.76 / .240</td><td class="l">3.81 / .245</td></tr>
+      <tr><td class="l">직전3경기(개별확인)</td><td class="l">8/21 패(4-6)·8/22 패(0-2)·8/23 패(1-3) → 3연패(세이부에 스윕, 실질 4연패)</td><td class="l">8/20 승(3-1)·8/22 패(1-7)·8/23 승(3-0) → 2승1패</td></tr>
+      <tr><td class="l">시즌 상대전적</td><td class="l">10승8패(라쿠텐 우세)</td><td class="l">8승10패</td></tr>
+      <tr><td class="l">특이사항</td><td class="l">선발 이토 이츠키는 통산 1경기(2이닝4실점)뿐인 신인, 8/24 4명 말소</td><td class="l">에이스 미야기 히코마 시즌아웃(토미존 수술, 오늘과 무관)</td></tr>
+    </tbody></table></div>
+    <div class="variable-box"><b>변수</b> — 시즌 상대전적은 라쿠텐이 근소 우세(10-8)로 순위와 반대. 라쿠텐 선발의 극단적 표본 부족이 최대 변수.</div>
+    <div class="verdict-box"><span class="badge bdg-amber">우세</span><span class="verdict-team">오릭스 (근소)</span><span class="verdict-reason">홈 구장 이점, 라쿠텐 4연패 침체, 라쿠텐 선발의 극소 표본·불확실성</span></div>
+    <div style="margin-top:8px;display:flex;align-items:center;gap:8px;"><span class="stars">★★★☆☆</span><span class="badge bdg-amber">프로토픽: 오릭스 승</span></div>
+  </div>
+
+  <div class="sc">
+    <div class="sc-title">종합 픽 테이블</div>
+    <div class="tbl-wrap stock-cards-target">
+      <table><thead><tr><th class="l">경기</th><th class="l">예상 우세팀</th><th class="c">신뢰도</th></tr></thead><tbody>
+        <tr><td class="l">닛폰햄 @ 세이부</td><td class="l">세이부</td><td class="c"><span class="stars">★★★★★</span></td></tr>
+        <tr><td class="l">소프트뱅크 @ 롯데</td><td class="l">소프트뱅크</td><td class="c"><span class="stars">★★★★☆</span></td></tr>
+        <tr><td class="l">한신 @ 주니치</td><td class="l">한신</td><td class="c"><span class="stars">★★★★☆</span></td></tr>
+        <tr><td class="l">라쿠텐 @ 오릭스</td><td class="l">오릭스</td><td class="c"><span class="stars">★★★☆☆</span></td></tr>
+        <tr><td class="l">DeNA @ 히로시마</td><td class="l">DeNA</td><td class="c"><span class="stars">★★☆☆☆</span></td></tr>
+        <tr><td class="l">요미우리 @ 야쿠르트</td><td class="l">야쿠르트</td><td class="c"><span class="stars">★★☆☆☆</span></td></tr>
+      </tbody></table>
+    </div>
+  </div>
+
+  <div class="ai-sc">
+    <div class="ai-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg> 오늘의 베스트 픽 3<span class="badge bdg-sky ai-badge" style="font-size:11px">AI 분석</span></div>
+    <div class="ai-list">
+      <div class="ai-item"><div class="ai-dot ai-dot-teal"></div><div><b>1위 세이부 승</b> (★★★★★) — 오늘 등판 12명 선발 중 최고 성적(ERA1.55)의 타이라, 3연승 기세, 상대 에이스 8경기 무승+주포 이탈</div></div>
+      <div class="ai-item"><div class="ai-dot ai-dot-sky"></div><div><b>2위 한신 승</b> (★★★★☆) — 리그 1위 전력, 시즌 상대전적 13승6패 압도, 팀 타격지표 최상위</div></div>
+      <div class="ai-item"><div class="ai-dot ai-dot-amber"></div><div><b>3위 소프트뱅크 승</b> (★★★★☆) — 리그 최강 타선(OPS 추정 최상위)·시즌 상대전적 11승5패, 단 ZOZO마린 강수확률 60%는 변수로 유의</div></div>
+    </div>
+  </div>
+
+  <div class="sc">
+    <div class="sc-title">주의 사항 <span class="sub">이변 가능성</span></div>
+    <div class="tbl-wrap"><table><thead><tr><th class="l">경기</th><th class="l">주의 내용</th><th class="c">위험도</th></tr></thead><tbody>
+      <tr><td class="l">소프트뱅크 vs 롯데</td><td class="l">ZOZO마린 강수확률 60% — 우천 지연·중단 가능성, 풍속(해풍) 수치 미확인</td><td class="c"><span class="badge bdg-red">높음</span></td></tr>
+      <tr><td class="l">닛폰햄 vs 세이부</td><td class="l">사이타마 지역 낙뢰주의보 발효(뇌우 가능성), 단 돔형 구조로 취소 가능성은 낮음</td><td class="c"><span class="badge bdg-amber">중</span></td></tr>
+      <tr><td class="l">DeNA vs 히로시마</td><td class="l">DeNA 3연패 vs 히로시마 최근10경기 우위로 픽 신뢰도 낮은 박빙 경기</td><td class="c"><span class="badge bdg-amber">중</span></td></tr>
+      <tr><td class="l">요미우리 vs 야쿠르트</td><td class="l">양팀 최근10경기 동률(5승5패), 순수 박빙 경기</td><td class="c"><span class="badge bdg-amber">중</span></td></tr>
+      <tr><td class="l">라쿠텐 vs 오릭스</td><td class="l">시즌 상대전적은 라쿠텐 우세, 순위와 반대 결과 가능성 있음</td><td class="c"><span class="badge bdg-amber">중</span></td></tr>
+      <tr><td class="l">전 경기 공통</td><td class="l">타선 좌우타 구성비율, 팀 득점권타율, 홈/원정 세부 성적(분리치) 미확인</td><td class="c"><span class="badge bdg-gray">참고</span></td></tr>
+    </tbody></table></div>
+  </div>
+
+  <div class="sc">
+    <div class="sc-title">자체 검증 결과</div>
+    <div class="tbl-wrap"><table><thead><tr><th class="l">검증 항목</th><th class="l">상태</th><th class="l">비고</th></tr></thead><tbody>
+      <tr><td class="l">홈/원정·구장</td><td class="l"><span class="verify-ok">확인</span></td><td class="l">npb.jp/announcement/starter/ 직접 확인 후, 6개 구장 모두 홈팀 소유 구장임을 개별 대조하여 재검증</td></tr>
+      <tr><td class="l">선발투수 배정</td><td class="l"><span class="verify-ok">확인</span></td><td class="l">12명 선발 전원 npb.jp 개인 페이지에서 소속팀·시즌성적 직접 확인</td></tr>
+      <tr><td class="l">픽 논리 일관성</td><td class="l"><span class="verify-ok">확인</span></td><td class="l">경기별 심층분석 우세팀과 종합픽테이블·베스트픽3 일치</td></tr>
+      <tr><td class="l">미확인 항목</td><td class="l"><span class="verify-warn">다수 존재</span></td><td class="l">니시유키·도코다 최근 등판 세부, 전 팀 홈/원정 분리성적, 타선 좌우타 비율·득점권타율, ZOZO마린 풍속</td></tr>
+      <tr><td class="l">오타·수치</td><td class="l"><span class="verify-ok">확인</span></td><td class="l">한국어 팀명 표기 규칙 준수, ERA·WHIP 수치 npb.jp 원자료 기준 재계산 검증</td></tr>
+    </tbody></table></div>
+  </div>
+
+</div>
+
+</div></div>
+
+<script>
+function showTab(i){
+  document.querySelectorAll('.panel').forEach((p,j)=>p.classList.toggle('on',j===i));
+  document.querySelectorAll('.tab-btn').forEach((t,j)=>t.classList.toggle('on',j===i));
+}
+document.querySelectorAll('.tab-btn[data-tab]').forEach(btn=>{
+  btn.addEventListener('click',()=>showTab(parseInt(btn.dataset.tab)));
+  btn.addEventListener('touchend',e=>{e.preventDefault();showTab(parseInt(btn.dataset.tab));});
+});
+function openSettingsModal(){ document.getElementById('settingsModal').classList.add('modal-open'); syncThemeOptUI(); }
+function closeSettingsModal(){ document.getElementById('settingsModal').classList.remove('modal-open'); }
+function setTheme(t){
+  document.documentElement.setAttribute('data-theme', t);
+  try{ localStorage.setItem('theme', t); }catch(e){}
+  syncThemeOptUI();
+}
+function syncThemeOptUI(){
+  const cur = document.documentElement.getAttribute('data-theme');
+  document.getElementById('theme-opt-dark')?.classList.toggle('on', cur === 'dark');
+  document.getElementById('theme-opt-light')?.classList.toggle('on', cur === 'light');
+}
+syncThemeOptUI();
+</script>
+</body>
+</html>

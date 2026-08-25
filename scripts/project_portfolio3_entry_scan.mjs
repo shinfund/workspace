@@ -201,17 +201,22 @@ async function httpPostJson(url, body, headers) {
     req.on('error', rej); req.write(data); req.end();
   });
 }
-async function refetchHeldCode(pageId) {
+async function refetchHeldRow(pageId) {
   try {
     const page = await new Promise((res, rej) => {
       https.get(`https://api.notion.com/v1/pages/${pageId}`, { headers: { 'Authorization': `Bearer ${NOTION_TOKEN}`, 'Notion-Version': '2022-06-28' } }, r => {
         let d = ''; r.on('data', c => d += c); r.on('end', () => { try { res(JSON.parse(d)); } catch (e) { rej(e); } });
       }).on('error', rej);
     });
-    return (page?.properties?.['종목코드']?.rich_text?.[0]?.plain_text || '').trim();
-  } catch { return ''; }
+    return {
+      code: (page?.properties?.['종목코드']?.rich_text?.[0]?.plain_text || '').trim(),
+      qty: Number(page?.properties?.['보유수량']?.number || 0),
+      strategy: page?.properties?.['전략']?.select?.name || null,
+    };
+  } catch { return null; }
 }
 async function fetchHeldCodes() {
+  // 빈슬롯은 3전략(눌림목/괴리율/라운드넘버) 5슬롯 공유자본 기준 — 매도완료(보유수량 0)나 기준선 전략(축소·배제 대상) 보유분은 슬롯 점유로 세지 않는다.
   if (!NOTION_TOKEN) { console.error('[Notion] NOTION_TOKEN 없음 — 빈슬롯 계산 불가, 5슬롯 전부 빈 것으로 가정'); return new Set(); }
   const data = await httpPostJson(`https://api.notion.com/v1/databases/${HOLDINGS_DB_ID}/query`, { sorts: [{ property: '날짜', direction: 'descending' }], page_size: 200 }, { 'Authorization': `Bearer ${NOTION_TOKEN}`, 'Notion-Version': '2022-06-28' });
   if (!data?.results?.length) return new Set();
@@ -222,8 +227,13 @@ async function fetchHeldCodes() {
   const codes = [];
   for (const p of rows) {
     let code = (p.properties['종목코드']?.rich_text?.[0]?.plain_text || '').trim();
-    if (!code) code = await refetchHeldCode(p.id); // rich_text가 인덱싱 지연으로 비어있는 경우 재조회
-    if (code) codes.push(code);
+    let qty = Number(p.properties['보유수량']?.number || 0);
+    let strategy = p.properties['전략']?.select?.name || null;
+    if (!code) { // rich_text가 인덱싱 지연으로 비어있는 경우 재조회
+      const refetched = await refetchHeldRow(p.id);
+      if (refetched) { code = refetched.code; qty = refetched.qty; strategy = refetched.strategy; }
+    }
+    if (code && qty > 0 && strategy !== '기준선') codes.push(code);
   }
   return new Set(codes);
 }
