@@ -197,15 +197,19 @@ function printSection(title, rows, sk, dateInfo) {
   const wide = TERM_W >= 160;
   console.error(`\n━━━ ${title}  [${dateInfo}] ━━━`);
   if (wide) {
-    console.error(`${'#'.padStart(2)}  코드    종목명              현재가      등락률  거래량(만)   거래대금      회전율(%)     시총     캔  시가          고가          저가        변동폭  시가대비`);
+    console.error(`${'#'.padStart(2)}  코드    종목명         현재가      등락률  거래량(만)   거래대금      회전율(%)     시총     캔  시가          고가          저가        변동폭  시가대비`);
     console.error('─'.repeat(150));
   } else {
-    console.error(`${'#'.padStart(2)}  코드    종목명              현재가      등락률  거래량(만)   거래대금      회전율(%)     시총`);
+    console.error(`${'#'.padStart(2)}  코드    종목명         현재가      등락률  거래량(만)   거래대금      회전율(%)     시총`);
     console.error('─'.repeat(95));
   }
+  const NM_WIDTH = 13;
   rows.forEach((st,i)=>{
     const m=mark(st.등락률);
-    const nm=(m+st.종목명).padEnd(18);
+    const rawNm=m+st.종목명;
+    // 종목명이 컬럼폭을 넘으면 그 컬럼만 다음 줄로 줄바꿈 — 나머지 수치 컬럼은 항상 원래 한 줄에 유지
+    const nm=rawNm.length>NM_WIDTH ? rawNm.slice(0,NM_WIDTH) : rawNm.padEnd(NM_WIDTH);
+    const nmOverflow=rawNm.length>NM_WIDTH ? rawNm.slice(NM_WIDTH) : null;
     const clr = st.등락률>0 ? RED : st.등락률<0 ? BLUE : GRAY;
     const price=`${clr}${st.현재가.toLocaleString().padStart(10)}${RST}`;
     const chg=`${clr}${`${st.등락률>=0?'+':''}${st.등락률}`.padStart(7)}%${RST}`;
@@ -213,8 +217,10 @@ function printSection(title, rows, sk, dateInfo) {
     const tr=fmtTrade(st.거래대금).padStart(9);
     const rot=`${st.회전율.toFixed(2)}%`.padStart(8);
     const mc=`${(st._mktcap/1e12).toFixed(1)}조`.padStart(9);
-    const core=`${String(i+1).padStart(2)}  ${st.종목코드}  ${nm}  ${price}  ${chg}  ${vol}  ${tr}  ${rot}  ${mc}`;
-    if (!wide) { console.error(core); return; }
+    const rankCode=`${String(i+1).padStart(2)}  ${st.종목코드}  `;
+    const core=`${rankCode}${nm}  ${price}  ${chg}  ${vol}  ${tr}  ${rot}  ${mc}`;
+    const printOverflow=()=>{ if (nmOverflow) console.error(`${' '.repeat(rankCode.length)}${nmOverflow}`); };
+    if (!wide) { console.error(core); printOverflow(); return; }
     const candleRaw=st.시가>0?(st.현재가>st.시가?'▲':st.현재가<st.시가?'▼':'─'):' ';
     const candleClr=candleRaw==='▲'?RED:candleRaw==='▼'?BLUE:GRAY;
     const 캔들=st.시가>0?`${candleClr}${candleRaw}${RST}`:' ';
@@ -225,6 +231,7 @@ function printSection(title, rows, sk, dateInfo) {
     const sdv =st.시가>0?(st.현재가-st.시가)/st.시가*100:null;
     const sdvS=sdv!==null?`${sdv>=0?'+':''}${sdv.toFixed(1)}%`.padStart(7):' '.repeat(7);
     console.error(`${core}  ${캔들}  ${open}  ${high}  ${low}  ${vola}  ${sdvS}`);
+    printOverflow();
   });
 }
 

@@ -6,8 +6,8 @@
  *   Yahoo Finance → EMA 계산용 과거 종가(마지막날은 KIS 당일가로 덮어쓰기)
  *
  * 입력: data/holdings.json
- * 출력: 터미널 표(수익률 내림차순) — 종목명·현재가·등락률·수익률·5/20/50/100/200EMA 9컬럼(2026-08-25 확정,
- *   라운드지지·라운드저항·판단 컬럼 삭제, EMA 괴리율 앞 돌파 삼각형 ▲/▼ 표시)
+ * 출력: 터미널 표(수익률 내림차순) — 종목명·현재가·등락률·수익률·손익금·매입금·5/20/50/100/200EMA 11컬럼(2026-08-25 확정,
+ *   라운드지지·라운드저항·판단 컬럼 삭제, EMA 괴리율 앞 돌파 삼각형 ▲/▼ 표시. 손익금·매입금 컬럼은 수익률 뒤에 추가)
  */
 import https from 'https';
 import fs    from 'fs';
@@ -157,6 +157,7 @@ function fillForward(closes) {
 }
 
 function fmtWon(n) { return n != null ? Number(Math.round(n)).toLocaleString('ko-KR') : '─'; }
+function fmtWonSigned(n) { return n != null ? `${n >= 0 ? '+' : ''}${Number(Math.round(n)).toLocaleString('ko-KR')}` : '─'; }
 function fmtPct(n) { return n != null ? `${n >= 0 ? '+' : ''}${n.toFixed(2)}%` : '─'; }
 function fmtDev(n, marker) { return n == null ? '─' : `${marker ? marker + ' ' : ''}${fmtPct(n)}`; }
 
@@ -196,17 +197,17 @@ async function main() {
 
   rows.sort((a, b) => (b.손익률 ?? -Infinity) - (a.손익률 ?? -Infinity));
 
-  console.log(`\n종목명\t\t현재가\t등락률\t수익률\t${EMA_PERIODS.map(p => `${p}EMA`).join('\t')}`);
+  console.log(`\n종목명\t\t현재가\t등락률\t수익률\t손익금\t매입금\t${EMA_PERIODS.map(p => `${p}EMA`).join('\t')}`);
   let 총매입 = 0, 총평가 = 0;
   for (const r of rows) {
     총매입 += r.매입금액;
     if (r.평가금액 != null) 총평가 += r.평가금액;
     const emaCols = EMA_PERIODS.map(p => fmtDev(r.dev[p], r.cross[p])).join('\t');
-    console.log(`${r.종목명}\t${fmtWon(r.현재가)}\t${fmtPct(r.등락률)}\t${fmtPct(r.손익률)}\t${emaCols}`);
+    console.log(`${r.종목명}\t${fmtWon(r.현재가)}\t${fmtPct(r.등락률)}\t${fmtPct(r.손익률)}\t${fmtWonSigned(r.손익)}\t${fmtWon(r.매입금액)}\t${emaCols}`);
   }
   const 총손익 = 총평가 - 총매입;
   const 총손익률 = (총손익 / 총매입) * 100;
-  console.log(`\n합계\t\t\t\t${fmtPct(총손익률)}`);
+  console.log(`\n합계\t\t\t\t${fmtPct(총손익률)}\t${fmtWonSigned(총손익)}\t${fmtWon(총매입)}`);
 }
 
 main().catch(e => { console.error(e); process.exit(1); });
