@@ -21,8 +21,9 @@
 //    EMA5이탈 잔량전량·시간청산20일, 라운드넘버 STOP(레벨×98%)·TP(레벨+step)·시간청산60일(부분매도 없음).
 //
 // 사용법: node scripts/project_3strategy_combined_portfolio_backtest.mjs [--from 2019-08-27] [--to 2026-08-25] [--month 2026-08]
-//   --month(기본: 이번달 KST): 그 달만 별도로 두 방식으로 집계 — ① 전체기간 복리 실행 결과에서 그 달분만 발췌(실제 슬롯예산)
-//   ② 그 달 1일 00:00에 1,000만원/5슬롯으로 새로 리셋한 "격리 시뮬레이션"(월 중 슬롯예산은 여전히 그 격리풀 안에서 복리)
+//   --month(기본: 이번달 KST): 그 달만 별도로 두 방식으로 집계 — ① 전체기간 복리 실행 결과에서 그 달분만 발췌(슬롯예산=운용자산/5, 계속 성장)
+//   ② 슬롯당 고정 200만원(5슬롯=1,000만원 예산) 전체기간 연속 시뮬레이션 결과에서 그 달분만 발췌 — 월초 리셋 없이
+//      2019-08-27부터 쭉 이어지되, 슬롯예산이 복리로 커지지 않고 실전 운용방침(2026-08-25 확정)과 동일하게 항상 200만원 고정(2026-08-26 변경)
 import https from 'https';
 
 const YF_HEADERS = {
@@ -269,7 +270,7 @@ function monthEndDate(monthStr) {
 // 이벤트드리븐 포지션/자본 시뮬레이션 — calendarSlice·startCapital만 바꾸면 "전체기간 복리" 실행과
 // "특정월 1,000만원 리셋" 격리실행을 동일 로직으로 재사용(진입시그널 사전계산 데이터 pbData/dvData/rnData는
 // 자본과 무관하므로 공유). snapshotTargets 지정 시 해당 날짜 직전 거래일 종가 기준 시가평가 스냅샷도 반환.
-function runPortfolioSim(calendarSlice, startCapital, ctx, snapshotTargets = []) {
+function runPortfolioSim(calendarSlice, startCapital, ctx, snapshotTargets = [], fixedSlotBudget = null) {
   const { byCode, idxMap, pbData, dvData, rnData } = ctx;
   let cash = startCapital;
   let costBasisTotal = 0;
@@ -400,7 +401,7 @@ function runPortfolioSim(calendarSlice, startCapital, ctx, snapshotTargets = [])
       if (openSlots <= 0) { skipCount++; continue; }
       if (held.has(cand.s.code)) { continue; } // 같은 날 다른 전략이 이미 선점
       const price = cand.st.closes[cand.i];
-      const budget = runningCapital() / SLOTS;
+      const budget = fixedSlotBudget != null ? Math.min(fixedSlotBudget, cash) : runningCapital() / SLOTS;
       const shares = Math.floor(budget / price);
       if (shares <= 0) { skipCount++; continue; }
       const investedTotal = shares * price;
@@ -535,33 +536,33 @@ async function main() {
   }
   printWeeklyTable('전체(3전략 합계)', compoundedMonthTrades);
 
-  // (B) 이번달만 1,000만원(5슬롯×200만원)으로 리셋한 격리 시뮬레이션 — "고정 1,000만원 기초자산" 요청 반영.
-  // 진입시그널 사전계산(pbData/dvData/rnData)은 자본과 무관해 그대로 재사용, 자본·슬롯 점유만 월초부터 새로 시작.
-  // 월 중 슬롯 예산은 여전히 (해당 격리풀의 현금+원가)/5로 복리 계산됨 — "고정 200만원 매 거래"가 아니라
-  // "이번달만 1,000만원으로 새로 시작한 5슬롯 풀"이라는 뜻(2026-08-25 사용자 재확정).
-  const monthCalendar = calendar.filter(d => d >= monthStart && d <= isolatedTo);
-  console.error(`[5/5] ${targetMonth} 격리(1,000만원 리셋) 시뮬레이션 실행 중...`);
-  const isolatedRun = runPortfolioSim(monthCalendar, START_CAPITAL, ctx);
-  console.error(`[5/5] 완료 — 청산 ${isolatedRun.trades.length}건, 미청산 ${isolatedRun.finalPositions.length}건, 슬롯부족 스킵 ${isolatedRun.skipCount}건`);
+  // (B) 슬롯당 고정 200만원(5슬롯=1,000만원) 예산 — 월초 리셋 없이 전체기간 연속 시뮬레이션(실전 운용방침과 동일한
+  // 고정 슬롯예산, 2026-08-25 확정). 진입시그널 사전계산은 자본과 무관해 그대로 재사용, 슬롯 예산만 복리로 커지지
+  // 않고 매 진입 시 항상 200만원(현금 부족 시 남은 현금까지만)으로 고정. 여기서 해당월 청산분만 발췌해 집계.
+  const FIXED_SLOT_BUDGET = 2_000_000;
+  console.error(`[5/5] 슬롯당 고정 ${fmtWon(FIXED_SLOT_BUDGET)}원 전체기간 시뮬레이션 실행 중...`);
+  const fixedRun = runPortfolioSim(calendar, SLOTS * FIXED_SLOT_BUDGET, ctx, [], FIXED_SLOT_BUDGET);
+  console.error(`[5/5] 완료 — 청산 ${fixedRun.trades.length}건, 미청산 ${fixedRun.finalPositions.length}건, 슬롯부족 스킵 ${fixedRun.skipCount}건`);
 
-  console.log(`\n━━━ ${targetMonth} 청산 집계 — 전략별 수익금(월초 ${fmtWon(START_CAPITAL)}원 리셋, 5슬롯 격리 시뮬) ━━━`);
-  let itotN = 0, itotPnl = 0, itotInv = 0;
+  const fixedMonthTrades = fixedRun.trades.filter(t => t.exitDate >= monthStart && t.exitDate <= isolatedTo);
+  console.log(`\n━━━ ${targetMonth} 청산 집계 — 전략별 수익금(슬롯당 고정 ${fmtWon(FIXED_SLOT_BUDGET)}원, 전체기간 연속 시뮬) ━━━`);
+  let ftotN = 0, ftotPnl = 0, ftotInv = 0;
   for (const strat of ['눌림목', '괴리율', '라운드넘버']) {
-    const arr = isolatedRun.trades.filter(t => t.strategy === strat);
+    const arr = fixedMonthTrades.filter(t => t.strategy === strat);
     const pnl = arr.reduce((a, t) => a + t.realizedPnl, 0);
     const invested = arr.reduce((a, t) => a + t.investedTotal, 0);
     const stocks = new Set(arr.map(t => t.code)).size;
-    itotN += arr.length; itotPnl += pnl; itotInv += invested;
+    ftotN += arr.length; ftotPnl += pnl; ftotInv += invested;
     console.log(`  ${strat.padEnd(6)} ${String(arr.length).padStart(3)}건(${stocks}종목)  투입 ${fmtWon(invested)}원  실현손익 ${fmtWon(pnl)}원  건당평균 ${arr.length ? fmtWon(pnl / arr.length) : '─'}원`);
   }
-  const itotPct = itotInv ? (itotPnl / itotInv * 100).toFixed(2) : '0.00';
-  console.log(`  합계    ${String(itotN).padStart(3)}건  투입 ${fmtWon(itotInv)}원  실현손익 ${fmtWon(itotPnl)}원  수익률 ${itotPct}%`);
+  const ftotPct = ftotInv ? (ftotPnl / ftotInv * 100).toFixed(2) : '0.00';
+  console.log(`  합계    ${String(ftotN).padStart(3)}건  투입 ${fmtWon(ftotInv)}원  실현손익 ${fmtWon(ftotPnl)}원  수익률 ${ftotPct}%`);
 
-  console.log(`\n━━━ ${targetMonth} 전략별 주간 세부표(월초 ${fmtWon(START_CAPITAL)}원 리셋 격리 시뮬) ━━━`);
+  console.log(`\n━━━ ${targetMonth} 전략별 주간 세부표(슬롯당 고정 ${fmtWon(FIXED_SLOT_BUDGET)}원, 전체기간 연속 시뮬) ━━━`);
   for (const strat of ['눌림목', '괴리율', '라운드넘버']) {
-    printWeeklyTable(strat, isolatedRun.trades.filter(t => t.strategy === strat), '격리시뮬');
+    printWeeklyTable(strat, fixedMonthTrades.filter(t => t.strategy === strat), '고정슬롯시뮬');
   }
-  printWeeklyTable('전체(3전략 합계)', isolatedRun.trades, '격리시뮬');
+  printWeeklyTable('전체(3전략 합계)', fixedMonthTrades, '고정슬롯시뮬');
 }
 
 main().catch(e => { console.error('오류:', e.message, e.stack); process.exit(1); });
