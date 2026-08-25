@@ -98,7 +98,7 @@ function parseArgs() {
     stocks: DEFAULT_STOCKS, calendarDays: 2555,
     windowDays: 150, targetTicks: 30, minTouches: 3,
     recentLookback: 20, priorAboveDays: 5, reclaimWindow: 5,
-    stopBufferPct: 2, maxHold: 60, minEntryPositionPct: 20,
+    stopBufferPct: 2, maxHold: 60,
   };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--calendar-days') o.calendarDays = parseInt(argv[++i]);
@@ -110,7 +110,6 @@ function parseArgs() {
     if (argv[i] === '--reclaim-window') o.reclaimWindow = parseInt(argv[++i]);
     if (argv[i] === '--stop-buffer-pct') o.stopBufferPct = parseFloat(argv[++i]);
     if (argv[i] === '--max-hold') o.maxHold = parseInt(argv[++i]);
-    if (argv[i] === '--min-entry-position') o.minEntryPositionPct = parseFloat(argv[++i]);
     if (argv[i] === '--stocks') {
       o.stocks = argv[++i].split(',').map(s => {
         const [code, name, market] = s.split(':');
@@ -262,14 +261,10 @@ function detectRoundSignals(seq, highs, lows, opts) {
         // (승률55%, 중앙값+0.28% vs 정상 61%/+1.13%, project_roundnumber_entry_overshoot_backtest.mjs)
         // 라 신호에서 제외 확정.
         if (seq[f].close < L + step) {
-          // 2026-08-25 진입가 위치 필터: 진입가가 레벨가(L, 0%)~TP가(L+step, 100%) 구간 내 어디
-          // 위치하는지 계산해, 레벨가에 바짝 붙어 진입하는(하위 minEntryPositionPct% 미만) 신호는
-          // 제외 — 백테스트로 확인된 저품질(위치0~20%: 승률55%/STOP비율45% vs 20%이상: 승률67%/
-          // STOP비율33%, project_roundnumber_entry_position_backtest.mjs 참고, 20%가 perDay 최적점).
-          const entryPosition = (seq[f].close - L) / step * 100;
-          if (entryPosition >= opts.minEntryPositionPct) {
-            events.push({ entryIdx: f, level: L, step, touchCount: touch, priorAboveCount: aboveCount, breachIdx: i, entryPosition });
-          }
+          // 2026-08-25 신규 검증: 종가는 TP가(L+step) 밑이라도, 재돌파일 "고가"가 이미 TP가를
+          // 터치/돌파했는지 별도 기록(사용자 요청 — 진입신호 중 손실종목 축소 목적).
+          const tpHighTouch = highs[f] >= L + step;
+          events.push({ entryIdx: f, level: L, step, touchCount: touch, priorAboveCount: aboveCount, breachIdx: i, tpHighTouch });
         }
         break;
       }
@@ -323,7 +318,7 @@ async function backtestStock(stock, opts) {
     if (!res) continue;
     const entryEma200 = seq[ev.entryIdx].ema200;
     const uptrend = entryEma200 != null ? seq[ev.entryIdx].close >= entryEma200 : null;
-    trades.push({ name: stock.name, market: stock.market, entryDate: seq[ev.entryIdx].date, level: ev.level, touchCount: ev.touchCount, priorAboveCount: ev.priorAboveCount, uptrend, ...res });
+    trades.push({ name: stock.name, market: stock.market, entryDate: seq[ev.entryIdx].date, level: ev.level, touchCount: ev.touchCount, priorAboveCount: ev.priorAboveCount, uptrend, tpHighTouch: ev.tpHighTouch, ...res });
   }
   return { ...stock, trades, totalEvents: events.length };
 }
@@ -379,10 +374,19 @@ function byStockSummary(results) {
   return rows.sort((a, b) => b.n - a.n);
 }
 
+function printSummary(label, s) {
+  if (!s) { console.log(`${label}: 유효 표본 없음`); return; }
+  console.log(`\n━━━ ${label} ━━━`);
+  console.log(`n=${s.n}  평균수익률 ${s.avg >= 0 ? '+' : ''}${s.avg.toFixed(2)}%  중앙값 ${s.med >= 0 ? '+' : ''}${s.med.toFixed(2)}%  승률 ${s.win.toFixed(0)}%  최고 +${s.best.toFixed(2)}%  최저 ${s.worst.toFixed(2)}%  평균보유 ${s.avgDays.toFixed(1)}거래일`);
+  for (const [reason, cnt] of Object.entries(s.reasonCount)) {
+    console.log(`  ${reason.padEnd(6)}: ${cnt}건 (${(cnt / s.n * 100).toFixed(0)}%)`);
+  }
+}
+
 async function main() {
   const opts = parseArgs();
-  console.error(`[라운드넘버 지지/저항 되돌림 전략 백테스트] ${opts.stocks.length}종목, 라운드단위=최근${opts.windowDays}거래일 고저범위÷${opts.targetTicks}눈금(niceStep), 밀집도터치(캔들통과)>=${opts.minTouches}회, 트랙레코드 최근${opts.recentLookback}일중${opts.priorAboveDays}일↑, 재돌파대기${opts.reclaimWindow}거래일`);
-  console.error(`청산: TP(다음 라운드레벨 도달) / STOP(레벨×${(100 - opts.stopBufferPct).toFixed(1)}% 이탈) / TIME(${opts.maxHold}거래일)`);
+  console.error(`[라운드넘버 전략 — TP가 고가터치 필터 검증] ${opts.stocks.length}종목(코스피 전용, 확정파라미터+종가오버슈트필터 기반)`);
+  console.error(`신규 검증 조건: 재돌파(진입)일의 "고가"가 TP가(L+step)를 터치/돌파한 경우를 추가로 제외했을 때 결과 비교`);
 
   const results = await batchAll(opts.stocks, s => backtestStock(s, opts));
   const pooled = [];
@@ -396,41 +400,15 @@ async function main() {
   const totalEvents = results.reduce((a, r) => a + (r.totalEvents || 0), 0);
   console.log(`\n전체 신호(이벤트) 발생: ${totalEvents}건 (미확정 최근 신호 제외 유효표본: ${pooled.length}건)`);
 
-  const s = summarizeTrades(pooled);
-  if (!s) { console.log('유효 표본 없음'); return; }
+  const excluded = pooled.filter(t => t.tpHighTouch);
+  const kept = pooled.filter(t => !t.tpHighTouch);
 
-  console.log(`\n━━━ 전체 결과 ━━━`);
-  console.log(`n=${s.n}  평균수익률 ${s.avg >= 0 ? '+' : ''}${s.avg.toFixed(2)}%  중앙값 ${s.med >= 0 ? '+' : ''}${s.med.toFixed(2)}%  승률 ${s.win.toFixed(0)}%  최고 +${s.best.toFixed(2)}%  최저 ${s.worst.toFixed(2)}%  평균보유 ${s.avgDays.toFixed(1)}거래일`);
+  printSummary('① 기존(현재 확정) — 종가오버슈트 필터만 적용', summarizeTrades(pooled));
+  printSummary('② 제외 대상 — 재돌파일 고가가 TP가 터치/돌파한 신호만', summarizeTrades(excluded));
+  printSummary('③ 신규 — 고가터치 신호까지 추가 제외한 결과', summarizeTrades(kept));
 
-  console.log(`\n[청산 사유별 발생 빈도]`);
-  for (const [reason, cnt] of Object.entries(s.reasonCount)) {
-    console.log(`  ${reason.padEnd(6)}: ${cnt}건 (${(cnt / s.n * 100).toFixed(0)}%)`);
-  }
-
-  console.log(`\n[밀집도(터치카운트) 구간별 성과 — "검증된 라운드 레벨"일수록 성과가 나은지 실증]`);
-  for (const b of s.touchSplit) {
-    if (!b.n) { console.log(`  ${b.label}: 해당 없음`); continue; }
-    console.log(`  ${b.label}: n=${b.n}  평균 ${b.avg >= 0 ? '+' : ''}${b.avg.toFixed(2)}%  승률${b.win.toFixed(0)}%`);
-  }
-
-  console.log(`\n[EMA200 국면별 성과 분리 — 진입시점 종가가 EMA200 위/아래]`);
-  if (s.regimeSplit.up) console.log(`  상승국면(종가>=EMA200): n=${s.regimeSplit.up.n}  평균 ${s.regimeSplit.up.avg >= 0 ? '+' : ''}${s.regimeSplit.up.avg.toFixed(2)}%  승률${s.regimeSplit.up.win.toFixed(0)}%`);
-  else console.log(`  상승국면: 해당 없음`);
-  if (s.regimeSplit.down) console.log(`  하락국면(종가<EMA200): n=${s.regimeSplit.down.n}  평균 ${s.regimeSplit.down.avg >= 0 ? '+' : ''}${s.regimeSplit.down.avg.toFixed(2)}%  승률${s.regimeSplit.down.win.toFixed(0)}%`);
-  else console.log(`  하락국면: 해당 없음`);
-
-  console.log(`\n[시장별(코스피/코스닥) 성과 분리]`);
-  for (const [mkt, st] of Object.entries(s.marketSplit)) {
-    if (!st) { console.log(`  ${mkt}: 해당 없음`); continue; }
-    console.log(`  ${mkt}: n=${st.n}  평균 ${st.avg >= 0 ? '+' : ''}${st.avg.toFixed(2)}%  중앙값 ${st.med >= 0 ? '+' : ''}${st.med.toFixed(2)}%  승률${st.win.toFixed(0)}%  TP비율${st.tpRate.toFixed(0)}%  평균보유${st.avgDays.toFixed(1)}거래일`);
-  }
-
-  console.log(`\n━━━ 종목별 신호수 ━━━`);
-  const byStock = byStockSummary(results);
-  for (const row of byStock) {
-    console.log(`  ${row.name.padEnd(12)} 신호${row.totalEvents}건(유효${row.n}건)  평균 ${row.avg >= 0 ? '+' : ''}${row.avg.toFixed(2)}%  승률${row.win.toFixed(0)}%`);
-  }
-  console.log('\n※ 미완료 이벤트(최근 신호라 아직 최대보유일 데이터가 없는 경우)는 표본에서 제외됨');
+  console.log(`\n※ ①(기존, n=${pooled.length}) → ③(신규, n=${kept.length}): 신호 ${(pooled.length - kept.length)}건 감소(${((pooled.length - kept.length) / pooled.length * 100).toFixed(0)}%)`);
+  console.log('※ ②의 승률/평균이 ①보다 뚜렷이 낮을수록 "고가터치=손실 종목 사전 배제"가 유효하다는 근거');
   console.log('※ 각 이벤트는 독립 트레이드로 시뮬레이션(동일종목 포지션 중복보유 여부는 반영하지 않음)');
 }
 

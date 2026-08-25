@@ -98,7 +98,7 @@ function parseArgs() {
     stocks: DEFAULT_STOCKS, calendarDays: 2555,
     windowDays: 150, targetTicks: 30, minTouches: 3,
     recentLookback: 20, priorAboveDays: 5, reclaimWindow: 5,
-    stopBufferPct: 2, maxHold: 60, minEntryPositionPct: 20,
+    stopBufferPct: 2, maxHold: 60,
   };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--calendar-days') o.calendarDays = parseInt(argv[++i]);
@@ -110,7 +110,6 @@ function parseArgs() {
     if (argv[i] === '--reclaim-window') o.reclaimWindow = parseInt(argv[++i]);
     if (argv[i] === '--stop-buffer-pct') o.stopBufferPct = parseFloat(argv[++i]);
     if (argv[i] === '--max-hold') o.maxHold = parseInt(argv[++i]);
-    if (argv[i] === '--min-entry-position') o.minEntryPositionPct = parseFloat(argv[++i]);
     if (argv[i] === '--stocks') {
       o.stocks = argv[++i].split(',').map(s => {
         const [code, name, market] = s.split(':');
@@ -144,7 +143,7 @@ async function fetchYahooChart(symbol, p1, p2) {
       const result = data?.chart?.result?.[0];
       if (!result) return null;
       const q = result.indicators?.quote?.[0] || {};
-      return { ts: result.timestamp || [], close: q.close || [], high: q.high || [], low: q.low || [] };
+      return { ts: result.timestamp || [], close: q.close || [], high: q.high || [], low: q.low || [], volume: q.volume || [] };
     } catch { if (attempt < 2) await new Promise(r => setTimeout(r, 500)); }
   }
   return null;
@@ -231,8 +230,29 @@ function touchCountBefore(highs, lows, idx, level, windowDays) {
   return count;
 }
 
+// 2026-08-25 신규: 손실종목 필터 후보 4종 진단용 피처 계산(모두 causal, lookahead 없음)
+function meanRange(arr, lo, hi) { // [lo, hi) 구간 평균, 표본 부족시 null
+  const a = arr.slice(Math.max(0, lo), hi).filter(v => v != null && v > 0);
+  return a.length ? mean(a) : null;
+}
+// ① 진입시점 변동성(ATR%) — breachIdx 직전 recentLookback일간 평균 (고-저)/종가×100
+function computeAtrPctBefore(seq, highs, lows, breachIdx, lookback) {
+  const lo = Math.max(0, breachIdx - lookback);
+  const vals = [];
+  for (let k = lo; k < breachIdx; k++) {
+    if (seq[k]?.close > 0) vals.push((highs[k] - lows[k]) / seq[k].close * 100);
+  }
+  return vals.length ? mean(vals) : null;
+}
+// ④ 거래량 급증 — 특정일 거래량 ÷ 그 직전 lookback일 평균 거래량
+function computeVolRatioAt(volumes, idx, lookback) {
+  const avg = meanRange(volumes, idx - lookback, idx);
+  if (!avg || volumes[idx] == null) return null;
+  return volumes[idx] / avg;
+}
+
 // 진입신호: 라운드레벨 하향이탈 → 트랙레코드+밀집도 검증 → reclaimWindow 내 재돌파
-function detectRoundSignals(seq, highs, lows, opts) {
+function detectRoundSignals(seq, highs, lows, volumes, opts) {
   const n = seq.length;
   const events = []; // { entryIdx, level, step, touchCount, priorAboveCount, breachIdx }
   for (let i = 1; i < n; i++) {
@@ -253,8 +273,15 @@ function detectRoundSignals(seq, highs, lows, opts) {
     const touch = touchCountBefore(highs, lows, i, L, opts.windowDays);
     if (touch < opts.minTouches) continue;
 
-    // ④ reclaimWindow 내 첫 재돌파 탐색(그 전에 L-step 아래로 더 떨어지면 포기)
+    const stopLevel = L * (1 - opts.stopBufferPct / 100);
+    const stopTouchCount = touchCountBefore(highs, lows, i, stopLevel, opts.windowDays);
+    const atrPct = computeAtrPctBefore(seq, highs, lows, i, opts.recentLookback);
+    const breachVolRatio = computeVolRatioAt(volumes, i, opts.recentLookback);
+
+    // ④ reclaimWindow 내 첫 재돌파 탐색(그 전에 L-step 아래로 더 떨어지면 포기), 그 사이 최저가로 whipsaw폭 계산
+    let minLowInPath = lows[i];
     for (let f = i; f < Math.min(n, i + opts.reclaimWindow); f++) {
+      if (lows[f] < minLowInPath) minLowInPath = lows[f];
       if (seq[f].close < L - step) break;
       if (seq[f].close >= L) {
         // 2026-08-24 오버슈트 필터: 재돌파일 종가가 갭업으로 TP가(L+step)까지 이미 넘겨버리면
@@ -262,14 +289,12 @@ function detectRoundSignals(seq, highs, lows, opts) {
         // (승률55%, 중앙값+0.28% vs 정상 61%/+1.13%, project_roundnumber_entry_overshoot_backtest.mjs)
         // 라 신호에서 제외 확정.
         if (seq[f].close < L + step) {
-          // 2026-08-25 진입가 위치 필터: 진입가가 레벨가(L, 0%)~TP가(L+step, 100%) 구간 내 어디
-          // 위치하는지 계산해, 레벨가에 바짝 붙어 진입하는(하위 minEntryPositionPct% 미만) 신호는
-          // 제외 — 백테스트로 확인된 저품질(위치0~20%: 승률55%/STOP비율45% vs 20%이상: 승률67%/
-          // STOP비율33%, project_roundnumber_entry_position_backtest.mjs 참고, 20%가 perDay 최적점).
-          const entryPosition = (seq[f].close - L) / step * 100;
-          if (entryPosition >= opts.minEntryPositionPct) {
-            events.push({ entryIdx: f, level: L, step, touchCount: touch, priorAboveCount: aboveCount, breachIdx: i, entryPosition });
-          }
+          const whipsawPct = (L - minLowInPath) / L * 100; // 이탈~재돌파 구간 L 대비 최대 낙폭(%)
+          const entryVolRatio = computeVolRatioAt(volumes, f, opts.recentLookback);
+          events.push({
+            entryIdx: f, level: L, step, touchCount: touch, priorAboveCount: aboveCount, breachIdx: i,
+            stopTouchCount, atrPct, whipsawPct, breachVolRatio, entryVolRatio,
+          });
         }
         break;
       }
@@ -306,24 +331,31 @@ async function backtestStock(stock, opts) {
   const closes = chart.close;
   const ema200s = buildEma(closes, BASE_PERIOD); // 국면 진단용
 
-  const seq = [], highs = [], lows = [];
+  const seq = [], highs = [], lows = [], volumes = [];
   for (let i = 0; i < dates.length; i++) {
     if (closes[i] == null) continue;
     seq.push({ date: dates[i], close: closes[i], ema200: ema200s[i] ?? null });
     highs.push(chart.high[i] ?? closes[i]);
     lows.push(chart.low[i] ?? closes[i]);
+    volumes.push(chart.volume[i] ?? null);
   }
   const minLen = opts.windowDays + opts.recentLookback + opts.maxHold + 10;
   if (seq.length < minLen) return { ...stock, error: '데이터 부족' };
 
-  const events = detectRoundSignals(seq, highs, lows, opts);
+  const events = detectRoundSignals(seq, highs, lows, volumes, opts);
   const trades = [];
   for (const ev of events) {
     const res = simulateRoundTrade(seq, ev, opts);
     if (!res) continue;
     const entryEma200 = seq[ev.entryIdx].ema200;
     const uptrend = entryEma200 != null ? seq[ev.entryIdx].close >= entryEma200 : null;
-    trades.push({ name: stock.name, market: stock.market, entryDate: seq[ev.entryIdx].date, level: ev.level, touchCount: ev.touchCount, priorAboveCount: ev.priorAboveCount, uptrend, ...res });
+    trades.push({
+      name: stock.name, market: stock.market, entryDate: seq[ev.entryIdx].date, level: ev.level,
+      touchCount: ev.touchCount, priorAboveCount: ev.priorAboveCount, uptrend,
+      stopTouchCount: ev.stopTouchCount, atrPct: ev.atrPct, whipsawPct: ev.whipsawPct,
+      breachVolRatio: ev.breachVolRatio, entryVolRatio: ev.entryVolRatio,
+      ...res,
+    });
   }
   return { ...stock, trades, totalEvents: events.length };
 }
@@ -424,6 +456,54 @@ async function main() {
     if (!st) { console.log(`  ${mkt}: 해당 없음`); continue; }
     console.log(`  ${mkt}: n=${st.n}  평균 ${st.avg >= 0 ? '+' : ''}${st.avg.toFixed(2)}%  중앙값 ${st.med >= 0 ? '+' : ''}${st.med.toFixed(2)}%  승률${st.win.toFixed(0)}%  TP비율${st.tpRate.toFixed(0)}%  평균보유${st.avgDays.toFixed(1)}거래일`);
   }
+
+  // 2026-08-25 손실종목(STOP) 필터 후보 4종 진단 — 각 지표를 하위/중위/상위 33%로 나눠
+  // STOP비율이 특정 구간에 몰려있는지(=필터로 쓸 수 있는지) 확인
+  function tertileEdges(vals) {
+    const sorted = [...vals].sort((a, b) => a - b);
+    const q = p => sorted[Math.min(sorted.length - 1, Math.floor(p * (sorted.length - 1)))];
+    return [q(1 / 3), q(2 / 3)];
+  }
+  function statOf(g) {
+    if (!g.length) return null;
+    return {
+      n: g.length, avg: mean(g.map(t => t.ret)),
+      win: g.filter(t => t.ret > 0).length / g.length * 100,
+      stopRate: g.filter(t => t.reason === 'STOP').length / g.length * 100,
+    };
+  }
+  function analyzeMetric(title, key, fmt = v => v.toFixed(2)) {
+    const withVal = pooled.filter(t => t[key] != null && isFinite(t[key]));
+    console.log(`\n[손실필터 후보] ${title} (표본 n=${withVal.length}/${pooled.length})`);
+    if (withVal.length < 30) { console.log('  표본 부족, 분석 생략'); return; }
+    const [e1, e2] = tertileEdges(withVal.map(t => t[key]));
+    const buckets = [
+      { label: `하위33%(~${fmt(e1)})`, g: withVal.filter(t => t[key] <= e1) },
+      { label: `중위33%(${fmt(e1)}~${fmt(e2)})`, g: withVal.filter(t => t[key] > e1 && t[key] <= e2) },
+      { label: `상위33%(${fmt(e2)}~)`, g: withVal.filter(t => t[key] > e2) },
+    ];
+    let worst = null;
+    for (const b of buckets) {
+      const st = statOf(b.g);
+      if (!st) { console.log(`  ${b.label}: 해당 없음`); continue; }
+      console.log(`  ${b.label}: n=${st.n}  평균 ${st.avg >= 0 ? '+' : ''}${st.avg.toFixed(2)}%  승률${st.win.toFixed(0)}%  STOP비율${st.stopRate.toFixed(0)}%`);
+      if (!worst || st.stopRate > worst.st.stopRate) worst = { b, st };
+    }
+    if (worst && worst.st.stopRate - s.reasonCount.STOP / s.n * 100 >= 5) {
+      const kept = pooled.filter(t => !(t[key] != null && worst.b.g.includes(t)));
+      const keptStat = statOf(kept);
+      console.log(`  → "${worst.b.label}" 구간 제외 시뮬레이션: n=${pooled.length}→${kept.length}(${(pooled.length - kept.length)}건 감소), 승률 ${s.win.toFixed(0)}%→${keptStat.win.toFixed(0)}%, STOP비율 ${(s.reasonCount.STOP / s.n * 100).toFixed(0)}%→${keptStat.stopRate.toFixed(0)}%, 평균 ${s.avg >= 0 ? '+' : ''}${s.avg.toFixed(2)}%→${keptStat.avg >= 0 ? '+' : ''}${keptStat.avg.toFixed(2)}%`);
+    } else {
+      console.log('  → 구간별 STOP비율 차이 미미(5%p 미만), 필터로서 실효성 낮음');
+    }
+  }
+
+  console.log(`\n═══ 손실종목(STOP) 축소 필터 후보 4종 검증 ═══`);
+  analyzeMetric('① 진입시점 변동성(ATR%, 이탈 전 20일 평균 고저범위%)', 'atrPct');
+  analyzeMetric('② STOP가 자체의 과거 밀집도(터치카운트)', 'stopTouchCount', v => v.toFixed(0));
+  analyzeMetric('③ 이탈~재돌파 구간 최대 되돌림폭(whipsaw%, L 대비)', 'whipsawPct');
+  analyzeMetric('④-1 이탈일 거래량급증(직전20일 평균 대비 배수)', 'breachVolRatio', v => v.toFixed(1) + 'x');
+  analyzeMetric('④-2 재돌파(진입)일 거래량급증(직전20일 평균 대비 배수)', 'entryVolRatio', v => v.toFixed(1) + 'x');
 
   console.log(`\n━━━ 종목별 신호수 ━━━`);
   const byStock = byStockSummary(results);

@@ -22,7 +22,7 @@ const FALLBACK_KOSDAQ = [
 const DEFAULT_STOCKS = FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' }));
 
 const WINDOW_DAYS = 150, TARGET_TICKS = 30, RECENT_LOOKBACK = 20, PRIOR_ABOVE_DAYS = 5, MIN_TOUCHES = 3;
-const RECLAIM_WINDOW = 5, STOP_BUFFER_PCT = 2, MAX_HOLD = 60, CALENDAR_DAYS = 2555;
+const RECLAIM_WINDOW = 5, STOP_BUFFER_PCT = 2, MAX_HOLD = 60, CALENDAR_DAYS = 2555, MIN_ENTRY_POSITION_PCT = 20;
 
 function parseArgs() {
   const argv = process.argv.slice(2);
@@ -141,7 +141,14 @@ function detectRoundSignals(seq, highs, lows) {
         // 2026-08-24 오버슈트 필터: 재돌파일 종가가 갭업으로 TP가(L+step)까지 이미 넘겨버리면
         // 리스크(STOP까지)만 남고 리워드는 사실상 소진된 셋업 — 백테스트로 확인된 저품질(승률55%,
         // 중앙값+0.28%) 케이스라 신호에서 제외(project_roundnumber_entry_overshoot_backtest.mjs 참고)
-        if (seq[f].close < L + step) events.push({ entryIdx: f, level: L, step, touchCount: touch, aboveCount });
+        if (seq[f].close < L + step) {
+          // 2026-08-25 진입가 위치 필터: 레벨가(L)~TP가(L+step) 구간 내 진입가 위치가 하위
+          // MIN_ENTRY_POSITION_PCT% 미만(레벨가에 바짝 붙어 진입)이면 제외 — 백테스트로 확인된
+          // 저품질(위치0~20%: 승률55%/STOP비율45% vs 20%이상: 승률67%/STOP비율33%,
+          // project_roundnumber_entry_position_backtest.mjs 참고)
+          const entryPosition = (seq[f].close - L) / step * 100;
+          if (entryPosition >= MIN_ENTRY_POSITION_PCT) events.push({ entryIdx: f, level: L, step, touchCount: touch, aboveCount, entryPosition });
+        }
         break;
       }
     }

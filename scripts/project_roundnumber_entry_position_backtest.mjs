@@ -98,7 +98,7 @@ function parseArgs() {
     stocks: DEFAULT_STOCKS, calendarDays: 2555,
     windowDays: 150, targetTicks: 30, minTouches: 3,
     recentLookback: 20, priorAboveDays: 5, reclaimWindow: 5,
-    stopBufferPct: 2, maxHold: 60, minEntryPositionPct: 20,
+    stopBufferPct: 2, maxHold: 60,
   };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--calendar-days') o.calendarDays = parseInt(argv[++i]);
@@ -110,7 +110,6 @@ function parseArgs() {
     if (argv[i] === '--reclaim-window') o.reclaimWindow = parseInt(argv[++i]);
     if (argv[i] === '--stop-buffer-pct') o.stopBufferPct = parseFloat(argv[++i]);
     if (argv[i] === '--max-hold') o.maxHold = parseInt(argv[++i]);
-    if (argv[i] === '--min-entry-position') o.minEntryPositionPct = parseFloat(argv[++i]);
     if (argv[i] === '--stocks') {
       o.stocks = argv[++i].split(',').map(s => {
         const [code, name, market] = s.split(':');
@@ -261,16 +260,7 @@ function detectRoundSignals(seq, highs, lows, opts) {
         // 리스크(STOP까지)만 남고 리워드는 사실상 소진된 셋업 — 별도 백테스트로 확인된 저품질
         // (승률55%, 중앙값+0.28% vs 정상 61%/+1.13%, project_roundnumber_entry_overshoot_backtest.mjs)
         // 라 신호에서 제외 확정.
-        if (seq[f].close < L + step) {
-          // 2026-08-25 진입가 위치 필터: 진입가가 레벨가(L, 0%)~TP가(L+step, 100%) 구간 내 어디
-          // 위치하는지 계산해, 레벨가에 바짝 붙어 진입하는(하위 minEntryPositionPct% 미만) 신호는
-          // 제외 — 백테스트로 확인된 저품질(위치0~20%: 승률55%/STOP비율45% vs 20%이상: 승률67%/
-          // STOP비율33%, project_roundnumber_entry_position_backtest.mjs 참고, 20%가 perDay 최적점).
-          const entryPosition = (seq[f].close - L) / step * 100;
-          if (entryPosition >= opts.minEntryPositionPct) {
-            events.push({ entryIdx: f, level: L, step, touchCount: touch, priorAboveCount: aboveCount, breachIdx: i, entryPosition });
-          }
-        }
+        if (seq[f].close < L + step) events.push({ entryIdx: f, level: L, step, touchCount: touch, priorAboveCount: aboveCount, breachIdx: i });
         break;
       }
     }
@@ -323,7 +313,11 @@ async function backtestStock(stock, opts) {
     if (!res) continue;
     const entryEma200 = seq[ev.entryIdx].ema200;
     const uptrend = entryEma200 != null ? seq[ev.entryIdx].close >= entryEma200 : null;
-    trades.push({ name: stock.name, market: stock.market, entryDate: seq[ev.entryIdx].date, level: ev.level, touchCount: ev.touchCount, priorAboveCount: ev.priorAboveCount, uptrend, ...res });
+    // 2026-08-25 신규: 진입가(재돌파일 종가)가 레벨가(L)~TP가(L+step) 구간 중 어디에 위치하는지(0~100%)
+    // — L에 가까울수록 0%, TP에 가까울수록 100%(오버슈트 필터로 100% 도달 케이스는 이미 제외된 상태)
+    const entry = seq[ev.entryIdx].close;
+    const entryPosition = (entry - ev.level) / ev.step * 100;
+    trades.push({ name: stock.name, market: stock.market, entryDate: seq[ev.entryIdx].date, level: ev.level, touchCount: ev.touchCount, priorAboveCount: ev.priorAboveCount, uptrend, entryPosition, ...res });
   }
   return { ...stock, trades, totalEvents: events.length };
 }
@@ -423,6 +417,43 @@ async function main() {
   for (const [mkt, st] of Object.entries(s.marketSplit)) {
     if (!st) { console.log(`  ${mkt}: 해당 없음`); continue; }
     console.log(`  ${mkt}: n=${st.n}  평균 ${st.avg >= 0 ? '+' : ''}${st.avg.toFixed(2)}%  중앙값 ${st.med >= 0 ? '+' : ''}${st.med.toFixed(2)}%  승률${st.win.toFixed(0)}%  TP비율${st.tpRate.toFixed(0)}%  평균보유${st.avgDays.toFixed(1)}거래일`);
+  }
+
+  // 2026-08-25 신규: 진입가가 레벨가(0%)~TP가(100%) 구간 중 어디 위치할 때 성공확률이 높은지 5분위 분석
+  console.log(`\n═══ 진입가 위치(레벨가~TP가 구간 내 %) 별 성과 ═══`);
+  const posEdges = [0, 20, 40, 60, 80, 100];
+  for (let b = 0; b < 5; b++) {
+    const lo = posEdges[b], hi = posEdges[b + 1];
+    const g = pooled.filter(t => t.entryPosition >= lo && (b === 4 ? t.entryPosition <= hi : t.entryPosition < hi));
+    if (!g.length) { console.log(`  ${lo}~${hi}%(레벨가에${b === 0 ? ' 가장 가까움' : b === 4 ? ' 가장 멀음(TP근접)' : ''}): 해당 없음`); continue; }
+    const avg = mean(g.map(t => t.ret));
+    const win = g.filter(t => t.ret > 0).length / g.length * 100;
+    const stopRate = g.filter(t => t.reason === 'STOP').length / g.length * 100;
+    const tpRate = g.filter(t => t.reason === 'TP').length / g.length * 100;
+    console.log(`  ${lo}~${hi}%: n=${g.length}  평균 ${avg >= 0 ? '+' : ''}${avg.toFixed(2)}%  승률${win.toFixed(0)}%  TP비율${tpRate.toFixed(0)}%  STOP비율${stopRate.toFixed(0)}%`);
+  }
+  console.log('  ※ 0%=진입가가 레벨가(L)와 거의 같음(이탈 후 딱 재돌파선에서 매수), 100%에 가까울수록 TP가 근접(오버슈트 필터로 100% 초과분은 이미 제외됨)');
+
+  // 0~20% 구간(레벨가에 가장 가까운, 승률이 가장 낮은 구간) 제외 시뮬레이션
+  const weak = pooled.filter(t => t.entryPosition < 20);
+  const kept = pooled.filter(t => t.entryPosition >= 20);
+  const keptWin = kept.filter(t => t.ret > 0).length / kept.length * 100;
+  const keptStop = kept.filter(t => t.reason === 'STOP').length / kept.length * 100;
+  const keptAvg = mean(kept.map(t => t.ret));
+  const keptMed = median(kept.map(t => t.ret));
+  console.log(`\n[필터 시뮬레이션] 진입가 위치 0~20%(레벨가 근접) 신호 제외 시`);
+  console.log(`  n=${pooled.length}→${kept.length}(${weak.length}건, ${(weak.length / pooled.length * 100).toFixed(0)}% 감소)`);
+  console.log(`  승률 ${s.win.toFixed(0)}%→${keptWin.toFixed(0)}%  STOP비율 ${(s.reasonCount.STOP / s.n * 100).toFixed(0)}%→${keptStop.toFixed(0)}%  평균 ${s.avg >= 0 ? '+' : ''}${s.avg.toFixed(2)}%→${keptAvg >= 0 ? '+' : ''}${keptAvg.toFixed(2)}%  중앙값 ${s.med >= 0 ? '+' : ''}${s.med.toFixed(2)}%→${keptMed >= 0 ? '+' : ''}${keptMed.toFixed(2)}%`);
+
+  console.log(`\n[임계값 스윕] "진입가 위치 >= X%"만 신호로 채택할 때(perDay=평균수익률÷평균보유일수)`);
+  for (const th of [0, 5, 10, 15, 20, 25, 30, 40, 50]) {
+    const g = pooled.filter(t => t.entryPosition >= th);
+    if (!g.length) continue;
+    const win = g.filter(t => t.ret > 0).length / g.length * 100;
+    const stopRate = g.filter(t => t.reason === 'STOP').length / g.length * 100;
+    const avg = mean(g.map(t => t.ret));
+    const avgDays = mean(g.map(t => t.day));
+    console.log(`  >=${String(th).padStart(2)}%: n=${g.length}(${(g.length / pooled.length * 100).toFixed(0)}%)  승률${win.toFixed(0)}%  STOP비율${stopRate.toFixed(0)}%  평균${avg >= 0 ? '+' : ''}${avg.toFixed(2)}%  perDay${(avg / avgDays).toFixed(3)}%`);
   }
 
   console.log(`\n━━━ 종목별 신호수 ━━━`);
