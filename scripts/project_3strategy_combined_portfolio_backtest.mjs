@@ -20,7 +20,9 @@
 //    TRAIL8/18%·EMA50이탈·TP+10%50%매도·시간청산40일, 괴리율 SL15%·TP+20%50%매도→EMA20돌파25%매도→
 //    EMA5이탈 잔량전량·시간청산20일, 라운드넘버 STOP(레벨×98%)·TP(레벨+step)·시간청산60일(부분매도 없음).
 //
-// 사용법: node scripts/project_3strategy_combined_portfolio_backtest.mjs [--from 2019-08-27] [--to 2026-08-25]
+// 사용법: node scripts/project_3strategy_combined_portfolio_backtest.mjs [--from 2019-08-27] [--to 2026-08-25] [--month 2026-08]
+//   --month(기본: 이번달 KST): 그 달만 별도로 두 방식으로 집계 — ① 전체기간 복리 실행 결과에서 그 달분만 발췌(실제 슬롯예산)
+//   ② 그 달 1일 00:00에 1,000만원/5슬롯으로 새로 리셋한 "격리 시뮬레이션"(월 중 슬롯예산은 여전히 그 격리풀 안에서 복리)
 import https from 'https';
 
 const YF_HEADERS = {
@@ -48,12 +50,21 @@ const START_CAPITAL = 10_000_000;
 
 function parseArgs() {
   const argv = process.argv.slice(2);
-  const o = { from: '2019-08-27', to: null, fetchFrom: '2017-01-01' };
+  const o = { from: '2019-08-27', to: null, fetchFrom: '2017-01-01', month: null };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--from') o.from = argv[++i];
     if (argv[i] === '--to') o.to = argv[++i];
+    if (argv[i] === '--month') o.month = argv[++i]; // YYYY-MM, 월/주간 집계 대상 월(기본: 이번달)
   }
   return o;
+}
+// dateStr(YYYY-MM-DD) 기준 이번주 월요일 날짜(YYYY-MM-DD) 계산 — weekBucket과 동일 주 정의
+function weekMonday(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  const day = d.getUTCDay();
+  const diff = (day === 0 ? -6 : 1 - day);
+  const monday = new Date(d); monday.setUTCDate(d.getUTCDate() + diff);
+  return monday.toISOString().slice(0, 10);
 }
 
 function httpGetJson(url) {
@@ -245,51 +256,40 @@ async function fetchMarketRegime(p1, p2, symbol) {
   return { regime, streak, volPct };
 }
 
-async function main() {
-  const opts = parseArgs();
-  const p2 = Math.floor(Date.now() / 1000);
-  const p1 = Math.floor(new Date(opts.fetchFrom + 'T00:00:00Z').getTime() / 1000);
-  const toDate = opts.to || tsToKstDate(p2 - 9 * 3600);
+function currentKstMonth() {
+  const d = new Date(Date.now() + 9 * 3600 * 1000);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+function monthEndDate(monthStr) {
+  const [y, m] = monthStr.split('-').map(Number);
+  const d = new Date(Date.UTC(y, m, 0)); // 다음달 0일 = 이번달 마지막날
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+}
 
-  console.error('[1/4] 지수·유니버스 시세 로드 중...');
-  const [regimeKospi, regimeKosdaq] = await Promise.all([
-    fetchMarketRegime(p1, p2, '^KS11'), fetchMarketRegime(p1, p2, '^KQ11'),
-  ]);
-  const regimeByMarket = { KOSPI: regimeKospi, KOSDAQ: regimeKosdaq };
-
-  const loaded = await batchAll(PD_UNIVERSE, s => loadStock(s, p1, p2));
-  const byCode = new Map();
-  for (const st of loaded) { if (!st.error) byCode.set(st.code, st); }
-  console.error(`[1/4] 완료 — ${byCode.size}/${PD_UNIVERSE.length}종목 로드 성공`);
-
-  console.error('[2/4] 전략별 지표·진입시그널 사전계산 중...');
-  const pbData = new Map(), dvData = new Map(), rnData = new Map();
-  for (const st of byCode.values()) {
-    pbData.set(st.code, precomputePullback(st, regimeByMarket));
-    dvData.set(st.code, precomputeDeviation(st));
-  }
-  for (const s of RN_UNIVERSE) { const st = byCode.get(s.code); if (st) rnData.set(s.code, precomputeRoundnumber(st)); }
-  console.error('[2/4] 완료');
-
-  // ── 3) 공용 거래일 캘린더 (코스피 지수 날짜 기준) ──
-  const kospiChart = await fetchYahooChart('^KS11', p1, p2);
-  if (!kospiChart || !kospiChart.ts.length) throw new Error('KOSPI 캘린더 조회 실패');
-  const calendar = kospiChart.ts.map(tsToKstDate).filter(d => d >= opts.from && d <= toDate);
-  console.error(`[3/4] 캘린더 ${calendar.length}거래일 (${opts.from} ~ ${toDate})`);
-
-  // 종목별 date->idx 맵
-  const idxMap = new Map();
-  for (const st of byCode.values()) { const m = new Map(); st.dates.forEach((d, i) => m.set(d, i)); idxMap.set(st.code, m); }
-
-  // ── 4) 이벤트드리븐 시뮬레이션 ──
-  let cash = START_CAPITAL;
-  let costBasisTotal = 0; // 보유중 포지션 원가 합
-  const positions = []; // { strategy, code, name, market, entryDate, entryIdx, entryPrice, shares, remainingShares, costRemaining, state }
-  const trades = []; // 청산 완료 기록
+// 이벤트드리븐 포지션/자본 시뮬레이션 — calendarSlice·startCapital만 바꾸면 "전체기간 복리" 실행과
+// "특정월 1,000만원 리셋" 격리실행을 동일 로직으로 재사용(진입시그널 사전계산 데이터 pbData/dvData/rnData는
+// 자본과 무관하므로 공유). snapshotTargets 지정 시 해당 날짜 직전 거래일 종가 기준 시가평가 스냅샷도 반환.
+function runPortfolioSim(calendarSlice, startCapital, ctx, snapshotTargets = []) {
+  const { byCode, idxMap, pbData, dvData, rnData } = ctx;
+  let cash = startCapital;
+  let costBasisTotal = 0;
+  const positions = [];
+  const trades = [];
   let skipCount = 0;
+  const pendingSnapshots = [...snapshotTargets];
+  const snapshots = {};
 
   function runningCapital() { return cash + costBasisTotal; }
-
+  function markToMarket(asOfDate) {
+    let mv = cash;
+    for (const pos of positions) {
+      const m = idxMap.get(pos.code); const i = m ? m.get(asOfDate) : null;
+      const st = byCode.get(pos.code);
+      const px = (i != null ? st.closes[i] : pos.entryPrice);
+      mv += pos.remainingShares * px;
+    }
+    return mv;
+  }
   function tryFullExit(pos, idx, price, reason, date) {
     const sharesSold = pos.remainingShares;
     const proceeds = sharesSold * price;
@@ -314,26 +314,12 @@ async function main() {
     pos.legs.push({ reason, date, shares });
   }
 
-  // 총 포트폴리오 자산(현금+보유포지션 시가평가) 스냅샷 — 8월 시작·매주 시작 기준(전일 종가로 시가평가)
-  const SNAPSHOT_TARGETS = ['2026-08-01', '2026-08-03', '2026-08-10', '2026-08-17', '2026-08-24'];
-  const snapshots = {};
-  function markToMarket(asOfDate) {
-    let mv = cash;
-    for (const pos of positions) {
-      const m = idxMap.get(pos.code); const i = m ? m.get(asOfDate) : null;
-      const st = byCode.get(pos.code);
-      const px = (i != null ? st.closes[i] : pos.entryPrice);
-      mv += pos.remainingShares * px;
-    }
-    return mv;
-  }
+  for (let di = 0; di < calendarSlice.length; di++) {
+    const date = calendarSlice[di];
 
-  for (let di = 0; di < calendar.length; di++) {
-    const date = calendar[di];
-
-    while (SNAPSHOT_TARGETS.length && date >= SNAPSHOT_TARGETS[0]) {
-      const target = SNAPSHOT_TARGETS.shift();
-      const asOf = di > 0 ? calendar[di - 1] : date; // 전일 종가 기준 시가평가("해당일 시작 시점" 자산)
+    while (pendingSnapshots.length && date >= pendingSnapshots[0]) {
+      const target = pendingSnapshots.shift();
+      const asOf = di > 0 ? calendarSlice[di - 1] : date; // 전일 종가 기준 시가평가("해당일 시작 시점" 자산)
       snapshots[target] = { asOfDate: asOf, value: markToMarket(asOf) };
     }
 
@@ -433,21 +419,70 @@ async function main() {
     }
   }
 
-  // 미청산 포지션은 표본에서 제외(백테스트 관례와 동일 — 미확정 트레이드 제외)
-  console.error(`[4/4] 시뮬레이션 완료 — 청산 ${trades.length}건, 미청산(보유중) ${positions.length}건, 슬롯부족 스킵 ${skipCount}건`);
+  return { trades, finalCash: cash, finalPositions: positions, skipCount, snapshots };
+}
 
-  const finalCapital = cash + positions.reduce((a, p) => a + p.remainingShares * (byCode.get(p.code)?.closes?.at(-1) ?? p.entryPrice), 0);
+async function main() {
+  const opts = parseArgs();
+  const p2 = Math.floor(Date.now() / 1000);
+  const p1 = Math.floor(new Date(opts.fetchFrom + 'T00:00:00Z').getTime() / 1000);
+  const toDate = opts.to || tsToKstDate(p2 - 9 * 3600);
+  const targetMonth = opts.month || currentKstMonth();
+  const monthStart = `${targetMonth}-01`;
+  const isolatedTo = [monthEndDate(targetMonth), toDate].sort()[0]; // min(월말, toDate)
+
+  console.error('[1/5] 지수·유니버스 시세 로드 중...');
+  const [regimeKospi, regimeKosdaq] = await Promise.all([
+    fetchMarketRegime(p1, p2, '^KS11'), fetchMarketRegime(p1, p2, '^KQ11'),
+  ]);
+  const regimeByMarket = { KOSPI: regimeKospi, KOSDAQ: regimeKosdaq };
+
+  const loaded = await batchAll(PD_UNIVERSE, s => loadStock(s, p1, p2));
+  const byCode = new Map();
+  for (const st of loaded) { if (!st.error) byCode.set(st.code, st); }
+  console.error(`[1/5] 완료 — ${byCode.size}/${PD_UNIVERSE.length}종목 로드 성공`);
+
+  console.error('[2/5] 전략별 지표·진입시그널 사전계산 중...');
+  const pbData = new Map(), dvData = new Map(), rnData = new Map();
+  for (const st of byCode.values()) {
+    pbData.set(st.code, precomputePullback(st, regimeByMarket));
+    dvData.set(st.code, precomputeDeviation(st));
+  }
+  for (const s of RN_UNIVERSE) { const st = byCode.get(s.code); if (st) rnData.set(s.code, precomputeRoundnumber(st)); }
+  console.error('[2/5] 완료');
+
+  // ── 3) 공용 거래일 캘린더 (코스피 지수 날짜 기준) ──
+  const kospiChart = await fetchYahooChart('^KS11', p1, p2);
+  if (!kospiChart || !kospiChart.ts.length) throw new Error('KOSPI 캘린더 조회 실패');
+  const calendar = kospiChart.ts.map(tsToKstDate).filter(d => d >= opts.from && d <= toDate);
+  console.error(`[3/5] 캘린더 ${calendar.length}거래일 (${opts.from} ~ ${toDate})`);
+
+  // 종목별 date->idx 맵
+  const idxMap = new Map();
+  for (const st of byCode.values()) { const m = new Map(); st.dates.forEach((d, i) => m.set(d, i)); idxMap.set(st.code, m); }
+
+  // ── 4) 시뮬레이션 실행 ──
+  const ctx = { byCode, idxMap, pbData, dvData, rnData };
+
+  // (A) 전체기간 복리 실행 — 헤드라인/검증용, 기존과 동일
+  const SNAPSHOT_TARGETS = ['2026-08-01', '2026-08-03', '2026-08-10', '2026-08-17', '2026-08-24'];
+  console.error(`[4/5] 전체기간(복리) 시뮬레이션 실행 중...`);
+  const fullRun = runPortfolioSim(calendar, START_CAPITAL, ctx, SNAPSHOT_TARGETS);
+  const { trades, finalCash, finalPositions, skipCount, snapshots } = fullRun;
+  console.error(`[4/5] 완료 — 청산 ${trades.length}건, 미청산(보유중) ${finalPositions.length}건, 슬롯부족 스킵 ${skipCount}건`);
+
+  const finalCapital = finalCash + finalPositions.reduce((a, p) => a + p.remainingShares * (byCode.get(p.code)?.closes?.at(-1) ?? p.entryPrice), 0);
   const totalReturn = (finalCapital - START_CAPITAL) / START_CAPITAL * 100;
 
   console.log(`\n━━━ 기초자산 스냅샷(복리반영, 전일 종가 시가평가) ━━━`);
-  for (const target of ['2026-08-01', '2026-08-03', '2026-08-10', '2026-08-17', '2026-08-24']) {
+  for (const target of SNAPSHOT_TARGETS) {
     const s = snapshots[target];
     if (s) console.log(`  ${target} 기준(${s.asOfDate} 종가 시가평가): ${fmtWon(s.value)}원`);
   }
 
   console.log(`\n━━━ 전체 검증(${opts.from}~${toDate}) ━━━`);
   console.log(`시작자본 ${fmtWon(START_CAPITAL)}원 → 최종(현금+미청산 시가평가) ${fmtWon(finalCapital)}원 (${fmtPct(totalReturn)})`);
-  console.log(`총 청산 ${trades.length}건 (미청산 보유중 ${positions.length}건 제외)`);
+  console.log(`총 청산 ${trades.length}건 (미청산 보유중 ${finalPositions.length}건 제외)`);
   const byStrat = {};
   for (const t of trades) { (byStrat[t.strategy] ||= []).push(t); }
   console.log('\n전략별 청산 실적(전체 기간):');
@@ -459,10 +494,9 @@ async function main() {
   const totalPnl = trades.reduce((a, t) => a + t.realizedPnl, 0);
   console.log(`  합계    ${String(trades.length).padStart(4)}건  실현손익 ${fmtWon(totalPnl)}원`);
 
-  // ── 이번달(2026-08) 집계 ──
   function monthAgg(fromD, toD, label) {
     const sub = trades.filter(t => t.exitDate >= fromD && t.exitDate <= toD);
-    console.log(`\n━━━ ${label}(${fromD}~${toD}) 청산 집계 — 전략별 수익금 ━━━`);
+    console.log(`\n━━━ ${label}(${fromD}~${toD}) 청산 집계 — 전략별 수익금(복리·실제 슬롯예산) ━━━`);
     let totN = 0, totPnl = 0;
     for (const strat of ['눌림목', '괴리율', '라운드넘버']) {
       const arr = sub.filter(t => t.strategy === strat);
@@ -474,18 +508,16 @@ async function main() {
     console.log(`  합계    ${String(totN).padStart(3)}건  실현손익 ${fmtWon(totPnl)}원  건당평균 ${totN ? fmtWon(totPnl / totN) : '─'}원`);
     return sub;
   }
-  const augustTrades = monthAgg('2026-08-01', toDate, '이번달');
-  monthAgg('2026-08-24', toDate, '이번주');
+  const compoundedMonthTrades = monthAgg(monthStart, isolatedTo, `${targetMonth}`);
 
-  // ── 이번달(2026-08) 전략별 주간(월~일) 세부표 — project_roundnumber_recent_trades.mjs printPnlSummary와 동일 포맷 ──
-  function printWeeklyTable(label, arr) {
+  function printWeeklyTable(label, arr, tag) {
     const byWeek = {};
     for (const t of arr) {
       const wk = weekBucket(t.exitDate);
       byWeek[wk] ||= { n: 0, invested: 0, pnl: 0 };
       byWeek[wk].n++; byWeek[wk].invested += t.investedTotal; byWeek[wk].pnl += t.realizedPnl;
     }
-    console.log(`\n· ${label} (2026-08 주간 청산 집계)`);
+    console.log(`\n· ${label} (${targetMonth} 주간 청산 집계${tag ? ', ' + tag : ''})`);
     console.log('주(월~일)\t건수\t투입금액\t손익금액\t수익률');
     let tn = 0, tinv = 0, tpnl = 0;
     for (const wk of Object.keys(byWeek).sort()) {
@@ -497,40 +529,39 @@ async function main() {
     const tpct = tinv ? (tpnl / tinv * 100).toFixed(2) : '0.00';
     console.log(`합계\t${tn}건\t${fmtWon(tinv)}원\t${fmtWon(tpnl)}원\t${tpct}%`);
   }
-  console.log(`\n━━━ 이번달(2026-08) 전략별 주간 세부표(복리반영, 실제 슬롯예산) ━━━`);
+  console.log(`\n━━━ ${targetMonth} 전략별 주간 세부표(복리반영, 실제 슬롯예산) ━━━`);
   for (const strat of ['눌림목', '괴리율', '라운드넘버']) {
-    printWeeklyTable(strat, augustTrades.filter(t => t.strategy === strat));
+    printWeeklyTable(strat, compoundedMonthTrades.filter(t => t.strategy === strat));
   }
-  printWeeklyTable('전체(3전략 합계)', augustTrades);
+  printWeeklyTable('전체(3전략 합계)', compoundedMonthTrades);
 
-  // ── 고정예산(슬롯당 200만원, 비복리) 재계산 — 라운드넘버(단일레그)는 shares=floor(2M/entryPrice)로 정확 재현,
-  // 눌림목·괴리율(부분매도 다단계)은 저장된 블렌디드 ret%를 고정 투입금액에 선형 적용(동일 시점/가격 비율의
-  // 레그 매도이므로 ret%는 예산 크기와 무관 — shares 반올림 오차만 근사됨) ──
-  const FLAT_BUDGET = 2_000_000;
-  const flatTrades = augustTrades.map(t => {
-    const shares = Math.floor(FLAT_BUDGET / t.entryPrice);
-    const invested = shares * t.entryPrice;
-    const pnl = Math.round(invested * t.ret / 100);
-    return { ...t, investedTotal: invested, realizedPnl: pnl };
-  }).filter(t => t.investedTotal > 0);
+  // (B) 이번달만 1,000만원(5슬롯×200만원)으로 리셋한 격리 시뮬레이션 — "고정 1,000만원 기초자산" 요청 반영.
+  // 진입시그널 사전계산(pbData/dvData/rnData)은 자본과 무관해 그대로 재사용, 자본·슬롯 점유만 월초부터 새로 시작.
+  // 월 중 슬롯 예산은 여전히 (해당 격리풀의 현금+원가)/5로 복리 계산됨 — "고정 200만원 매 거래"가 아니라
+  // "이번달만 1,000만원으로 새로 시작한 5슬롯 풀"이라는 뜻(2026-08-25 사용자 재확정).
+  const monthCalendar = calendar.filter(d => d >= monthStart && d <= isolatedTo);
+  console.error(`[5/5] ${targetMonth} 격리(1,000만원 리셋) 시뮬레이션 실행 중...`);
+  const isolatedRun = runPortfolioSim(monthCalendar, START_CAPITAL, ctx);
+  console.error(`[5/5] 완료 — 청산 ${isolatedRun.trades.length}건, 미청산 ${isolatedRun.finalPositions.length}건, 슬롯부족 스킵 ${isolatedRun.skipCount}건`);
 
-  console.log(`\n━━━ 이번달(2026-08-01~${toDate}) 고정예산(슬롯당 ${fmtWon(FLAT_BUDGET)}원, 비복리) 전략별 수익금 ━━━`);
-  let ftotN = 0, ftotPnl = 0;
+  console.log(`\n━━━ ${targetMonth} 청산 집계 — 전략별 수익금(월초 ${fmtWon(START_CAPITAL)}원 리셋, 5슬롯 격리 시뮬) ━━━`);
+  let itotN = 0, itotPnl = 0, itotInv = 0;
   for (const strat of ['눌림목', '괴리율', '라운드넘버']) {
-    const arr = flatTrades.filter(t => t.strategy === strat);
+    const arr = isolatedRun.trades.filter(t => t.strategy === strat);
     const pnl = arr.reduce((a, t) => a + t.realizedPnl, 0);
     const invested = arr.reduce((a, t) => a + t.investedTotal, 0);
     const stocks = new Set(arr.map(t => t.code)).size;
-    ftotN += arr.length; ftotPnl += pnl;
+    itotN += arr.length; itotPnl += pnl; itotInv += invested;
     console.log(`  ${strat.padEnd(6)} ${String(arr.length).padStart(3)}건(${stocks}종목)  투입 ${fmtWon(invested)}원  실현손익 ${fmtWon(pnl)}원  건당평균 ${arr.length ? fmtWon(pnl / arr.length) : '─'}원`);
   }
-  console.log(`  합계    ${String(ftotN).padStart(3)}건  실현손익 ${fmtWon(ftotPnl)}원  건당평균 ${ftotN ? fmtWon(ftotPnl / ftotN) : '─'}원`);
+  const itotPct = itotInv ? (itotPnl / itotInv * 100).toFixed(2) : '0.00';
+  console.log(`  합계    ${String(itotN).padStart(3)}건  투입 ${fmtWon(itotInv)}원  실현손익 ${fmtWon(itotPnl)}원  수익률 ${itotPct}%`);
 
-  console.log(`\n━━━ 이번달(2026-08) 전략별 주간 세부표(고정예산 슬롯당 ${fmtWon(FLAT_BUDGET)}원, 비복리) ━━━`);
+  console.log(`\n━━━ ${targetMonth} 전략별 주간 세부표(월초 ${fmtWon(START_CAPITAL)}원 리셋 격리 시뮬) ━━━`);
   for (const strat of ['눌림목', '괴리율', '라운드넘버']) {
-    printWeeklyTable(strat, flatTrades.filter(t => t.strategy === strat));
+    printWeeklyTable(strat, isolatedRun.trades.filter(t => t.strategy === strat), '격리시뮬');
   }
-  printWeeklyTable('전체(3전략 합계)', flatTrades);
+  printWeeklyTable('전체(3전략 합계)', isolatedRun.trades, '격리시뮬');
 }
 
 main().catch(e => { console.error('오류:', e.message, e.stack); process.exit(1); });
