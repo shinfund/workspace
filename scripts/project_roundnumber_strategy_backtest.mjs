@@ -98,7 +98,7 @@ function parseArgs() {
     stocks: DEFAULT_STOCKS, calendarDays: 2555,
     windowDays: 150, targetTicks: 30, minTouches: 3,
     recentLookback: 20, priorAboveDays: 5, reclaimWindow: 5,
-    stopBufferPct: 2, maxHold: 60, minEntryPositionPct: 20,
+    stopBufferPct: 2, maxHold: 60, minEntryPositionPct: 20, minBandWidthPct: 2.5,
   };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--calendar-days') o.calendarDays = parseInt(argv[++i]);
@@ -111,6 +111,7 @@ function parseArgs() {
     if (argv[i] === '--stop-buffer-pct') o.stopBufferPct = parseFloat(argv[++i]);
     if (argv[i] === '--max-hold') o.maxHold = parseInt(argv[++i]);
     if (argv[i] === '--min-entry-position') o.minEntryPositionPct = parseFloat(argv[++i]);
+    if (argv[i] === '--min-band-width') o.minBandWidthPct = parseFloat(argv[++i]);
     if (argv[i] === '--stocks') {
       o.stocks = argv[++i].split(',').map(s => {
         const [code, name, market] = s.split(':');
@@ -242,6 +243,13 @@ function detectRoundSignals(seq, highs, lows, opts) {
     const L = Math.floor(prev / step) * step;
     const breached = prev >= L && cur < L;
     if (!breached || L <= 0) continue;
+
+    // 2026-08-25 폭(band width) 필터: 레벨가(L)~TP가(L+step) 구간의 폭(step/L%)이 너무 좁으면
+    // STOP은 항상 L×98%로 고정(리스크 일정)인데 TP까지 보상거리만 짧아져 손익비가 나빠짐 —
+    // 백테스트로 확인된 저품질(폭<2.5%: perDay0.03~0.18% vs 폭>=2.5%: perDay0.373%, 평균수익률
+    // +0.35%→+0.98%, project_roundnumber_band_width_backtest.mjs 참고, 2.5%가 perDay 변곡점)
+    // 라 신호에서 제외 확정.
+    if (step / L * 100 < opts.minBandWidthPct) continue;
 
     // ② 트랙레코드: 최근 recentLookback거래일 중 priorAboveDays일 이상 L 위에서 머문 적 있는지
     const lo = Math.max(0, i - 1 - opts.recentLookback);

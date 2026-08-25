@@ -22,7 +22,7 @@ const FALLBACK_KOSDAQ = [
 const DEFAULT_STOCKS = FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' }));
 
 const WINDOW_DAYS = 150, TARGET_TICKS = 30, RECENT_LOOKBACK = 20, PRIOR_ABOVE_DAYS = 5, MIN_TOUCHES = 3;
-const RECLAIM_WINDOW = 5, STOP_BUFFER_PCT = 2, MAX_HOLD = 60, CALENDAR_DAYS = 2555, MIN_ENTRY_POSITION_PCT = 20;
+const RECLAIM_WINDOW = 5, STOP_BUFFER_PCT = 2, MAX_HOLD = 60, CALENDAR_DAYS = 2555, MIN_ENTRY_POSITION_PCT = 20, MIN_BAND_WIDTH_PCT = 2.5;
 
 function parseArgs() {
   const argv = process.argv.slice(2);
@@ -129,6 +129,10 @@ function detectRoundSignals(seq, highs, lows) {
     const L = Math.floor(prev / step) * step;
     const breached = prev >= L && cur < L;
     if (!breached || L <= 0) continue;
+    // 2026-08-25 폭(band width) 필터: 레벨가~TP가 구간의 폭(step/L%)이 MIN_BAND_WIDTH_PCT% 미만이면
+    // 제외 — STOP은 항상 L×98%로 고정(리스크 일정)인데 폭이 좁으면 보상거리만 짧아져 손익비가
+    // 나빠짐(백테스트 확인, project_roundnumber_band_width_backtest.mjs 참고)
+    if (step / L * 100 < MIN_BAND_WIDTH_PCT) continue;
     const lo = Math.max(0, i - 1 - RECENT_LOOKBACK);
     let aboveCount = 0;
     for (let k = lo; k < i - 1; k++) if (seq[k].close >= L) aboveCount++;
