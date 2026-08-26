@@ -33,13 +33,19 @@
 //          두 필터 결합 시 IS Sharpe 0.478/OOS Sharpe 0.484(baseline IS0.430/OOS0.390 대비 개선 + IS≈OOS로
 //          과최적화 위험 낮음), 승률56%→59%, SL비율18%→15%, 표본 761→613(-19%, 최근진입일 변화없음 2026-05-14).
 //          OTHER_INDEX_SYMBOL·STOCK_ATR_CAP 추가, 반대쪽 지수 국면도 항상 조회하도록 변경.)
-//       v13(2026-08-26, stock-portal 최근신호 표에서 "손실난 종목이 많다"는 사용자 지적으로 원인 진단 —
+//       v14(2026-08-26, stock-portal 최근신호 표에서 "손실난 종목이 많다"는 사용자 지적으로 원인 진단 —
 //          LG화학이 05-06/05-07/05-11 사흘~나흘 간격, 삼성SDI가 05-04/05-06 이틀 간격으로 재진입해
 //          매번 손절되는 "휩소 재진입" 패턴 발견. 동일종목 손절 후 N거래일 재진입 금지 쿨다운을
 //          0/5/10/20/40일로 그리드서치(scripts/project_pullback_sl_cooldown_sweep.mjs) 결과 5거래일부터
 //          효과가 대부분 포화(10/20/40일과 거의 동일)돼 5일 채택. n=613→579(-6%), 승률60%→63%,
 //          SL비율15%→11%, Sharpe0.474→0.543, IS0.566/OOS0.539(둘 다 v12 baseline의 OOS0.484보다 우수,
 //          격차도 작아 견고). COOLDOWN_DAYS 추가.)
+//       v14(2026-08-26 같은 날, 3전략 통합 월별 집계표를 분석한 사용자가 "코스닥 종목이 코스피보다
+//          불안정해 보인다"고 판단 — 실측 시장별 리스크 지표(3strategy_combined_portfolio_backtest.mjs)로
+//          확인 결과 눌림목 코스닥은 평균수익률(+3.13% vs 코스피+6.87%)·최악사례(-18.09% vs -11.51%)
+//          모두 열위. 코스닥 종목(알테오젠) 유니버스에서 완전 제외, 코스피 전용으로 전환(사용자 확정).
+//          단, 반대쪽 지수(코스닥지수) 상승국면 병행확인(v12 조건①)은 종목이 아닌 시장 breadth
+//          신호라 그대로 유지 — 코스닥 종목을 매매하지 않는 것과는 별개.)
 //       과거 그리드서치 원본 수치는 메모리(project_pullback_entry_variants_backtest.md) 참고.
 // 사용법: node scripts/project_stock_pullback.mjs [--max-hold N] [--calendar-days N]
 import https from 'https';
@@ -72,7 +78,7 @@ const DEFAULT_STOCKS = [
   { code: '033780', name: 'KT&G' }, { code: '000150', name: '두산' },
   { code: '010140', name: '삼성중공업' }, { code: '051910', name: 'LG화학' },
   { code: '017670', name: 'SK텔레콤' }, { code: '035720', name: '카카오' },
-  { code: '196170', name: '알테오젠', market: 'KOSDAQ' }, { code: '024110', name: '기업은행' },
+  { code: '024110', name: '기업은행' },
   { code: '018260', name: '삼성에스디에스' }, { code: '267250', name: 'HD현대' },
   { code: '079550', name: 'LIG디펜스앤에어로스페이스' }, { code: '003550', name: 'LG' },
   { code: '086280', name: '현대글로비스' }, { code: '010950', name: 'S-Oil' },
@@ -83,18 +89,15 @@ const KOSDAQ_SYMBOL = '%5EKQ11'; // 2026-08-19: 코스닥 종목엔 코스피지
 const MA_SHORT = 50, MA_LONG = 100, SLOPE_LOOKBACK = 10; // 사용자 개인 이평체계(5/10/20/50/100/200/400 EMA) — 구 SMA60/120을 비율(1:2) 유지한 채 EMA50/100으로 교체
 const BREAKOUT_LOOKBACK = 6; // 신고가 재지지 최근성 기준(2026-08-06 재탐색: 10일→6일, MA_SHORT 축소에 맞춰 비율 재조정)
 const ATR_PERIOD = 14, BAND_K = 0.4; // 되돌림밴드 = 눌림폭 <= ATR% × BAND_K
-const SL = 8, TRAIL = 8, TP_PCT = 10, TP_FRAC = 0.5; // 코스피 기본값
-// 2026-08-19: 코스닥 전용 SL/TRAIL — 기존(코스피와 동일 SL8/TRAIL8) 그대로 적용하면 승률42%·중앙값-4.10%로
-// 코스피(승률56%·중앙값+5.86%)보다 뚜렷이 열위였음(코스닥이 변동성 커서 8%는 너무 타이트한 손절/트레일링).
-// SL/TRAIL만 18%/18%로 넓히면 진입조건 변경 없이 승률55%·중앙값+2.14%로 코스피에 근접(그리드서치 결과,
-// TR을 25%까지 더 넓히면 평균·Sharpe는 근소 개선되지만 중앙값·승률은 오히려 하락해 18%가 더 견고).
-const SL_KOSDAQ = 18, TRAIL_KOSDAQ = 18;
-function slFor(market) { return market === 'KOSDAQ' ? SL_KOSDAQ : SL; }
-function trailFor(market) { return market === 'KOSDAQ' ? TRAIL_KOSDAQ : TRAIL; }
+const SL = 8, TRAIL = 8, TP_PCT = 10, TP_FRAC = 0.5;
+// v14(2026-08-26): 코스닥 종목을 유니버스에서 완전 제외해 코스피 전용으로 전환 — 코스닥 전용
+// SL18/TRAIL18(v11) 분기는 더 이상 쓰이지 않아 제거, SL/TRAIL 단일값만 사용.
+function slFor() { return SL; }
+function trailFor() { return TRAIL; }
 const REGIME_STREAK_MIN = 10; // 시장국면(상승) 전환 후 최소 10거래일 지나야 진입 허용 — 막 전환된 직후 휩소 구간 배제(2026-08-06 그리드서치 채택, v9)
 const KOSPI_ATR_PERIOD = 14, VOL_CAP = 4; // KOSPI 자체 ATR%가 이 값 초과면 신규진입 금지 — 추세 도중의 급변(크래시)장 배제(v10에서 2 채택 후, 좋았던 달까지 차단하는 문제 발견돼 v11에서 4로 완화)
 const STOCK_ATR_CAP = 6; // v12: 진입일 개별종목 14일 ATR%가 이 값 초과면 진입 제외(과변동성 종목 배제, 2026-08-20 그리드서치 채택)
-const COOLDOWN_DAYS = 5; // v13: 동일종목이 손절(SL)로 청산된 뒤 이 거래일수 이내엔 재진입 금지(휩소 재진입 배제, 2026-08-26 그리드서치 채택)
+const COOLDOWN_DAYS = 5; // v14: 동일종목이 손절(SL)로 청산된 뒤 이 거래일수 이내엔 재진입 금지(휩소 재진입 배제, 2026-08-26 그리드서치 채택)
 
 function parseArgs() {
   const argv = process.argv.slice(2);
@@ -295,11 +298,11 @@ function simulatePartialTP(seq, i0, entryClose, sl, trail, maxHold, tpPct, tpFra
 }
 
 async function loadStockSignals(stock, regimeByMarket, opts) {
-  const marketRegime = stock.market === 'KOSDAQ' ? regimeByMarket.KOSDAQ : regimeByMarket.KOSPI;
-  const otherRegime = stock.market === 'KOSDAQ' ? regimeByMarket.KOSPI : regimeByMarket.KOSDAQ; // v12: 반대쪽 지수 병행확인용
+  const marketRegime = regimeByMarket.KOSPI; // v14: 코스피 전용 유니버스로 전환
+  const otherRegime = regimeByMarket.KOSDAQ; // v12: 반대쪽 지수(코스닥) 병행확인용 — 종목이 아닌 시장 breadth 신호라 계속 유지
   const p2 = Math.floor(Date.now() / 1000);
   const p1 = p2 - opts.calendarDays * 24 * 3600;
-  const symbol = stock.market === 'KOSDAQ' ? `${stock.code}.KQ` : `${stock.code}.KS`;
+  const symbol = `${stock.code}.KS`;
 
   const chart = await fetchYahooChart(symbol, p1, p2);
   if (!chart || !chart.ts.length) return { ...stock, error: '데이터 조회 실패', seq: null, entries: [] };
@@ -323,7 +326,7 @@ async function loadStockSignals(stock, regimeByMarket, opts) {
 
   const entries = [];
   const sl = slFor(stock.market), trail = trailFor(stock.market);
-  let blockedUntilIdx = -1; // v13: 손절 후 재진입 쿨다운 추적(종목별 독립)
+  let blockedUntilIdx = -1; // v14: 손절 후 재진입 쿨다운 추적(종목별 독립)
   for (let i = MA_LONG + SLOPE_LOOKBACK; i < seq.length - 1; i++) {
     const s = seq[i];
     const prior = seq[i - SLOPE_LOOKBACK];
@@ -345,7 +348,7 @@ async function loadStockSignals(stock, regimeByMarket, opts) {
     const normDepth = pullbackPct / s.atrPct; // ATR%×BAND_K 배수 단위
     if (normDepth > BAND_K) continue;
 
-    if (i <= blockedUntilIdx) continue; // v13: 쿨다운 중이면 스킵
+    if (i <= blockedUntilIdx) continue; // v14: 쿨다운 중이면 스킵
     const trade = simulatePartialTP(seq, i, s.close, sl, trail, opts.maxHold, TP_PCT, TP_FRAC);
     if (trade && trade.reason === 'SL') blockedUntilIdx = i + trade.day + COOLDOWN_DAYS;
     entries.push({ i, date: s.date });
@@ -373,7 +376,7 @@ function fmtRow(label, s) {
 
 async function main() {
   const opts = parseArgs();
-  console.error(`[눌림목 V3_RETEST v13 검증] ${opts.stocks.length}종목, 최대${opts.maxHold}거래일, 최근${opts.calendarDays}일, 추세필터=EMA${MA_SHORT}/${MA_LONG}, 되돌림밴드=ATR%×${BAND_K}, 시장국면지속≥${REGIME_STREAK_MIN}일, KOSPI변동성≤${VOL_CAP}%, 지수병행확인, 개별ATR%상한≤${STOCK_ATR_CAP}%, 손절후재진입쿨다운≥${COOLDOWN_DAYS}일`);
+  console.error(`[눌림목 V3_RETEST v14 검증] ${opts.stocks.length}종목, 최대${opts.maxHold}거래일, 최근${opts.calendarDays}일, 추세필터=EMA${MA_SHORT}/${MA_LONG}, 되돌림밴드=ATR%×${BAND_K}, 시장국면지속≥${REGIME_STREAK_MIN}일, KOSPI변동성≤${VOL_CAP}%, 지수병행확인, 개별ATR%상한≤${STOCK_ATR_CAP}%, 손절후재진입쿨다운≥${COOLDOWN_DAYS}일`);
 
   const p2 = Math.floor(Date.now() / 1000);
   const p1 = p2 - opts.calendarDays * 24 * 3600;
@@ -394,8 +397,8 @@ async function main() {
   allEntries.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
   console.error(`[진입시점 추출 완료] 총 ${allEntries.length}건`);
 
-  console.log('\n════════ 눌림목 V3_RETEST v13 확정 전략 — 전체구간 성과 ════════');
-  console.log(`진입: 시장국면(지속≥${REGIME_STREAK_MIN}일·지수변동성≤${VOL_CAP}%, 자기시장 지수+반대쪽 지수 둘다 상승국면)+종목추세(정배열, EMA${MA_SHORT}/${MA_LONG}) + ${MA_SHORT}일신고가 재지지 + 눌림폭<=ATR%×${BAND_K} + 개별ATR%≤${STOCK_ATR_CAP}% + 동일종목 손절후 재진입쿨다운≥${COOLDOWN_DAYS}거래일 / 청산: SL${SL}%·TRAIL${TRAIL}%(코스닥은 SL${SL_KOSDAQ}%·TRAIL${TRAIL_KOSDAQ}%)·EMA${MA_SHORT}이탈·시간청산40일\n`);
+  console.log('\n════════ 눌림목 V3_RETEST v14 확정 전략 — 전체구간 성과 ════════');
+  console.log(`진입: 코스피전용 유니버스 + 시장국면(지속≥${REGIME_STREAK_MIN}일·지수변동성≤${VOL_CAP}%, 코스피+코스닥 지수 둘다 상승국면)+종목추세(정배열, EMA${MA_SHORT}/${MA_LONG}) + ${MA_SHORT}일신고가 재지지 + 눌림폭<=ATR%×${BAND_K} + 개별ATR%≤${STOCK_ATR_CAP}% + 동일종목 손절후 재진입쿨다운≥${COOLDOWN_DAYS}거래일 / 청산: SL${SL}%·TRAIL${TRAIL}%·EMA${MA_SHORT}이탈·시간청산40일\n`);
 
   console.log('전략'.padEnd(26) + 'n'.padStart(6) + '평균'.padStart(10) + '중앙값'.padStart(10) + '승률'.padStart(8) + 'Sharpe'.padStart(9));
   console.log('─'.repeat(69));

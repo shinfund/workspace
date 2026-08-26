@@ -6,8 +6,9 @@
 // 완전 동일 재현은 원본 코드가 없어 불가능 — 아래 가정은 문서화된 것이며 결과는 "근사 재구축치"로 취급할 것.
 //
 // 설계 가정(원본 미상이라 이 스크립트에서 새로 결정):
-//  - 유니버스: project_portfolio3_entry_scan.mjs의 FALLBACK_KOSPI(50)+FALLBACK_KOSDAQ(20)=70종목(눌림목·괴리율),
-//    라운드넘버는 이 중 KOSPI 50종목만(2026-08-24 확정 방침과 동일). 메모의 "51종목"과는 불일치 — 정확한 51종목
+//  - 유니버스: project_portfolio3_entry_scan.mjs의 FALLBACK_KOSPI(50종목), 눌림목·괴리율·라운드넘버 3전략
+//    전부 코스피 전용(2026-08-26: 3전략 통합 월별 집계표 분석 결과 코스닥이 코스피보다 불안정하다고 판단해
+//    코스닥 유니버스(FALLBACK_KOSDAQ, 20종목) 완전 제외, 사용자 확정). 메모의 "51종목"과는 불일치 — 정확한 51종목
 //    구성을 알 수 없어 그대로 진행.
 //  - 포지션 사이징: 슬롯당 예산 = (현금+보유포지션 원가) / 5, 정수 주 단위. 신규진입 때마다 재계산되므로 복리 반영.
 //  - 슬롯 우선순위: 같은 날 여러 신규진입 후보가 남은 빈슬롯보다 많으면 눌림목>괴리율>라운드넘버 순으로 채움
@@ -34,18 +35,19 @@ const YF_HEADERS = {
   'Accept': 'application/json', 'Accept-Language': 'ko-KR,ko;q=0.9',
 };
 
-// ── 유니버스 (project_portfolio3_entry_scan.mjs FALLBACK_KOSPI/FALLBACK_KOSDAQ와 동일) ──
+// ── 유니버스 (project_portfolio3_entry_scan.mjs FALLBACK_KOSPI와 동일) ──
+// 2026-08-26: 코스닥 종목(FALLBACK_KOSDAQ) 완전 제외 — 3전략 통합 월별 집계표를 분석한 사용자가
+// 코스닥이 코스피보다 불안정하다고 판단, 실측 시장별 리스크 지표(눌림목 코스닥 평균+3.13%·최악-18.09%
+// vs 코스피 평균+6.87%·최악-11.51%; 괴리율 코스닥 최악-38.00% vs 코스피-28.63%)로 확인 후 확정.
+// 라운드넘버는 애초부터 코스피 전용이라 변경 없음 — 이제 3전략 전부 코스피 전용으로 통일.
 const FALLBACK_KOSPI = [
   { code: '005930', name: '삼성전자' }, { code: '000660', name: 'SK하이닉스' }, { code: '402340', name: 'SK스퀘어' }, { code: '009150', name: '삼성전기' }, { code: '005380', name: '현대차' }, { code: '373220', name: 'LG에너지솔루션' }, { code: '207940', name: '삼성바이오로직스' }, { code: '032830', name: '삼성생명' }, { code: '028260', name: '삼성물산' }, { code: '012450', name: '한화에어로스페이스' }, { code: '105560', name: 'KB금융' }, { code: '000270', name: '기아' }, { code: '034020', name: '두산에너빌리티' }, { code: '329180', name: 'HD현대중공업' }, { code: '055550', name: '신한지주' }, { code: '012330', name: '현대모비스' }, { code: '068270', name: '셀트리온' }, { code: '034730', name: 'SK' }, { code: '006400', name: '삼성SDI' }, { code: '086790', name: '하나금융지주' }, { code: '035420', name: 'NAVER' }, { code: '066570', name: 'LG전자' }, { code: '010120', name: 'LS ELECTRIC' }, { code: '042660', name: '한화오션' }, { code: '267260', name: 'HD현대일렉트릭' }, { code: '000810', name: '삼성화재' }, { code: '298040', name: '효성중공업' }, { code: '009540', name: 'HD한국조선해양' }, { code: '005490', name: 'POSCO홀딩스' }, { code: '010130', name: '고려아연' }, { code: '316140', name: '우리금융지주' }, { code: '096770', name: 'SK이노베이션' }, { code: '042700', name: '한미반도체' }, { code: '017670', name: 'SK텔레콤' }, { code: '011200', name: 'HMM' }, { code: '015760', name: '한국전력' }, { code: '006800', name: '미래에셋증권' }, { code: '000150', name: '두산' }, { code: '051910', name: 'LG화학' }, { code: '010140', name: '삼성중공업' }, { code: '018260', name: '삼성에스디에스' }, { code: '267250', name: 'HD현대' }, { code: '033780', name: 'KT&G' }, { code: '003550', name: 'LG' }, { code: '079550', name: 'LIG디펜스앤에어로스페이스' }, { code: '035720', name: '카카오' }, { code: '010950', name: 'S-Oil' }, { code: '024110', name: '기업은행' }, { code: '064350', name: '현대로템' }, { code: '086280', name: '현대글로비스' },
 ];
-const FALLBACK_KOSDAQ = [
-  { code: '196170', name: '알테오젠', market: 'KOSDAQ' }, { code: '086520', name: '에코프로', market: 'KOSDAQ' }, { code: '247540', name: '에코프로비엠', market: 'KOSDAQ' }, { code: '277810', name: '레인보우로보틱스', market: 'KOSDAQ' }, { code: '036930', name: '주성엔지니어링', market: 'KOSDAQ' }, { code: '028300', name: 'HLB', market: 'KOSDAQ' }, { code: '240810', name: '원익IPS', market: 'KOSDAQ' }, { code: '058470', name: '리노공업', market: 'KOSDAQ' }, { code: '039030', name: '이오테크닉스', market: 'KOSDAQ' }, { code: '087010', name: '펩트론', market: 'KOSDAQ' }, { code: '298380', name: '에이비엘바이오', market: 'KOSDAQ' }, { code: '000250', name: '삼천당제약', market: 'KOSDAQ' }, { code: '141080', name: '리가켐바이오', market: 'KOSDAQ' }, { code: '222800', name: '심텍', market: 'KOSDAQ' }, { code: '214450', name: '파마리서치', market: 'KOSDAQ' }, { code: '108490', name: '로보티즈', market: 'KOSDAQ' }, { code: '319660', name: '피에스케이', market: 'KOSDAQ' }, { code: '095340', name: 'ISC', market: 'KOSDAQ' }, { code: '403870', name: 'HPSP', market: 'KOSDAQ' }, { code: '440110', name: '파두', market: 'KOSDAQ' },
-];
-const PD_UNIVERSE = [...FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' })), ...FALLBACK_KOSDAQ]; // 눌림목·괴리율
+const PD_UNIVERSE = FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' })); // 눌림목·괴리율(코스피 전용)
 const RN_UNIVERSE = FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' })); // 라운드넘버(코스피 전용)
 
 // ── 파라미터 (각 확정 전략 스크립트와 동일) ──
-const PB = { MA_SHORT: 50, MA_LONG: 100, SLOPE_LOOKBACK: 10, BREAKOUT_LOOKBACK: 6, ATR_PERIOD: 14, BAND_K: 0.4, SL: 8, TRAIL: 8, TP_PCT: 10, TP_FRAC: 0.5, SL_KOSDAQ: 18, TRAIL_KOSDAQ: 18, REGIME_STREAK_MIN: 10, KOSPI_ATR_PERIOD: 14, VOL_CAP: 4, STOCK_ATR_CAP: 6, MAX_HOLD: 40, CAP: 3, COOLDOWN_DAYS: 5 }; // COOLDOWN_DAYS: 손절 후 재진입쿨다운(v13, 2026-08-26 확정)
+const PB = { MA_SHORT: 50, MA_LONG: 100, SLOPE_LOOKBACK: 10, BREAKOUT_LOOKBACK: 6, ATR_PERIOD: 14, BAND_K: 0.4, SL: 8, TRAIL: 8, TP_PCT: 10, TP_FRAC: 0.5, REGIME_STREAK_MIN: 10, KOSPI_ATR_PERIOD: 14, VOL_CAP: 4, STOCK_ATR_CAP: 6, MAX_HOLD: 40, CAP: 3, COOLDOWN_DAYS: 5 }; // COOLDOWN_DAYS: 손절 후 재진입쿨다운(v13, 2026-08-26 확정). SL_KOSDAQ/TRAIL_KOSDAQ는 v14(코스닥 제외)로 삭제
 const DV = { ROLL: 250, Z_THRESHOLD: -2, ENTRY_PCT_THRESHOLD: 3, FAST: 5, SLOW: 20, MID: 50, MID2: 100, LONG: 200, SL: 12, TP: 20, MAX_HOLD: 20, CAP: 3 }; // SL 15→12 (2026-08-26 재조정 확정)
 const RN = { WINDOW_DAYS: 150, TARGET_TICKS: 30, RECENT_LOOKBACK: 20, PRIOR_ABOVE_DAYS: 5, MIN_TOUCHES: 3, RECLAIM_WINDOW: 5, STOP_BUFFER_PCT: 2, MAX_HOLD: 60, MIN_ENTRY_POSITION_PCT: 20, MIN_BAND_WIDTH_PCT: 2.5, CAP: 3 };
 
@@ -153,7 +155,7 @@ function fmtPct(n) { return n != null ? `${n >= 0 ? '+' : ''}${n.toFixed(2)}%` :
 
 // ── 1) 전 종목 시세 로드 ──
 async function loadStock(stock, p1, p2) {
-  const symbol = stock.market === 'KOSDAQ' ? `${stock.code}.KQ` : `${stock.code}.KS`;
+  const symbol = `${stock.code}.KS`; // v14: 코스피 전용 유니버스로 전환
   const chart = await fetchYahooChart(symbol, p1, p2);
   if (!chart || !chart.ts.length) return { ...stock, error: '데이터 조회 실패' };
   const dates = chart.ts.map(tsToKstDate);
@@ -168,8 +170,8 @@ function precomputePullback(st, regimeByMarket) {
   const maShort = buildEma(closes, PB.MA_SHORT), maLong = buildEma(closes, PB.MA_LONG);
   const atr = buildAtr(highs, lows, closes, PB.ATR_PERIOD);
   const atrPct = atr.map((v, i) => v != null && closes[i] ? v / closes[i] * 100 : null);
-  const marketRegime = st.market === 'KOSDAQ' ? regimeByMarket.KOSDAQ : regimeByMarket.KOSPI;
-  const otherRegime = st.market === 'KOSDAQ' ? regimeByMarket.KOSPI : regimeByMarket.KOSDAQ;
+  const marketRegime = regimeByMarket.KOSPI; // v14: 코스피 전용 유니버스로 전환
+  const otherRegime = regimeByMarket.KOSDAQ; // v12: 반대쪽 지수(코스닥) 병행확인용 — 종목이 아닌 시장 breadth 신호라 계속 유지
   const cond = new Array(n).fill(false);
   const scoreArr = new Array(n).fill(null); // {trendStrength, pullbackNorm} — 동시신호 우선순위용
   for (let i = PB.MA_LONG + PB.SLOPE_LOOKBACK; i < n - 1; i++) {
@@ -431,8 +433,8 @@ function runPortfolioSim(calendarSlice, startCapital, ctx, snapshotTargets = [],
         strategy: cand.strategy, code: cand.s.code, name: cand.s.name, market: cand.s.market || 'KOSPI',
         entryDate: date, entryIdx: cand.i, entryPrice: price, shares, remainingShares: shares, costRemaining: investedTotal,
         investedTotal, realizedCash: 0, legs: [],
-        slFor: cand.strategy === '눌림목' ? (cand.s.market === 'KOSDAQ' ? PB.SL_KOSDAQ : PB.SL) : null,
-        trailFor: cand.strategy === '눌림목' ? (cand.s.market === 'KOSDAQ' ? PB.TRAIL_KOSDAQ : PB.TRAIL) : null,
+        slFor: cand.strategy === '눌림목' ? PB.SL : null,
+        trailFor: cand.strategy === '눌림목' ? PB.TRAIL : null,
         st: cand.strategy === '눌림목' ? { tpTaken: false, tpReturn: null, peak: price }
           : cand.strategy === '괴리율' ? { stage: 'INIT' }
           : { level: cand.ev.level, step: cand.ev.step },
@@ -515,31 +517,6 @@ async function main() {
   }
   const totalPnl = trades.reduce((a, t) => a + t.realizedPnl, 0);
   console.log(`  합계    ${String(trades.length).padStart(4)}건  실현손익 ${fmtWon(totalPnl)}원`);
-
-  console.log('\n전략별 시장(코스피/코스닥) 청산건수 비중(전체 기간):');
-  for (const strat of ['눌림목', '괴리율', '라운드넘버']) {
-    const arr = byStrat[strat] || [];
-    const kospi = arr.filter(t => t.market !== 'KOSDAQ');
-    const kosdaq = arr.filter(t => t.market === 'KOSDAQ');
-    const kospiPnl = kospi.reduce((a, t) => a + t.realizedPnl, 0);
-    const kosdaqPnl = kosdaq.reduce((a, t) => a + t.realizedPnl, 0);
-    const kosdaqPct = arr.length ? (kosdaq.length / arr.length * 100).toFixed(0) : '0';
-    console.log(`  ${strat.padEnd(6)} 코스피 ${String(kospi.length).padStart(3)}건(${fmtWon(kospiPnl)}원)  코스닥 ${String(kosdaq.length).padStart(3)}건(${fmtWon(kosdaqPnl)}원)  코스닥비중 ${kosdaqPct}%`);
-  }
-
-  console.log('\n전략별 시장(코스피/코스닥) 리스크 지표(전체 기간, 수익률% 기준 — 규모 무관 비교):');
-  for (const strat of ['눌림목', '괴리율', '라운드넘버']) {
-    const arr = byStrat[strat] || [];
-    for (const [label, sub] of [['코스피', arr.filter(t => t.market !== 'KOSDAQ')], ['코스닥', arr.filter(t => t.market === 'KOSDAQ')]]) {
-      if (!sub.length) { console.log(`  ${strat.padEnd(6)} ${label.padEnd(4)} 0건`); continue; }
-      const rets = sub.map(t => t.ret);
-      const win = sub.filter(t => t.ret > 0).length;
-      const avgRet = mean(rets);
-      const worst = Math.min(...rets);
-      const slCount = sub.filter(t => t.reason === 'SL' || t.reason === 'STOP').length;
-      console.log(`  ${strat.padEnd(6)} ${label.padEnd(4)} ${String(sub.length).padStart(3)}건  승률 ${(win / sub.length * 100).toFixed(0)}%  평균수익률 ${avgRet >= 0 ? '+' : ''}${avgRet.toFixed(2)}%  최악 ${worst.toFixed(2)}%  손절/스탑 ${slCount}건`);
-    }
-  }
 
   function monthAgg(fromD, toD, label) {
     const sub = trades.filter(t => t.exitDate >= fromD && t.exitDate <= toD);

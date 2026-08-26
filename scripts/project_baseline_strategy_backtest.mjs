@@ -110,8 +110,7 @@ const DEFAULT_STOCKS = [
   { code: '051910', name: 'LG화학' },
   { code: '017670', name: 'SK텔레콤' },
   { code: '035720', name: '카카오' },
-  { code: '196170', name: '알테오젠', market: 'KOSDAQ' },
-  { code: '024110', name: '기업은행' },
+  { code: '024110', name: '기업은행' }, // 2026-08-26: 알테오젠(코스닥) 제외, 코스피 전용으로 전환
   { code: '018260', name: '삼성에스디에스' },
   { code: '267250', name: 'HD현대' },
   { code: '079550', name: 'LIG디펜스앤에어로스페이스' },
