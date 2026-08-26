@@ -57,6 +57,7 @@ function trailFor(market) { return market === 'KOSDAQ' ? TRAIL_KOSDAQ : TRAIL; }
 const REGIME_STREAK_MIN = 10;
 const KOSPI_ATR_PERIOD = 14, VOL_CAP = 4;
 const STOCK_ATR_CAP = 6; // v12(2026-08-20): 진입일 개별종목 14일 ATR%가 이 값 초과면 진입 제외
+const COOLDOWN_DAYS = 5; // v13(2026-08-26): 동일종목 손절 후 이 거래일수 이내 재진입 금지(휩소 재진입 배제)
 const CALENDAR_DAYS = 1100;
 
 function parseArgs() {
@@ -256,6 +257,8 @@ async function loadStockSignals(stock, regimeByMarket, opts, kisMap, todayDate) 
   if (seq.length < minLen) return { ...stock, error: '데이터 부족', seq: null, entries: [] };
 
   const entries = [];
+  const sl = slFor(stock.market), trail = trailFor(stock.market);
+  let blockedUntilIdx = -1; // v13: 손절 후 재진입 쿨다운 추적(종목별 독립)
   for (let i = MA_LONG + SLOPE_LOOKBACK; i < seq.length; i++) {
     const s = seq[i];
     const prior = seq[i - SLOPE_LOOKBACK];
@@ -276,6 +279,10 @@ async function loadStockSignals(stock, regimeByMarket, opts, kisMap, todayDate) 
     const pullbackPct = (highS - s.close) / highS * 100;
     const normDepth = pullbackPct / s.atrPct;
     if (normDepth > BAND_K) continue;
+
+    if (i <= blockedUntilIdx) continue; // v13: 쿨다운 중이면 스킵
+    const trade = simulateLiveStatus(seq, i, s.close, sl, trail, MAX_HOLD, TP_PCT, TP_FRAC);
+    if (trade && trade.reason === 'SL') blockedUntilIdx = i + trade.day + COOLDOWN_DAYS;
 
     const trendStrength = (s.maLong - prior.maLong) / prior.maLong * 100;
     entries.push({ i, date: s.date, trendStrength, pullbackNorm: normDepth });

@@ -267,6 +267,26 @@ const PB_MA_SHORT = 50, PB_MA_LONG = 100, PB_SLOPE_LOOKBACK = 10, PB_BREAKOUT_LO
 const PB_ATR_PERIOD = 14, PB_BAND_K = 0.4;
 const PB_SL = 8, PB_TRAIL = 8, PB_SL_KOSDAQ = 18, PB_TRAIL_KOSDAQ = 18;
 const PB_REGIME_STREAK_MIN = 10, PB_KOSPI_ATR_PERIOD = 14, PB_VOL_CAP = 4, PB_STOCK_ATR_CAP = 6;
+const PB_TP_PCT = 10, PB_TP_FRAC = 0.5, PB_MAX_HOLD = 40, PB_COOLDOWN_DAYS = 5; // v13(2026-08-26): 손절 후 재진입쿨다운
+function pbSlFor(market) { return market === 'KOSDAQ' ? PB_SL_KOSDAQ : PB_SL; }
+function pbTrailFor(market) { return market === 'KOSDAQ' ? PB_TRAIL_KOSDAQ : PB_TRAIL; }
+function pbSimulate(seq, i0, entryClose, sl, trail, maxHold, tpPct, tpFrac) {
+  let peak = entryClose; let tpTaken = false, tpReturn = null;
+  for (let d = 1; d <= maxHold; d++) {
+    const j = i0 + d; if (j >= seq.length) return null;
+    const close = seq[j].close, maShort = seq[j].maShort;
+    const ret = (close - entryClose) / entryClose * 100;
+    if (!tpTaken && ret >= tpPct) { tpTaken = true; tpReturn = ret; if (close > peak) peak = close; continue; }
+    const finish = (reason) => ({ reason, day: d });
+    if (ret <= -sl) return finish('SL');
+    if (close < maShort) return finish('TREND_BREAK');
+    if (close > peak) peak = close;
+    const trailRet = (close - peak) / peak * 100;
+    if (trailRet <= -trail) return finish('TRAIL');
+    if (d === maxHold) return finish('TIME');
+  }
+  return null;
+}
 async function fetchMarketRegime(p1, p2, symbol) {
   const chart = await fetchYahooChart(symbol, p1, p2);
   if (!chart || !chart.ts.length) throw new Error(`${symbol} 지수 조회 실패`);
@@ -309,6 +329,26 @@ async function checkPullbackEntry(stock, regimeByMarket, kisMap, todayDate) {
   if (lastIdx < PB_MA_LONG + PB_SLOPE_LOOKBACK) return null;
   if (seq[lastIdx].date === todayDate && kisMap?.has(stock.code)) seq[lastIdx].close = kisMap.get(stock.code);
 
+  // v13: 오늘 이전 구간을 재생하며 손절후 재진입쿨다운 상태를 계산(동일종목 휩소 재진입 배제)
+  const sl = pbSlFor(stock.market), trail = pbTrailFor(stock.market);
+  let blockedUntilIdx = -1;
+  for (let k = PB_MA_LONG + PB_SLOPE_LOOKBACK; k < lastIdx; k++) {
+    const sk = seq[k], priorK = seq[k - PB_SLOPE_LOOKBACK];
+    const trendUpK = sk.close > sk.maLong && sk.maShort > sk.maLong && sk.maLong > priorK.maLong;
+    if (!trendUpK || marketRegime.regime[sk.date] !== true || otherRegime.regime[sk.date] !== true) continue;
+    if ((marketRegime.streak[sk.date] ?? 0) < PB_REGIME_STREAK_MIN) continue;
+    const volK = marketRegime.volPct[sk.date];
+    if (volK == null || volK > PB_VOL_CAP) continue;
+    if (k < PB_MA_SHORT || sk.atrPct == null || sk.atrPct <= 0 || sk.atrPct > PB_STOCK_ATR_CAP) continue;
+    let highK = -Infinity, highKIdx = -1;
+    for (let m = k - (PB_MA_SHORT - 1); m <= k - 1; m++) if (seq[m].close > highK) { highK = seq[m].close; highKIdx = m; }
+    if (!(highKIdx >= k - PB_BREAKOUT_LOOKBACK) || sk.close > highK || sk.close <= sk.maShort) continue;
+    if (((highK - sk.close) / highK) / sk.atrPct > PB_BAND_K) continue;
+    if (k <= blockedUntilIdx) continue;
+    const trade = pbSimulate(seq, k, sk.close, sl, trail, PB_MAX_HOLD, PB_TP_PCT, PB_TP_FRAC);
+    if (trade && trade.reason === 'SL') blockedUntilIdx = k + trade.day + PB_COOLDOWN_DAYS;
+  }
+
   const i = lastIdx, s = seq[i], prior = seq[i - PB_SLOPE_LOOKBACK];
   const trendUp = s.close > s.maLong && s.maShort > s.maLong && s.maLong > prior.maLong;
   if (!trendUp || marketRegime.regime[s.date] !== true || otherRegime.regime[s.date] !== true) return null;
@@ -323,6 +363,7 @@ async function checkPullbackEntry(stock, regimeByMarket, kisMap, todayDate) {
   const pullbackPct = (highS - s.close) / highS * 100;
   const normDepth = pullbackPct / s.atrPct;
   if (normDepth > PB_BAND_K) return null;
+  if (i <= blockedUntilIdx) return null; // v13: 손절후 재진입쿨다운 중
   const trendStrength = (s.maLong - prior.maLong) / prior.maLong * 100;
   return { code: stock.code, name: stock.name, market: stock.market, price: s.close, trendStrength, pullbackNorm: normDepth, reason: `50일신고가(${Math.round(highS).toLocaleString()}) 대비 -${pullbackPct.toFixed(1)}% 눌림, EMA50/100 정배열` };
 }

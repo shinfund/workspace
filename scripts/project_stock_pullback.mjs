@@ -33,6 +33,13 @@
 //          두 필터 결합 시 IS Sharpe 0.478/OOS Sharpe 0.484(baseline IS0.430/OOS0.390 대비 개선 + IS≈OOS로
 //          과최적화 위험 낮음), 승률56%→59%, SL비율18%→15%, 표본 761→613(-19%, 최근진입일 변화없음 2026-05-14).
 //          OTHER_INDEX_SYMBOL·STOCK_ATR_CAP 추가, 반대쪽 지수 국면도 항상 조회하도록 변경.)
+//       v13(2026-08-26, stock-portal 최근신호 표에서 "손실난 종목이 많다"는 사용자 지적으로 원인 진단 —
+//          LG화학이 05-06/05-07/05-11 사흘~나흘 간격, 삼성SDI가 05-04/05-06 이틀 간격으로 재진입해
+//          매번 손절되는 "휩소 재진입" 패턴 발견. 동일종목 손절 후 N거래일 재진입 금지 쿨다운을
+//          0/5/10/20/40일로 그리드서치(scripts/project_pullback_sl_cooldown_sweep.mjs) 결과 5거래일부터
+//          효과가 대부분 포화(10/20/40일과 거의 동일)돼 5일 채택. n=613→579(-6%), 승률60%→63%,
+//          SL비율15%→11%, Sharpe0.474→0.543, IS0.566/OOS0.539(둘 다 v12 baseline의 OOS0.484보다 우수,
+//          격차도 작아 견고). COOLDOWN_DAYS 추가.)
 //       과거 그리드서치 원본 수치는 메모리(project_pullback_entry_variants_backtest.md) 참고.
 // 사용법: node scripts/project_stock_pullback.mjs [--max-hold N] [--calendar-days N]
 import https from 'https';
@@ -87,6 +94,7 @@ function trailFor(market) { return market === 'KOSDAQ' ? TRAIL_KOSDAQ : TRAIL; }
 const REGIME_STREAK_MIN = 10; // 시장국면(상승) 전환 후 최소 10거래일 지나야 진입 허용 — 막 전환된 직후 휩소 구간 배제(2026-08-06 그리드서치 채택, v9)
 const KOSPI_ATR_PERIOD = 14, VOL_CAP = 4; // KOSPI 자체 ATR%가 이 값 초과면 신규진입 금지 — 추세 도중의 급변(크래시)장 배제(v10에서 2 채택 후, 좋았던 달까지 차단하는 문제 발견돼 v11에서 4로 완화)
 const STOCK_ATR_CAP = 6; // v12: 진입일 개별종목 14일 ATR%가 이 값 초과면 진입 제외(과변동성 종목 배제, 2026-08-20 그리드서치 채택)
+const COOLDOWN_DAYS = 5; // v13: 동일종목이 손절(SL)로 청산된 뒤 이 거래일수 이내엔 재진입 금지(휩소 재진입 배제, 2026-08-26 그리드서치 채택)
 
 function parseArgs() {
   const argv = process.argv.slice(2);
@@ -314,6 +322,8 @@ async function loadStockSignals(stock, regimeByMarket, opts) {
   if (seq.length < minLen) return { ...stock, error: '데이터 부족', seq: null, entries: [] };
 
   const entries = [];
+  const sl = slFor(stock.market), trail = trailFor(stock.market);
+  let blockedUntilIdx = -1; // v13: 손절 후 재진입 쿨다운 추적(종목별 독립)
   for (let i = MA_LONG + SLOPE_LOOKBACK; i < seq.length - 1; i++) {
     const s = seq[i];
     const prior = seq[i - SLOPE_LOOKBACK];
@@ -335,6 +345,9 @@ async function loadStockSignals(stock, regimeByMarket, opts) {
     const normDepth = pullbackPct / s.atrPct; // ATR%×BAND_K 배수 단위
     if (normDepth > BAND_K) continue;
 
+    if (i <= blockedUntilIdx) continue; // v13: 쿨다운 중이면 스킵
+    const trade = simulatePartialTP(seq, i, s.close, sl, trail, opts.maxHold, TP_PCT, TP_FRAC);
+    if (trade && trade.reason === 'SL') blockedUntilIdx = i + trade.day + COOLDOWN_DAYS;
     entries.push({ i, date: s.date });
   }
   return { ...stock, seq, entries };
@@ -360,7 +373,7 @@ function fmtRow(label, s) {
 
 async function main() {
   const opts = parseArgs();
-  console.error(`[눌림목 V3_RETEST v12 검증] ${opts.stocks.length}종목, 최대${opts.maxHold}거래일, 최근${opts.calendarDays}일, 추세필터=EMA${MA_SHORT}/${MA_LONG}, 되돌림밴드=ATR%×${BAND_K}, 시장국면지속≥${REGIME_STREAK_MIN}일, KOSPI변동성≤${VOL_CAP}%, 지수병행확인, 개별ATR%상한≤${STOCK_ATR_CAP}%`);
+  console.error(`[눌림목 V3_RETEST v13 검증] ${opts.stocks.length}종목, 최대${opts.maxHold}거래일, 최근${opts.calendarDays}일, 추세필터=EMA${MA_SHORT}/${MA_LONG}, 되돌림밴드=ATR%×${BAND_K}, 시장국면지속≥${REGIME_STREAK_MIN}일, KOSPI변동성≤${VOL_CAP}%, 지수병행확인, 개별ATR%상한≤${STOCK_ATR_CAP}%, 손절후재진입쿨다운≥${COOLDOWN_DAYS}일`);
 
   const p2 = Math.floor(Date.now() / 1000);
   const p1 = p2 - opts.calendarDays * 24 * 3600;
@@ -381,8 +394,8 @@ async function main() {
   allEntries.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
   console.error(`[진입시점 추출 완료] 총 ${allEntries.length}건`);
 
-  console.log('\n════════ 눌림목 V3_RETEST v12 확정 전략 — 전체구간 성과 ════════');
-  console.log(`진입: 시장국면(지속≥${REGIME_STREAK_MIN}일·지수변동성≤${VOL_CAP}%, 자기시장 지수+반대쪽 지수 둘다 상승국면)+종목추세(정배열, EMA${MA_SHORT}/${MA_LONG}) + ${MA_SHORT}일신고가 재지지 + 눌림폭<=ATR%×${BAND_K} + 개별ATR%≤${STOCK_ATR_CAP}% / 청산: SL${SL}%·TRAIL${TRAIL}%(코스닥은 SL${SL_KOSDAQ}%·TRAIL${TRAIL_KOSDAQ}%)·EMA${MA_SHORT}이탈·시간청산40일\n`);
+  console.log('\n════════ 눌림목 V3_RETEST v13 확정 전략 — 전체구간 성과 ════════');
+  console.log(`진입: 시장국면(지속≥${REGIME_STREAK_MIN}일·지수변동성≤${VOL_CAP}%, 자기시장 지수+반대쪽 지수 둘다 상승국면)+종목추세(정배열, EMA${MA_SHORT}/${MA_LONG}) + ${MA_SHORT}일신고가 재지지 + 눌림폭<=ATR%×${BAND_K} + 개별ATR%≤${STOCK_ATR_CAP}% + 동일종목 손절후 재진입쿨다운≥${COOLDOWN_DAYS}거래일 / 청산: SL${SL}%·TRAIL${TRAIL}%(코스닥은 SL${SL_KOSDAQ}%·TRAIL${TRAIL_KOSDAQ}%)·EMA${MA_SHORT}이탈·시간청산40일\n`);
 
   console.log('전략'.padEnd(26) + 'n'.padStart(6) + '평균'.padStart(10) + '중앙값'.padStart(10) + '승률'.padStart(8) + 'Sharpe'.padStart(9));
   console.log('─'.repeat(69));
