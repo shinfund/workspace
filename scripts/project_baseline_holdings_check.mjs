@@ -21,6 +21,7 @@ const HOLDINGS_DB_ID = '9f666aeb-832a-4aa2-9e52-e37515b75e56';
 const ROLL = 250, MIN_STREAK = 16, Z_THRESHOLD = -1.25;
 const FAST_PERIOD = 5, BASE_PERIOD = 200;
 const CALENDAR_DAYS = 2555;
+const SL_PCT = 25; // 2026-08-26 확정: 평단가 대비 -25% 손절(최우선 안전장치). project_baseline_strategy_backtest.mjs와 동일값
 
 // ─── 200EMA 상향돌파 확률(2026-08-20 추가) ──────────────────────────────────
 // 종목 자신의 과거 이력 중 "200EMA 하회 상태였던 모든 날"을 표본 삼아, 이후 N거래일 안에
@@ -288,6 +289,7 @@ function chartCardHtml(r, v) {
 
 function verdict(r) {
   if (r.error) return { label: '─', cls: 'gray' };
+  if (r.unrealizedRet != null && r.unrealizedRet <= -SL_PCT) return { label: `손절검토(-${SL_PCT}%, 2026-08-26 확정)`, cls: 'red' };
   if (!r.belowBaseline) return { label: '기준선 위(전략 관찰대상 아님)', cls: 'gray' };
   if (r.curStreak < MIN_STREAK) return { label: `스트릭 부족(${r.curStreak}/${MIN_STREAK}일, 관찰전)`, cls: 'gray' };
   if (r.z200 <= Z_THRESHOLD && !r.aboveEma5) return { label: 'Z조건충족·EMA5돌파대기', cls: 'amber' };

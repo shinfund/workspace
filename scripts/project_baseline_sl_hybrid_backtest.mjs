@@ -1,5 +1,11 @@
-// EMA200 기준선 파동(波動) 전략 백테스트 — 스킬: stock-baseline (2026-08-13 신규 확정, 4번째 매매전략)
-// 사용법: node scripts/project_baseline_strategy_backtest.mjs [--min-streak N] [--z N] [--max-buy-legs N] [--recover-timeout N] [--post-recover-hold N] [--baseline-confirm N] [--baseline-buffer N] [--exit-mode wave|full1] [--max-hold N] [--calendar-days N] [--max-days-since-low N] [--max-signal-occurrence N] [--stocks 코드:이름:시장,...]
+// EMA200 기준선 파동(波動) 전략 — 손절(SL) 안전장치 추가 하이브리드 백테스트 — 2026-08-26
+// 사용자 요청: "괴리율 청산 트리거를 통째로 이식하면 20일 시간청산 때문에 기준선 특유의 긴 회복사이클을
+// 다 못 살린다"는 문제를 확인한 뒤, "괴리율의 손절(-12%)만 기존 기준선 청산방식(회복대기+첫눌림전량매도+
+// 회복전120일/회복후60일 시간청산+BASELINE_BREAK)에 안전장치로 추가"하는 절충안으로 재요청.
+// project_baseline_strategy_backtest.mjs를 그대로 두고 --sl 옵션만 신규 추가: 매일 평단가 대비 수익률이
+// -sl% 이하로 떨어지면 그 즉시(다른 어떤 조건보다 우선) 잔량 전량 손절 매도. 나머지 로직(분할매수·회복대기·
+// 파동청산·BASELINE_BREAK·시간청산)은 전부 원본과 동일.
+// 사용법: node scripts/project_baseline_sl_hybrid_backtest.mjs [--sl N] [--min-streak N] [--z N] [--max-buy-legs N] [--recover-timeout N] [--post-recover-hold N] [--baseline-confirm N] [--baseline-buffer N] [--exit-mode wave|full1] [--max-hold N] [--calendar-days N] [--max-days-since-low N] [--max-signal-occurrence N] [--stocks 코드:이름:시장,...]
 //
 // 컨셉: EMA200을 "기준선"으로 삼아, 기준선을 하향돌파한 뒤 일정 기간(기본 16거래일) 눌린 종목이
 //       단기(5EMA) 반등을 시작하는 시점에 진입한다. 기준선 회복(첫 상향돌파) 이후에는 매수 없이
@@ -35,10 +41,9 @@
 //   (vlow 기준: 1회+5.87%/배치율100% → 2회+7.57%(실질+5.75%)/배치율76% → 3회부터 실질기대수익률 하락폭 확대).
 //
 // 청산 (먼저 오는 조건, 사용자 지시 + Claude 추천 안전장치 — 2026-08-13 파동별 분할매도로 확정):
-//   ⓪ 손절(평단가 대비 -25%, 2026-08-26 확정, `--sl`로 조정/`--sl off`로 비활성화 가능) — 회복 전/후,
-//      파동단계 무관 최우선. 애초엔 "-15% 일률 손절이 아닌 수동판단 영역"이라 자동규칙에서 제외했으나,
-//      괴리율 전략 청산 트리거(SL-12%) 통째 이식 검토 중 손절 자체의 필요성은 확인됨 → 손절값만 sweep해
-//      절충점(-25%, 무손절 대비 평균수익률 -1.25%p만 희생하고 최악손실 -38.03%→-29.53%로 개선)을 채택.
+//   ※ 손절은 자동 규칙에 포함하지 않음(사용자 지시: "-15% 일률 손절이 아닌 본인 판단하의 수동 손절").
+//      대신 "최대낙폭(minRet, 트레이드 중 진입가 대비 최저 수익률)"을 참고용으로만 기록·집계 —
+//      매도 트리거로 쓰지 않으며, 실전에서는 이 구간에서 사용자가 재량으로 손절할 수 있음을 보여주는 용도.
 //   ① 기준선(EMA200) 첫 상향돌파 확인 → "회복" 상태 진입, 이 시점부터 파동 카운트 시작(상승1파)
 //   ② 회복 이후 기준선(EMA200) 재하향돌파 시 그 즉시 잔량 전량 매도(BASELINE_BREAK, 사용자 명시
 //      안전장치) — 어느 파동 단계에 있든 최우선으로 잔량을 정리.
@@ -153,9 +158,9 @@ function parseArgs() {
   // 포함) 기준으로 보면 8회 이상인 종목군의 회복실패율이 41%까지 뛰는 훨씬 강한 패턴이 있었으나, 이는
   // 미래 신호 횟수를 미리 아는 lookahead라 실전 필터로는 쓸 수 없고 종목선정(스크리닝) 참고용으로만 유효.
   // 기본값 null(필터 없음, 기존 동작 유지) — 스윕 후 채택 여부 결정.
-  const o = { stocks: DEFAULT_STOCKS, minStreak: 16, z: -1.25, maxHold: 180, calendarDays: 2555, maxBuyLegs: 2, recoverTimeout: 120, postRecoverHold: 60, baselineConfirm: 1, baselineBuffer: 0, baselinePartialPct: 100, catchUpBuy: false, reboundMode: 'vlow', exitMode: 'full1', baselineBreak: true, maxDaysSinceLow: null, maxSignalOccurrence: null, preRecoverEma5ExitFrom: null, sl: 25 };
+  const o = { stocks: DEFAULT_STOCKS, minStreak: 16, z: -1.25, maxHold: 180, calendarDays: 2555, maxBuyLegs: 2, recoverTimeout: 120, postRecoverHold: 60, baselineConfirm: 1, baselineBuffer: 0, baselinePartialPct: 100, catchUpBuy: false, reboundMode: 'vlow', exitMode: 'full1', baselineBreak: true, maxDaysSinceLow: null, maxSignalOccurrence: null, preRecoverEma5ExitFrom: null, sl: null };
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '--sl') { const v = argv[++i]; o.sl = v === 'off' ? null : parseFloat(v); } // 2026-08-26 확정: 평단가 대비 -25% 손절(최우선 안전장치). --sl off로 비활성화 가능
+    if (argv[i] === '--sl') o.sl = parseFloat(argv[++i]); // 2026-08-26 신규: 평단가 대비 -sl% 손절(최우선), null=비활성(원본 동작)
     if (argv[i] === '--calendar-days') o.calendarDays = parseInt(argv[++i]);
     if (argv[i] === '--min-streak') o.minStreak = parseInt(argv[++i]);
     if (argv[i] === '--z') o.z = parseFloat(argv[++i]);
@@ -395,12 +400,7 @@ function simulateTrade(seq, i0, opts, occIdx) {
     const ret = (close - avgCost) / avgCost * 100;
     if (ret < minRet) minRet = ret; // 참고용 최대낙폭 추적
 
-    // 손절(-25%, 2026-08-26 확정) — 회복 전/후, 파동단계 무관 최우선으로 잔량 전량 매도.
-    // 배경: 괴리율 전략의 청산 트리거(SL-12%)를 통째로 이식해봤더니 20일 시간청산이 기준선 특유의
-    // 긴 회복사이클(중앙값 48일)과 맞지 않아 성과가 크게 나빠짐 확인(project_baseline_deviation_exit_backtest.mjs).
-    // 대신 손절값만 SL-12%~-35% sweep(project_baseline_sl_hybrid_backtest.mjs)해서 절충점을 찾음 —
-    // -25%가 무손절 대비 평균수익률 손실은 -1.25%p뿐(+8.54%→+7.29%)인데 최악손실은 -38.03%→-29.53%로
-    // 8.5%p 개선되는 elbow point. 사용자 확정 반영, 기본값 25(--sl off로 비활성화 가능).
+    // 신규(2026-08-26): 손절(-sl%) 안전장치 — 회복 전/후, 파동단계 무관 최우선으로 잔량 전량 매도
     if (opts.sl != null && ret <= -opts.sl) {
       legs.push({ weight: openWeight, ret, reason: 'SL', day: d, date: seq[j].date });
       openWeight = 0;
@@ -646,12 +646,12 @@ function byStockSummary(results) {
 
 async function main() {
   const opts = parseArgs();
-  console.error(`[EMA200 기준선 파동 전략 백테스트] ${opts.stocks.length}종목, 최소스트릭${opts.minStreak}거래일/Z<=${opts.z}/회복전타임아웃${opts.recoverTimeout}일/회복후보유${opts.postRecoverHold}일/분할매수최대${opts.maxBuyLegs}회, 손절 ${opts.sl != null ? `-${opts.sl}%` : '없음'}`);
+  console.error(`[EMA200 기준선 파동 전략 백테스트 + 손절 하이브리드] ${opts.stocks.length}종목, 최소스트릭${opts.minStreak}거래일/Z<=${opts.z}/회복전타임아웃${opts.recoverTimeout}일/회복후보유${opts.postRecoverHold}일/분할매수최대${opts.maxBuyLegs}회, 손절 ${opts.sl != null ? `-${opts.sl}%(신규 안전장치)` : '없음(원본 동작)'}`);
   const reboundDesc = opts.reboundMode === 'vlow' ? '최저점갱신 후 첫 EMA5 상향돌파' : 'EMA5 상향돌파 재충족마다';
   const daysSinceLowDesc = opts.maxDaysSinceLow != null ? ` AND 최저점→상향돌파 ${opts.maxDaysSinceLow}거래일 이내` : '';
   const occDesc = opts.maxSignalOccurrence != null ? ` (종목당 누적신호 ${opts.maxSignalOccurrence}회 초과분 제외)` : '';
   console.error(`진입: 종가<EMA200 연속${opts.minStreak}거래일↑ 구간에서 (dev200 롤링Z<=${opts.z} AND ${reboundDesc}${daysSinceLowDesc}) 충족마다 ${(100 / opts.maxBuyLegs).toFixed(0)}%씩 최대${opts.maxBuyLegs}회 분할매수(회복 전까지만)${occDesc}`);
-  console.error(`청산: ⓪손절${opts.sl != null ? `-${opts.sl}%(최우선)` : '없음'} ①회복전${opts.recoverTimeout}거래일 내 미회복시 조기청산(RECOVER_TIMEOUT) ②기준선재하향돌파시 잔량전량(BASELINE_BREAK) ③1파하향돌파 50%매도→④2파하향돌파 잔량50%(전체25%)매도→⑤3파하향돌파 잔량전량매도 ⑥회복후${opts.postRecoverHold}거래일 시간청산(TIME)`);
+  console.error(`청산: ①회복전${opts.recoverTimeout}거래일 내 미회복시 조기청산(RECOVER_TIMEOUT) ②기준선재하향돌파시 잔량전량(BASELINE_BREAK) ③1파하향돌파 50%매도→④2파하향돌파 잔량50%(전체25%)매도→⑤3파하향돌파 잔량전량매도 ⑥회복후${opts.postRecoverHold}거래일 시간청산(TIME)`);
 
   const results = await batchAll(opts.stocks, s => backtestStock(s, opts));
   const pooled = [];

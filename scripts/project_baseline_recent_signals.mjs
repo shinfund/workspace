@@ -56,6 +56,7 @@ async function buildKosdaqUniverse() {
 const ROLL = 250, MIN_STREAK = 16, Z_THRESHOLD = -1.25;
 const FAST_PERIOD = 5, BASE_PERIOD = 200;
 const MAX_BUY_LEGS = 2, RECOVER_TIMEOUT = 120, POST_RECOVER_HOLD = 60;
+const SL_PCT = 25; // 2026-08-26 확정: 평단가 대비 -25% 손절(최우선 안전장치). project_baseline_strategy_backtest.mjs와 동일값
 const CALENDAR_DAYS = 2555; // ROLL(250) 워밍업 + minStreak + 7년치 확보(백테스트와 동일)
 const CHART_LEAD_DAYS = 15;
 
@@ -304,6 +305,13 @@ function simulateLiveStatus(seq, i0) {
     const ret = (close - avgCost) / avgCost * 100;
     if (ret < minRet) minRet = ret;
 
+    // 손절(-25%, 2026-08-26 확정) — 회복 전/후 무관 최우선. project_baseline_strategy_backtest.mjs와 동일 로직
+    if (ret <= -SL_PCT) {
+      legs.push({ weight: openWeight, ret, reason: 'SL', day: d, date: seq[j].date });
+      openWeight = 0;
+      return { status: 'CLOSED', ret: legs.reduce((a, l) => a + l.weight * l.ret, 0), legs, finalDay: d, finalReason: 'SL', buyCount, buyLog, signalLog, recovered, waveCount, minRet, recoverDay, entryDate: seq[i0].date };
+    }
+
     if (!recovered) {
       if (close >= ema200) {
         recovered = true;
@@ -400,6 +408,7 @@ function fmt(v) { return v == null ? '─' : `${v >= 0 ? '+' : ''}${v.toFixed(2)
 function retClass(n) { return n <= -25 ? 't-neg-hi' : n < 0 ? 't-neg' : n > 0 ? 't-pos' : 't-flat'; }
 
 const REASON_LABEL = {
+  SL: { cls: 'bdg-red', label: `손절매도(-${SL_PCT}%)` },
   BASELINE_BREAK: { cls: 'bdg-red', label: '기준선이탈매도' },
   RECOVER_TIMEOUT: { cls: 'bdg-purple', label: '회복실패시간청산' },
   TIME: { cls: 'bdg-purple', label: '회복후시간청산' },

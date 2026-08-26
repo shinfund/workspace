@@ -204,8 +204,8 @@ async function fetchNotionHoldings() {
   return { rows: rows.filter(h => h.code && h.qty > 0), latestDate };
 }
 
-function verdict(r) {
-  if (r.unrealizedRet != null && r.unrealizedRet <= -15) return { label: '손절검토', cls: 'red' };
+function verdict(r) { // 2026-08-26 손절 -15%→-12% 재조정
+  if (r.unrealizedRet != null && r.unrealizedRet <= -12) return { label: '손절검토', cls: 'red' };
   if (r.breakdown5) return { label: '전량매도검토(5EMA이탈)', cls: 'red' };
   if (r.freshLeg20) return { label: '2차익절검토(20EMA돌파)', cls: 'teal' };
   if (r.aboveEma20) return { label: '홀딩(20EMA위)', cls: 'teal' };

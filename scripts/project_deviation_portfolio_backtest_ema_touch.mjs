@@ -1,6 +1,6 @@
 // 포트폴리오 레벨 백테스트 — 진입(5EMA+20EMA 이중 Z+P + 장기하락추세 필터, 2026-08-07 확정) + 청산(3단계 분할매도, 2026-08-10 개편) + 포지션 사이징(단일10%·고가종목상향·클러스터40%) 통합
 // 스킬: stock-deviation — project_deviation_portfolio_backtest.mjs(구 단일청산·전략A)의 신규 매도규칙 버전
-// 사용법: node scripts/project_deviation_portfolio_backtest_ema_touch.mjs [--per-position 0.10] [--max-per-position 0.25] [--cluster-cap 0.40] [--sl 15] [--tp 20] [--max-hold 20] [--calendar-days 2555]
+// 사용법: node scripts/project_deviation_portfolio_backtest_ema_touch.mjs [--per-position 0.10] [--max-per-position 0.25] [--cluster-cap 0.40] [--sl 12] [--tp 20] [--max-hold 20] [--calendar-days 2555]
 // 규칙: 정수 주 단위로 신호일 종가 매수(내부적으로 임의 원금 기준 시뮬레이션, 결과는 지수화·% 위주로 보고 — 특정 원금 금액은 출력하지 않음)
 //       진입(2026-08-07 확정, 위치임계값은 스윕 백테스트로 10→3%ile 조임): EMA5·EMA20 각각 Z<=-2 & 위치<=3%ile 동시충족(AND) AND EMA50<EMA200(장기 하락추세)
 //       청산(2026-08-10 개편 3단계): ①손절-SL%(최우선, 잔량 전량) ②진입가 대비 +TP%(기본20) 도달 시 보유수량 절반(정수 내림) 매도 ③이후 종가≥EMA20 돌파 시 잔량 절반(전체25%) 매도 ④이후 종가<EMA5 하향이탈 시 잔량 전량매도 ⑤최대MAX_HOLD거래일 도달 시 잔량 전량매도
@@ -80,7 +80,7 @@ const TREND_LONG_PERIOD = 200;
 function parseArgs() {
   const argv = process.argv.slice(2);
   const o = {
-    stocks: DEFAULT_STOCKS, maxHold: 20, sl: 15, tp: 20,
+    stocks: DEFAULT_STOCKS, maxHold: 20, sl: 12, tp: 20, // 2026-08-26 손절 15→12 재조정 확정
     calendarDays: 2555, seed: 10_000_000, perPosition: 0.10, maxPerPosition: 0.25, clusterCap: 0.40,
   };
   for (let i = 0; i < argv.length; i++) {

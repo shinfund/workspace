@@ -2,7 +2,7 @@
 // project_deviation_tp20_exit_backtest.mjs(확정 진입·청산 로직)와 동일한 규칙을 사용하되, 각 진입 건의 "현재 상태"
 // (청산완료: 최종 청산사유·경과일·가중수익률 / 보유중: 진행단계·경과일·현재 blended 수익률)를 산출해 JSON으로 출력한다.
 // 진입: EMA5·EMA20 각각 롤링250일 Z<=-2 & 위치<=3%ile 동시충족(AND) + EMA50<EMA200(하락추세), rising edge
-// 청산: ①-15%손절(최우선) ②+20%도달시 50%매도 ③이후 종가>=EMA20 시 잔량50%(전체25%)매도 ④이후 종가<EMA5 하향이탈 시 잔량전량매도 ⑤20거래일 시간청산
+// 청산(2026-08-26 손절 -15%→-12% 재조정): ①-12%손절(최우선) ②+20%도달시 50%매도 ③이후 종가>=EMA20 시 잔량50%(전체25%)매도 ④이후 종가<EMA5 하향이탈 시 잔량전량매도 ⑤20거래일 시간청산
 // 사용법: node scripts/project_deviation_recent_signals.mjs [--days 210]
 import https from 'https';
 import { fetchKrxUniverse, getToken as getKisToken, fetchKisPrice } from './kis_api.mjs';
@@ -50,7 +50,7 @@ async function buildKosdaqUniverse() {
 
 const ROLL = 250, Z_THRESHOLD = -2, ENTRY_PCT_THRESHOLD = 3;
 const FAST_PERIOD = 5, SLOW_PERIOD = 20, TREND_MID_PERIOD = 50, CHART_LONG_PERIOD = 100, TREND_LONG_PERIOD = 200;
-const SL = 15, TP = 20, MAX_HOLD = 20;
+const SL = 12, TP = 20, MAX_HOLD = 20; // 2026-08-26 손절 15→12 재조정 확정
 const CALENDAR_DAYS = 1100;
 const CHART_LEAD_DAYS = 10;
 

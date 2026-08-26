@@ -245,7 +245,9 @@ async function analyzeHolding(h, opts) {
   const downTrend = cur.ema50 != null && cur.ema200 != null ? cur.ema50 < cur.ema200 : null;
   const unrealizedRet = h.avgPrice ? (cur.close - h.avgPrice) / h.avgPrice * 100 : null;
 
-  // 2026-08-10 청산규칙 개편(3단계, ①손절 ②익절(+20%) ③EMA20돌파 ④EMA5하향이탈): ①손절-15%(최우선) ②매입단가 대비 +20% 도달 시 1차익절(50%, 구 EMA5돌파 트리거 대체)
+  // 2026-08-10 청산규칙 개편(3단계, ①손절 ②익절(+20%) ③EMA20돌파 ④EMA5하향이탈), 2026-08-26 손절만 -15%→-12% 재조정
+  // (project_deviation_sl_compromise_backtest.mjs sweep: 승률·중앙값 우선이면 -15% 유지도 가능하나, 평균수익률 개선 폭이 커 -12% 채택):
+  // ①손절-12%(최우선) ②매입단가 대비 +20% 도달 시 1차익절(50%, 구 EMA5돌파 트리거 대체)
   // ③이후 종가≥EMA20 돌파 시 2차익절(잔량50%=전체25%) ④이후 종가<EMA5 하향이탈 시 잔량 전량매도. 매수일자·기존 이행레그가 노션 스키마에 없어 "레그별 잔량"까지는 추적 불가하고
   // 롤링 2일(어제·오늘) 값 비교로 어느 단계에 새로 진입했는지만 매일 재판정한다.
   const aboveEma5 = cur.close >= cur.ema5;
@@ -281,9 +283,9 @@ function signalLabel(r) {
 }
 function fmt(v) { return v == null ? '─' : `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`; }
 
-// 2026-08-10 매도(청산) 규칙: 손절-15%(최우선) > 하향이탈(전량) > 2차익절검토(EMA20 신규돌파) > 홀딩(EMA20 위 유지중) > 익절검토(+20%, 신규) > 주의 > 관찰
+// 2026-08-10 매도(청산) 규칙(2026-08-26 손절 -15%→-12% 재조정): 손절-12%(최우선) > 하향이탈(전량) > 2차익절검토(EMA20 신규돌파) > 홀딩(EMA20 위 유지중) > 익절검토(+20%, 신규) > 주의 > 관찰
 function verdict(r) {
-  if (r.unrealizedRet != null && r.unrealizedRet <= -15) return { label: '손절검토', cls: 'red' };
+  if (r.unrealizedRet != null && r.unrealizedRet <= -12) return { label: '손절검토', cls: 'red' };
   if (r.breakdown5) return { label: '전량매도검토(5EMA이탈)', cls: 'red' };
   if (r.freshLeg20) return { label: '2차익절검토(20EMA돌파)', cls: 'teal' };
   if (r.aboveEma20) return { label: '홀딩(20EMA위)', cls: 'teal' };
@@ -339,7 +341,7 @@ async function main() {
   console.log('');
   console.log(`※ 평단대비: 보유 평균단가 대비 현재가 손익률(실제 계좌 수익률) / EMA20·EMA5괴리율: 각 이평 대비 괴리율`);
   console.log(`※ 신호(2026-08-07 확정): EMA5·EMA20 각각 Z≤${Z_SIGNAL_THRESHOLD} & 위치≤${PCT_SIGNAL_THRESHOLD}%ile 동시충족 AND 추세=하락(EMA50<EMA200) 시 "매수"`);
-  console.log(`※ 판단(2026-08-10 3단계 청산규칙): 손절검토(평단대비≤-15%, 최우선) > 전량매도검토(종가 EMA5 하향이탈) > 2차익절검토(종가 EMA20 신규돌파) > 홀딩(EMA20 위 유지중) > 익절검토(평단대비 +20%신규도달) > 주의(평단대비 -8~-15%) > 관찰`);
+  console.log(`※ 판단(2026-08-10 3단계 청산규칙, 2026-08-26 손절 -12%로 재조정): 손절검토(평단대비≤-12%, 최우선) > 전량매도검토(종가 EMA5 하향이탈) > 2차익절검토(종가 EMA20 신규돌파) > 홀딩(EMA20 위 유지중) > 익절검토(평단대비 +20%신규도달) > 주의(평단대비 -8~-12%) > 관찰`);
   console.log(`※ 매수일자·기존 이행레그가 노션 스키마에 없어 레그별 잔량(50%/25%)까지는 추적 불가 — 롤링 2일(어제·오늘) 값 비교로 매일 재판정하는 스냅샷임을 감안할 것`);
 }
 

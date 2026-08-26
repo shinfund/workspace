@@ -17,7 +17,7 @@
 //    백테스트는 지속일마다 잡지만, 메모에 이 방식이 "연단위 5슬롯 가정"에서 비현실적 수치(+35,405%)를 냈다고
 //    명시돼 있어 실제 포지션 엔진에서는 onset만 쓰는 쪽이 안전하다고 판단.
 //  - 청산은 각 전략 확정 스크립트의 일별 로직을 그대로 스텝 단위로 이식(부분매도 포함): 눌림목 SL8/18%·
-//    TRAIL8/18%·EMA50이탈·TP+10%50%매도·시간청산40일, 괴리율 SL15%·TP+20%50%매도→EMA20돌파25%매도→
+//    TRAIL8/18%·EMA50이탈·TP+10%50%매도·시간청산40일, 괴리율 SL12%(2026-08-26 15→12 재조정)·TP+20%50%매도→EMA20돌파25%매도→
 //    EMA5이탈 잔량전량·시간청산20일, 라운드넘버 STOP(레벨×98%)·TP(레벨+step)·시간청산60일(부분매도 없음).
 //
 // 사용법: node scripts/project_3strategy_combined_portfolio_backtest.mjs [--from 2019-08-27] [--to 2026-08-25] [--month 2026-08]
@@ -43,7 +43,7 @@ const RN_UNIVERSE = FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' })); // 라
 
 // ── 파라미터 (각 확정 전략 스크립트와 동일) ──
 const PB = { MA_SHORT: 50, MA_LONG: 100, SLOPE_LOOKBACK: 10, BREAKOUT_LOOKBACK: 6, ATR_PERIOD: 14, BAND_K: 0.4, SL: 8, TRAIL: 8, TP_PCT: 10, TP_FRAC: 0.5, SL_KOSDAQ: 18, TRAIL_KOSDAQ: 18, REGIME_STREAK_MIN: 10, KOSPI_ATR_PERIOD: 14, VOL_CAP: 4, STOCK_ATR_CAP: 6, MAX_HOLD: 40 };
-const DV = { ROLL: 250, Z_THRESHOLD: -2, ENTRY_PCT_THRESHOLD: 3, FAST: 5, SLOW: 20, MID: 50, MID2: 100, LONG: 200, SL: 15, TP: 20, MAX_HOLD: 20 };
+const DV = { ROLL: 250, Z_THRESHOLD: -2, ENTRY_PCT_THRESHOLD: 3, FAST: 5, SLOW: 20, MID: 50, MID2: 100, LONG: 200, SL: 12, TP: 20, MAX_HOLD: 20 }; // SL 15→12 (2026-08-26 재조정 확정)
 const RN = { WINDOW_DAYS: 150, TARGET_TICKS: 30, RECENT_LOOKBACK: 20, PRIOR_ABOVE_DAYS: 5, MIN_TOUCHES: 3, RECLAIM_WINDOW: 5, STOP_BUFFER_PCT: 2, MAX_HOLD: 60, MIN_ENTRY_POSITION_PCT: 20, MIN_BAND_WIDTH_PCT: 2.5, CAP: 3 };
 
 const SLOTS = 5;

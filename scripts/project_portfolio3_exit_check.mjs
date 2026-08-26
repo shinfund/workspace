@@ -217,7 +217,7 @@ async function judgePullback(h, market) {
 }
 
 // ── 괴리율 판정 ──
-const DV_FAST = 5, DV_SLOW = 20, DV_SL = 15;
+const DV_FAST = 5, DV_SLOW = 20, DV_SL = 12; // 2026-08-26 손절 15→12 재조정 확정
 async function judgeDeviation(h, market) {
   const p2 = Math.floor(Date.now() / 1000), p1 = p2 - 400 * 24 * 3600;
   const symbol = market === 'KOSDAQ' ? `${h.code}.KQ` : `${h.code}.KS`;
@@ -237,7 +237,7 @@ async function judgeDeviation(h, market) {
   const freshTp20 = ret >= 20 && !(prevRet >= 20);
   const freshLeg20 = aboveEma20 && !prevAboveEma20;
   let v;
-  if (ret <= -DV_SL) v = { label: '손절검토(-15%)', urgent: true };
+  if (ret <= -DV_SL) v = { label: `손절검토(-${DV_SL}%)`, urgent: true };
   else if (breakdown5) v = { label: '전량매도검토(5EMA이탈)', urgent: true };
   else if (freshLeg20) v = { label: '2차익절검토(20EMA돌파)', urgent: true };
   else if (aboveEma20) v = { label: '홀딩(20EMA위)', urgent: false };
