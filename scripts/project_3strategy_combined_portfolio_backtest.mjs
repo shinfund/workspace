@@ -11,8 +11,10 @@
 //    구성을 알 수 없어 그대로 진행.
 //  - 포지션 사이징: 슬롯당 예산 = (현금+보유포지션 원가) / 5, 정수 주 단위. 신규진입 때마다 재계산되므로 복리 반영.
 //  - 슬롯 우선순위: 같은 날 여러 신규진입 후보가 남은 빈슬롯보다 많으면 눌림목>괴리율>라운드넘버 순으로 채움
-//    (project_trading_plan_3strategy_portfolio.md 명시 우선순위). 라운드넘버는 같은 날 후보가 3건 넘으면 그
-//    안에서도 밀집도(touchCount)desc·지지일수(aboveCount)desc로 1~3순위만 채택(2026-08-25 확정 유지 방침).
+//    (project_trading_plan_3strategy_portfolio.md 명시 우선순위). 세 전략 모두 같은 날 자기 전략 내 후보가 3건을
+//    넘으면 그 안에서 신호강도 기준 1~3순위만 채택(2026-08-26 눌림목·괴리율까지 확장 적용, 라운드넘버는 2026-08-25
+//    확정 방식 유지): 라운드넘버=밀집도(touchCount)desc·지지일수(aboveCount)desc, 눌림목=추세강도(장기EMA
+//    기울기)desc·눌림폭(ATR정규화)asc(얕을수록 우선), 괴리율=EMA5·20 Z합asc·백분위합asc(더 과매도일수록 우선).
 //  - 진입 이벤트는 "조건이 새로 참이 된 날(onset)"만 인정(지속일 전부를 독립 이벤트로 잡지 않음) — 눌림목 자체
 //    백테스트는 지속일마다 잡지만, 메모에 이 방식이 "연단위 5슬롯 가정"에서 비현실적 수치(+35,405%)를 냈다고
 //    명시돼 있어 실제 포지션 엔진에서는 onset만 쓰는 쪽이 안전하다고 판단.
@@ -42,8 +44,8 @@ const PD_UNIVERSE = [...FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' })), ..
 const RN_UNIVERSE = FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' })); // 라운드넘버(코스피 전용)
 
 // ── 파라미터 (각 확정 전략 스크립트와 동일) ──
-const PB = { MA_SHORT: 50, MA_LONG: 100, SLOPE_LOOKBACK: 10, BREAKOUT_LOOKBACK: 6, ATR_PERIOD: 14, BAND_K: 0.4, SL: 8, TRAIL: 8, TP_PCT: 10, TP_FRAC: 0.5, SL_KOSDAQ: 18, TRAIL_KOSDAQ: 18, REGIME_STREAK_MIN: 10, KOSPI_ATR_PERIOD: 14, VOL_CAP: 4, STOCK_ATR_CAP: 6, MAX_HOLD: 40 };
-const DV = { ROLL: 250, Z_THRESHOLD: -2, ENTRY_PCT_THRESHOLD: 3, FAST: 5, SLOW: 20, MID: 50, MID2: 100, LONG: 200, SL: 12, TP: 20, MAX_HOLD: 20 }; // SL 15→12 (2026-08-26 재조정 확정)
+const PB = { MA_SHORT: 50, MA_LONG: 100, SLOPE_LOOKBACK: 10, BREAKOUT_LOOKBACK: 6, ATR_PERIOD: 14, BAND_K: 0.4, SL: 8, TRAIL: 8, TP_PCT: 10, TP_FRAC: 0.5, SL_KOSDAQ: 18, TRAIL_KOSDAQ: 18, REGIME_STREAK_MIN: 10, KOSPI_ATR_PERIOD: 14, VOL_CAP: 4, STOCK_ATR_CAP: 6, MAX_HOLD: 40, CAP: 3 };
+const DV = { ROLL: 250, Z_THRESHOLD: -2, ENTRY_PCT_THRESHOLD: 3, FAST: 5, SLOW: 20, MID: 50, MID2: 100, LONG: 200, SL: 12, TP: 20, MAX_HOLD: 20, CAP: 3 }; // SL 15→12 (2026-08-26 재조정 확정)
 const RN = { WINDOW_DAYS: 150, TARGET_TICKS: 30, RECENT_LOOKBACK: 20, PRIOR_ABOVE_DAYS: 5, MIN_TOUCHES: 3, RECLAIM_WINDOW: 5, STOP_BUFFER_PCT: 2, MAX_HOLD: 60, MIN_ENTRY_POSITION_PCT: 20, MIN_BAND_WIDTH_PCT: 2.5, CAP: 3 };
 
 const SLOTS = 5;
@@ -166,6 +168,7 @@ function precomputePullback(st, regimeByMarket) {
   const marketRegime = st.market === 'KOSDAQ' ? regimeByMarket.KOSDAQ : regimeByMarket.KOSPI;
   const otherRegime = st.market === 'KOSDAQ' ? regimeByMarket.KOSPI : regimeByMarket.KOSDAQ;
   const cond = new Array(n).fill(false);
+  const scoreArr = new Array(n).fill(null); // {trendStrength, pullbackNorm} — 동시신호 우선순위용
   for (let i = PB.MA_LONG + PB.SLOPE_LOOKBACK; i < n - 1; i++) {
     if (maShort[i] == null || maLong[i] == null) continue;
     const prior = maLong[i - PB.SLOPE_LOOKBACK];
@@ -183,11 +186,14 @@ function precomputePullback(st, regimeByMarket) {
     const recentBreakout = highSIdx >= i - PB.BREAKOUT_LOOKBACK;
     if (!recentBreakout || closes[i] > highS || closes[i] <= maShort[i]) continue;
     const pullbackPct = (highS - closes[i]) / highS * 100;
-    if (pullbackPct / atrPct[i] > PB.BAND_K) continue;
+    const pullbackNorm = pullbackPct / atrPct[i];
+    if (pullbackNorm > PB.BAND_K) continue;
     cond[i] = true;
+    scoreArr[i] = { trendStrength: (maLong[i] - prior) / prior * 100, pullbackNorm };
   }
   const onset = []; for (let i = 1; i < n; i++) if (cond[i] && !cond[i - 1]) onset.push(i);
-  return { maShort, atrPct, onsetIdx: new Set(onset) };
+  const score = new Map(onset.map(i => [i, scoreArr[i]]));
+  return { maShort, atrPct, onsetIdx: new Set(onset), score };
 }
 function precomputeDeviation(st) {
   const { dates, closes } = st; const n = dates.length;
@@ -195,6 +201,7 @@ function precomputeDeviation(st) {
   const dev5 = closes.map((c, i) => ema5[i] != null ? (c - ema5[i]) / ema5[i] * 100 : null);
   const dev20 = closes.map((c, i) => ema20[i] != null ? (c - ema20[i]) / ema20[i] * 100 : null);
   const cond = new Array(n).fill(false);
+  const scoreArr = new Array(n).fill(null); // {zSum, pctSum} — 동시신호 우선순위용
   for (let i = DV.ROLL - 1; i < n; i++) {
     if (dev5[i] == null || dev20[i] == null || ema50[i] == null || ema200[i] == null) continue;
     const win5 = dev5.slice(i - DV.ROLL + 1, i + 1), win20 = dev20.slice(i - DV.ROLL + 1, i + 1);
@@ -205,9 +212,11 @@ function precomputeDeviation(st) {
     const sig20 = z20 <= DV.Z_THRESHOLD && pct20 <= DV.ENTRY_PCT_THRESHOLD;
     const downTrend = ema50[i] < ema200[i];
     cond[i] = sig5 && sig20 && downTrend;
+    if (cond[i]) scoreArr[i] = { zSum: z5 + z20, pctSum: pct5 + pct20 };
   }
   const onset = []; for (let i = DV.ROLL; i < n; i++) if (cond[i] && !cond[i - 1]) onset.push(i);
-  return { ema5, ema20, onsetIdx: new Set(onset) };
+  const score = new Map(onset.map(i => [i, scoreArr[i]]));
+  return { ema5, ema20, onsetIdx: new Set(onset), score };
 }
 function precomputeRoundnumber(st) {
   const { dates, closes, highs, lows } = st; const n = dates.length;
@@ -376,13 +385,13 @@ function runPortfolioSim(calendarSlice, startCapital, ctx, snapshotTargets = [],
     if (openSlots <= 0) continue;
     const held = new Set(positions.map(p => p.code));
 
-    const pbCands = [], dvCands = [], rnCandsRaw = [];
+    const pbCandsRaw = [], dvCandsRaw = [], rnCandsRaw = [];
     for (const s of PD_UNIVERSE) {
       if (held.has(s.code)) continue;
       const st = byCode.get(s.code); if (!st) continue;
       const m = idxMap.get(s.code); const i = m ? m.get(date) : null; if (i == null) continue;
-      const pb = pbData.get(s.code); if (pb.onsetIdx.has(i)) pbCands.push({ s, st, i });
-      const dv = dvData.get(s.code); if (dv.onsetIdx.has(i)) dvCands.push({ s, st, i });
+      const pb = pbData.get(s.code); if (pb.onsetIdx.has(i)) pbCandsRaw.push({ s, st, i, sc: pb.score.get(i) });
+      const dv = dvData.get(s.code); if (dv.onsetIdx.has(i)) dvCandsRaw.push({ s, st, i, sc: dv.score.get(i) });
     }
     for (const s of RN_UNIVERSE) {
       if (held.has(s.code)) continue;
@@ -390,6 +399,14 @@ function runPortfolioSim(calendarSlice, startCapital, ctx, snapshotTargets = [],
       const m = idxMap.get(s.code); const i = m ? m.get(date) : null; if (i == null) continue;
       const ev = rn.events.get(i); if (ev) rnCandsRaw.push({ s, st: byCode.get(s.code), i, ev });
     }
+    // 눌림목 동시신호 1~3순위 캡(추세강도desc·눌림폭ATR정규화asc, 2026-08-26 확장 적용)
+    pbCandsRaw.sort((a, b) => (b.sc.trendStrength - a.sc.trendStrength) || (a.sc.pullbackNorm - b.sc.pullbackNorm));
+    const pbCands = pbCandsRaw.slice(0, PB.CAP);
+    skipCount += Math.max(0, pbCandsRaw.length - PB.CAP);
+    // 괴리율 동시신호 1~3순위 캡(EMA5·20 Z합asc·백분위합asc, 2026-08-26 확장 적용)
+    dvCandsRaw.sort((a, b) => (a.sc.zSum - b.sc.zSum) || (a.sc.pctSum - b.sc.pctSum));
+    const dvCands = dvCandsRaw.slice(0, DV.CAP);
+    skipCount += Math.max(0, dvCandsRaw.length - DV.CAP);
     // 라운드넘버 동시신호 1~3순위 캡(밀집도desc·지지일수desc)
     rnCandsRaw.sort((a, b) => (b.ev.touchCount - a.ev.touchCount) || (b.ev.aboveCount - a.ev.aboveCount));
     const rnCands = rnCandsRaw.slice(0, RN.CAP);

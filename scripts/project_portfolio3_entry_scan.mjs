@@ -4,6 +4,9 @@
 // project_roundnumber_strategy_backtest.mjs)의 진입조건을 그대로 복제해 "오늘(마지막 봉)" 기준으로만 판정한다.
 // 노션 보유종목DB(9f666aeb-832a-4aa2-9e52-e37515b75e56)에서 현재 보유종목수를 읽어 빈슬롯을 계산하고,
 // 빈슬롯 개수만큼 우선순위(눌림목>괴리율>라운드넘버, project_trading_plan_3strategy_portfolio 메모 기준)로 추천한다.
+// 같은 날 같은 전략 내 후보가 3건을 넘으면 신호강도 기준 1~3순위만 채택(project_3strategy_combined_portfolio_backtest.mjs와
+// 동일 기준, 2026-08-26 눌림목·괴리율까지 확장): 눌림목=추세강도desc·눌림폭(ATR정규화)asc, 괴리율=EMA5·20 Z합asc·백분위합asc,
+// 라운드넘버=밀집도(touchCount)desc·지지일수(aboveCount)desc.
 // 사용법: node scripts/project_portfolio3_entry_scan.mjs
 import https from 'https';
 import { fetchKrxUniverse, getToken as getKisToken, fetchKisPrice } from './kis_api.mjs';
@@ -300,7 +303,8 @@ async function checkPullbackEntry(stock, regimeByMarket, kisMap, todayDate) {
   const pullbackPct = (highS - s.close) / highS * 100;
   const normDepth = pullbackPct / s.atrPct;
   if (normDepth > PB_BAND_K) return null;
-  return { code: stock.code, name: stock.name, market: stock.market, price: s.close, reason: `50일신고가(${Math.round(highS).toLocaleString()}) 대비 -${pullbackPct.toFixed(1)}% 눌림, EMA50/100 정배열` };
+  const trendStrength = (s.maLong - prior.maLong) / prior.maLong * 100;
+  return { code: stock.code, name: stock.name, market: stock.market, price: s.close, trendStrength, pullbackNorm: normDepth, reason: `50일신고가(${Math.round(highS).toLocaleString()}) 대비 -${pullbackPct.toFixed(1)}% 눌림, EMA50/100 정배열` };
 }
 
 // ── 괴리율: 오늘 진입신호 판정 ──
@@ -336,7 +340,8 @@ async function checkDeviationEntry(stock, kisMap, todayDate) {
   };
   if (!flag(lastIdx) || flag(lastIdx - 1)) return null; // rising edge만 인정(원본 entries 로직과 동일)
   const s = seq[lastIdx];
-  return { code: stock.code, name: stock.name, market: stock.market, price: s.close, reason: `EMA5·EMA20 동시 Z≤-2&하위3%ile 과매도(오늘 신규), EMA50<EMA200 하락추세` };
+  const z5 = rollingZPct(seq, lastIdx, 'dev5', DV_ROLL), z20 = rollingZPct(seq, lastIdx, 'dev20', DV_ROLL);
+  return { code: stock.code, name: stock.name, market: stock.market, price: s.close, zSum: z5.z + z20.z, pctSum: z5.pct + z20.pct, reason: `EMA5·EMA20 동시 Z≤-2&하위3%ile 과매도(오늘 신규), EMA50<EMA200 하락추세` };
 }
 
 // ── 라운드넘버: 오늘 진입신호 판정 ──
@@ -380,7 +385,7 @@ async function checkRoundnumberEntry(stock, kisMap, todayDate) {
         if (seq[f].close < L + step && f === lastIdx) {
           const entryPosition = (seq[f].close - L) / step * 100;
           if (entryPosition >= RN_MINPOS) {
-            return { code: stock.code, name: stock.name, market: 'KOSPI', price: seq[f].close, reason: `라운드지지 ${Math.round(L).toLocaleString()} 이탈 후 오늘 재돌파(터치${touch}봉, 진입위치${entryPosition.toFixed(0)}%), TP ${Math.round(L + step).toLocaleString()}` };
+            return { code: stock.code, name: stock.name, market: 'KOSPI', price: seq[f].close, touchCount: touch, aboveCount, reason: `라운드지지 ${Math.round(L).toLocaleString()} 이탈 후 오늘 재돌파(터치${touch}봉, 진입위치${entryPosition.toFixed(0)}%), TP ${Math.round(L + step).toLocaleString()}` };
           }
         }
         break;
@@ -411,9 +416,24 @@ async function main() {
   const regimeByMarket = { KOSPI: regimeKospi, KOSDAQ: regimeKosdaq };
 
   console.error(`[스캔] 눌림목·괴리율 ${pdUniverse.length}종목, 라운드넘버 ${rnUniverse.length}종목 진입조건 확인 중...`);
-  const pbResults = (await batchAll(pdUniverse, s => checkPullbackEntry(s, regimeByMarket, kisMap, todayDate))).filter(Boolean);
-  const dvResults = (await batchAll(pdUniverse, s => checkDeviationEntry(s, kisMap, todayDate))).filter(Boolean);
-  const rnResults = (await batchAll(rnUniverse, s => checkRoundnumberEntry(s, kisMap, todayDate))).filter(Boolean);
+  const pbRaw = (await batchAll(pdUniverse, s => checkPullbackEntry(s, regimeByMarket, kisMap, todayDate))).filter(Boolean);
+  const dvRaw = (await batchAll(pdUniverse, s => checkDeviationEntry(s, kisMap, todayDate))).filter(Boolean);
+  const rnRaw = (await batchAll(rnUniverse, s => checkRoundnumberEntry(s, kisMap, todayDate))).filter(Boolean);
+
+  // 같은 날 같은 전략 내 후보 1~3순위 캡(project_3strategy_combined_portfolio_backtest.mjs와 동일 기준)
+  const SAME_DAY_CAP = 3;
+  pbRaw.sort((a, b) => (b.trendStrength - a.trendStrength) || (a.pullbackNorm - b.pullbackNorm));
+  const dvSorted = [...dvRaw].sort((a, b) => (a.zSum - b.zSum) || (a.pctSum - b.pctSum));
+  rnRaw.sort((a, b) => (b.touchCount - a.touchCount) || (b.aboveCount - a.aboveCount));
+  const pbCapExcess = Math.max(0, pbRaw.length - SAME_DAY_CAP);
+  const dvCapExcess = Math.max(0, dvSorted.length - SAME_DAY_CAP);
+  const rnCapExcess = Math.max(0, rnRaw.length - SAME_DAY_CAP);
+  const pbResults = pbRaw.slice(0, SAME_DAY_CAP);
+  const dvResults = dvSorted.slice(0, SAME_DAY_CAP);
+  const rnResults = rnRaw.slice(0, SAME_DAY_CAP);
+  if (pbCapExcess || dvCapExcess || rnCapExcess) {
+    console.error(`[동시신호 캡] 눌림목 ${pbCapExcess}건·괴리율 ${dvCapExcess}건·라운드넘버 ${rnCapExcess}건이 1~3순위 밖으로 제외됨`);
+  }
 
   const combined = [
     ...pbResults.map(r => ({ ...r, strategy: '눌림목' })),
