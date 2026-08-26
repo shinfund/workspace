@@ -606,8 +606,8 @@ async function main() {
     const nowKstMonth = currentKstMonth(); // YYYY-MM
     const lastMonthNum = y === nowKstMonth.slice(0, 4) ? Number(nowKstMonth.slice(5, 7)) : 12;
     console.log(`\n━━━ ${y}년 월별 청산 수익금 집계 — 복리(실제 슬롯예산) vs 슬롯당 고정 ${fmtWon(FIXED_SLOT_BUDGET)}원 ━━━`);
-    console.log('월\t복리건수\t복리손익금\t고정건수\t고정투입금\t고정손익금\t고정수익률');
-    let cTotN = 0, cTotPnl = 0, fTotN = 0, fTotInv = 0, fTotPnl = 0;
+    console.log('월\t복리건수\t복리투입금\t복리손익금\t복리수익률\t고정건수\t고정투입금\t고정손익금\t고정수익률');
+    let cTotN = 0, cTotInv = 0, cTotPnl = 0, fTotN = 0, fTotInv = 0, fTotPnl = 0;
     for (let m = 1; m <= lastMonthNum; m++) {
       const mm = `${y}-${String(m).padStart(2, '0')}`;
       const mStart = `${mm}-01`;
@@ -615,15 +615,18 @@ async function main() {
       if (mStart > toDate) break;
       const cArr = trades.filter(t => t.exitDate >= mStart && t.exitDate <= mEnd);
       const cPnl = cArr.reduce((a, t) => a + t.realizedPnl, 0);
+      const cInv = cArr.reduce((a, t) => a + t.investedTotal, 0);
+      const cPct = cInv ? (cPnl / cInv * 100).toFixed(2) : '0.00';
       const fArr = fixedRun.trades.filter(t => t.exitDate >= mStart && t.exitDate <= mEnd);
       const fPnl = fArr.reduce((a, t) => a + t.realizedPnl, 0);
       const fInv = fArr.reduce((a, t) => a + t.investedTotal, 0);
       const fPct = fInv ? (fPnl / fInv * 100).toFixed(2) : '0.00';
-      cTotN += cArr.length; cTotPnl += cPnl; fTotN += fArr.length; fTotInv += fInv; fTotPnl += fPnl;
-      console.log(`${mm}\t${cArr.length}건\t${fmtWon(cPnl)}원\t${fArr.length}건\t${fmtWon(fInv)}원\t${fmtWon(fPnl)}원\t${fPct}%`);
+      cTotN += cArr.length; cTotInv += cInv; cTotPnl += cPnl; fTotN += fArr.length; fTotInv += fInv; fTotPnl += fPnl;
+      console.log(`${mm}\t${cArr.length}건\t${fmtWon(cInv)}원\t${fmtWon(cPnl)}원\t${cPct}%\t${fArr.length}건\t${fmtWon(fInv)}원\t${fmtWon(fPnl)}원\t${fPct}%`);
     }
+    const cTotPct = cTotInv ? (cTotPnl / cTotInv * 100).toFixed(2) : '0.00';
     const fTotPct = fTotInv ? (fTotPnl / fTotInv * 100).toFixed(2) : '0.00';
-    console.log(`합계\t${cTotN}건\t${fmtWon(cTotPnl)}원\t${fTotN}건\t${fmtWon(fTotInv)}원\t${fmtWon(fTotPnl)}원\t${fTotPct}%`);
+    console.log(`합계\t${cTotN}건\t${fmtWon(cTotInv)}원\t${fmtWon(cTotPnl)}원\t${cTotPct}%\t${fTotN}건\t${fmtWon(fTotInv)}원\t${fmtWon(fTotPnl)}원\t${fTotPct}%`);
   }
 }
 
