@@ -435,7 +435,13 @@ async function runMarket(universe, regimeByMarket, opts, cutoffDate, kisMap, tod
     }
   }
   const priorityOf = assignPriority(rows);
-  const order = rows.map((_, i) => i).sort((a, b) => rows[a].date < rows[b].date ? 1 : rows[a].date > rows[b].date ? -1 : 0);
+  // 표시 순서: 진입일 최신순, 같은 날짜 내에서는 우선순위(1→2→3→초과) 순(라운드넘버 정렬 방식과 동일, 2026-08-26)
+  const order = rows.map((_, i) => i).sort((a, b) => {
+    if (rows[a].date !== rows[b].date) return rows[a].date < rows[b].date ? 1 : -1;
+    const pa = priorityOf[a] == null ? Infinity : priorityOf[a];
+    const pb = priorityOf[b] == null ? Infinity : priorityOf[b];
+    return pa - pb;
+  });
   const sortedRows = order.map(i => rows[i]);
   const sortedMeta = order.map(i => rowMeta[i]);
   const sortedPriority = order.map(i => priorityOf[i]);
