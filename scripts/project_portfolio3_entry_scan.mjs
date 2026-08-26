@@ -19,15 +19,13 @@ const NOTION_TOKEN = process.env.NOTION_TOKEN;
 const HOLDINGS_DB_ID = '9f666aeb-832a-4aa2-9e52-e37515b75e56';
 const MAX_SLOTS = 5;
 
-const KOSPI_SIZE = 50, KOSDAQ_SIZE = 20;
-// 코스피 TOP50 + 코스닥 TOP20 (project_pullback_recent_signals.mjs / project_deviation_recent_signals.mjs /
-// project_roundnumber_strategy_backtest.mjs와 100% 동일한 폴백 유니버스 — 세 스크립트 실파일 대조 확인 완료,
-// 눌림목·괴리율은 코스피+코스닥 전체를, 라운드넘버는 이 중 코스피만 사용)
+const KOSPI_SIZE = 50;
+// 코스피 TOP50 (project_pullback_recent_signals.mjs / project_deviation_recent_signals.mjs /
+// project_roundnumber_strategy_backtest.mjs와 100% 동일한 폴백 유니버스 — 세 스크립트 실파일 대조 확인 완료)
+// 2026-08-26: 눌림목·괴리율도 라운드넘버와 동일하게 코스피 전용으로 전환 — 코스닥 유니버스(FALLBACK_KOSDAQ)
+// 완전 제외(3전략 통합 월별 집계표 분석 결과 코스닥이 코스피보다 불안정하다고 판단, 사용자 확정).
 const FALLBACK_KOSPI = [
   { code: '005930', name: '삼성전자' }, { code: '000660', name: 'SK하이닉스' }, { code: '402340', name: 'SK스퀘어' }, { code: '009150', name: '삼성전기' }, { code: '005380', name: '현대차' }, { code: '373220', name: 'LG에너지솔루션' }, { code: '207940', name: '삼성바이오로직스' }, { code: '032830', name: '삼성생명' }, { code: '028260', name: '삼성물산' }, { code: '012450', name: '한화에어로스페이스' }, { code: '105560', name: 'KB금융' }, { code: '000270', name: '기아' }, { code: '034020', name: '두산에너빌리티' }, { code: '329180', name: 'HD현대중공업' }, { code: '055550', name: '신한지주' }, { code: '012330', name: '현대모비스' }, { code: '068270', name: '셀트리온' }, { code: '034730', name: 'SK' }, { code: '006400', name: '삼성SDI' }, { code: '086790', name: '하나금융지주' }, { code: '035420', name: 'NAVER' }, { code: '066570', name: 'LG전자' }, { code: '010120', name: 'LS ELECTRIC' }, { code: '042660', name: '한화오션' }, { code: '267260', name: 'HD현대일렉트릭' }, { code: '000810', name: '삼성화재' }, { code: '298040', name: '효성중공업' }, { code: '009540', name: 'HD한국조선해양' }, { code: '005490', name: 'POSCO홀딩스' }, { code: '010130', name: '고려아연' }, { code: '316140', name: '우리금융지주' }, { code: '096770', name: 'SK이노베이션' }, { code: '042700', name: '한미반도체' }, { code: '017670', name: 'SK텔레콤' }, { code: '011200', name: 'HMM' }, { code: '015760', name: '한국전력' }, { code: '006800', name: '미래에셋증권' }, { code: '000150', name: '두산' }, { code: '051910', name: 'LG화학' }, { code: '010140', name: '삼성중공업' }, { code: '018260', name: '삼성에스디에스' }, { code: '267250', name: 'HD현대' }, { code: '033780', name: 'KT&G' }, { code: '003550', name: 'LG' }, { code: '079550', name: 'LIG디펜스앤에어로스페이스' }, { code: '035720', name: '카카오' }, { code: '010950', name: 'S-Oil' }, { code: '024110', name: '기업은행' }, { code: '064350', name: '현대로템' }, { code: '086280', name: '현대글로비스' },
-];
-const FALLBACK_KOSDAQ = [
-  { code: '196170', name: '알테오젠', market: 'KOSDAQ' }, { code: '086520', name: '에코프로', market: 'KOSDAQ' }, { code: '247540', name: '에코프로비엠', market: 'KOSDAQ' }, { code: '277810', name: '레인보우로보틱스', market: 'KOSDAQ' }, { code: '036930', name: '주성엔지니어링', market: 'KOSDAQ' }, { code: '028300', name: 'HLB', market: 'KOSDAQ' }, { code: '240810', name: '원익IPS', market: 'KOSDAQ' }, { code: '058470', name: '리노공업', market: 'KOSDAQ' }, { code: '039030', name: '이오테크닉스', market: 'KOSDAQ' }, { code: '087010', name: '펩트론', market: 'KOSDAQ' }, { code: '298380', name: '에이비엘바이오', market: 'KOSDAQ' }, { code: '000250', name: '삼천당제약', market: 'KOSDAQ' }, { code: '141080', name: '리가켐바이오', market: 'KOSDAQ' }, { code: '222800', name: '심텍', market: 'KOSDAQ' }, { code: '214450', name: '파마리서치', market: 'KOSDAQ' }, { code: '108490', name: '로보티즈', market: 'KOSDAQ' }, { code: '319660', name: '피에스케이', market: 'KOSDAQ' }, { code: '095340', name: 'ISC', market: 'KOSDAQ' }, { code: '403870', name: 'HPSP', market: 'KOSDAQ' }, { code: '440110', name: '파두', market: 'KOSDAQ' },
 ];
 
 async function buildKospiUniverse() {
@@ -41,22 +39,12 @@ async function buildKospiUniverse() {
     return FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' }));
   }
 }
-async function buildKosdaqUniverse() {
-  try {
-    const { kosdaq, basDt } = await fetchKrxUniverse();
-    const top = kosdaq.sort((a, b) => b._mktcap - a._mktcap).slice(0, KOSDAQ_SIZE).map(s => ({ code: s.종목코드, name: s.종목명, market: 'KOSDAQ' }));
-    console.error(`[유니버스] 코스닥 시총 TOP${KOSDAQ_SIZE} 산출 완료(기준일 ${basDt})`);
-    return top;
-  } catch (e) {
-    console.error(`[유니버스] KRX 조회 실패(${e.message}) → 코스닥 폴백 스냅샷 사용`);
-    return FALLBACK_KOSDAQ;
-  }
-}
 
 function httpGetJson(url) {
   return new Promise((res, rej) => {
     const req = https.get(url, { headers: YF_HEADERS }, r => {
       let d = '';
+      r.setEncoding('utf8'); // 멀티바이트 문자가 청크 경계에서 잘려 깨지는 것 방지
       r.on('data', c => d += c);
       r.on('end', () => {
         if (r.statusCode >= 400) return rej(new Error(`HTTP ${r.statusCode}`));
@@ -199,7 +187,7 @@ async function httpPostJson(url, body, headers) {
   return new Promise((res, rej) => {
     const data = JSON.stringify(body);
     const req = https.request(url, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) } }, r => {
-      let d = ''; r.on('data', c => d += c); r.on('end', () => { try { res(JSON.parse(d)); } catch (e) { rej(e); } });
+      let d = ''; r.setEncoding('utf8'); r.on('data', c => d += c); r.on('end', () => { try { res(JSON.parse(d)); } catch (e) { rej(e); } });
     });
     req.on('error', rej); req.write(data); req.end();
   });
@@ -208,7 +196,7 @@ async function refetchHeldRow(pageId) {
   try {
     const page = await new Promise((res, rej) => {
       https.get(`https://api.notion.com/v1/pages/${pageId}`, { headers: { 'Authorization': `Bearer ${NOTION_TOKEN}`, 'Notion-Version': '2022-06-28' } }, r => {
-        let d = ''; r.on('data', c => d += c); r.on('end', () => { try { res(JSON.parse(d)); } catch (e) { rej(e); } });
+        let d = ''; r.setEncoding('utf8'); r.on('data', c => d += c); r.on('end', () => { try { res(JSON.parse(d)); } catch (e) { rej(e); } });
       }).on('error', rej);
     });
     return {
@@ -265,11 +253,12 @@ async function fetchHeldCodes() {
 const KOSPI_SYMBOL = '^KS11', KOSDAQ_SYMBOL = '^KQ11'; // fetchYahooChart가 encodeURIComponent 처리하므로 여기선 미인코딩 원문 사용
 const PB_MA_SHORT = 50, PB_MA_LONG = 100, PB_SLOPE_LOOKBACK = 10, PB_BREAKOUT_LOOKBACK = 6;
 const PB_ATR_PERIOD = 14, PB_BAND_K = 0.4;
-const PB_SL = 8, PB_TRAIL = 8, PB_SL_KOSDAQ = 18, PB_TRAIL_KOSDAQ = 18;
+const PB_SL = 8, PB_TRAIL = 8;
 const PB_REGIME_STREAK_MIN = 10, PB_KOSPI_ATR_PERIOD = 14, PB_VOL_CAP = 4, PB_STOCK_ATR_CAP = 6;
 const PB_TP_PCT = 10, PB_TP_FRAC = 0.5, PB_MAX_HOLD = 40, PB_COOLDOWN_DAYS = 5; // v13(2026-08-26): 손절 후 재진입쿨다운
-function pbSlFor(market) { return market === 'KOSDAQ' ? PB_SL_KOSDAQ : PB_SL; }
-function pbTrailFor(market) { return market === 'KOSDAQ' ? PB_TRAIL_KOSDAQ : PB_TRAIL; }
+// v14(2026-08-26): 코스닥 종목을 유니버스에서 완전 제외 — 코스닥 전용 SL18/TRAIL18(v11) 분기 제거
+function pbSlFor() { return PB_SL; }
+function pbTrailFor() { return PB_TRAIL; }
 function pbSimulate(seq, i0, entryClose, sl, trail, maxHold, tpPct, tpFrac) {
   let peak = entryClose; let tpTaken = false, tpReturn = null;
   for (let d = 1; d <= maxHold; d++) {
@@ -308,11 +297,11 @@ async function fetchMarketRegime(p1, p2, symbol) {
 
 // ── 눌림목: 오늘 진입신호 판정 ──
 async function checkPullbackEntry(stock, regimeByMarket, kisMap, todayDate) {
-  const marketRegime = stock.market === 'KOSDAQ' ? regimeByMarket.KOSDAQ : regimeByMarket.KOSPI;
-  const otherRegime = stock.market === 'KOSDAQ' ? regimeByMarket.KOSPI : regimeByMarket.KOSDAQ;
+  const marketRegime = regimeByMarket.KOSPI; // v14: 코스피 전용 유니버스로 전환
+  const otherRegime = regimeByMarket.KOSDAQ; // v12: 반대쪽 지수(코스닥) 병행확인용 — 종목이 아닌 시장 breadth 신호라 계속 유지
   const p2 = Math.floor(Date.now() / 1000);
   const p1 = p2 - 1100 * 24 * 3600;
-  const symbol = stock.market === 'KOSDAQ' ? `${stock.code}.KQ` : `${stock.code}.KS`;
+  const symbol = `${stock.code}.KS`;
   const chart = await fetchYahooChart(symbol, p1, p2);
   if (!chart || !chart.ts.length) return null;
   const dates = chart.ts.map(tsToKstDate);
@@ -373,7 +362,7 @@ const DV_ROLL = 250, DV_Z = -2, DV_PCT = 3, DV_FAST = 5, DV_SLOW = 20, DV_MID = 
 async function checkDeviationEntry(stock, kisMap, todayDate) {
   const p2 = Math.floor(Date.now() / 1000);
   const p1 = p2 - 1100 * 24 * 3600;
-  const symbol = stock.market === 'KOSDAQ' ? `${stock.code}.KQ` : `${stock.code}.KS`;
+  const symbol = `${stock.code}.KS`; // v14: 코스피 전용 유니버스로 전환
   const chart = await fetchYahooChart(symbol, p1, p2);
   if (!chart || !chart.ts.length) return null;
   const dates = chart.ts.map(tsToKstDate);
@@ -463,12 +452,11 @@ async function main() {
   console.error(`[슬롯] 보유 ${heldCodes.size}종목 / 5슬롯 → 빈슬롯 ${openSlots}개`);
 
   const kospiUniverse = await buildKospiUniverse();
-  const kosdaqUniverse = await buildKosdaqUniverse();
-  const pdUniverse = [...kospiUniverse, ...kosdaqUniverse].filter(s => !heldCodes.has(s.code));
+  const pdUniverse = kospiUniverse.filter(s => !heldCodes.has(s.code));
   const rnUniverse = kospiUniverse.filter(s => !heldCodes.has(s.code));
 
   const todayDate = kstTodayDate();
-  const allCodes = [...new Set([...kospiUniverse, ...kosdaqUniverse].map(s => s.code))];
+  const allCodes = [...new Set(kospiUniverse.map(s => s.code))];
   const kisMap = await fetchKisPriceMap(allCodes);
 
   const p2 = Math.floor(Date.now() / 1000), p1 = p2 - 1100 * 24 * 3600;

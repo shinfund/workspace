@@ -20,6 +20,7 @@ function httpGetJson(url) {
   return new Promise((res, rej) => {
     const req = https.get(url, { headers: YF_HEADERS }, r => {
       let d = '';
+      r.setEncoding('utf8'); // 멀티바이트 문자가 청크 경계에서 잘려 깨지는 것 방지
       r.on('data', c => d += c);
       r.on('end', () => {
         if (r.statusCode >= 400) return rej(new Error(`HTTP ${r.statusCode}`));
@@ -134,7 +135,7 @@ async function httpPostJson(url, body, headers) {
   return new Promise((res, rej) => {
     const data = JSON.stringify(body);
     const req = https.request(url, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) } }, r => {
-      let d = ''; r.on('data', c => d += c); r.on('end', () => { try { res(JSON.parse(d)); } catch (e) { rej(e); } });
+      let d = ''; r.setEncoding('utf8'); r.on('data', c => d += c); r.on('end', () => { try { res(JSON.parse(d)); } catch (e) { rej(e); } });
     });
     req.on('error', rej); req.write(data); req.end();
   });
@@ -143,7 +144,7 @@ async function refetchPage(pageId) {
   try {
     const page = await new Promise((res, rej) => {
       https.get(`https://api.notion.com/v1/pages/${pageId}`, { headers: { 'Authorization': `Bearer ${NOTION_TOKEN}`, 'Notion-Version': '2022-06-28' } }, r => {
-        let d = ''; r.on('data', c => d += c); r.on('end', () => { try { res(JSON.parse(d)); } catch (e) { rej(e); } });
+        let d = ''; r.setEncoding('utf8'); r.on('data', c => d += c); r.on('end', () => { try { res(JSON.parse(d)); } catch (e) { rej(e); } });
       }).on('error', rej);
     });
     return {
@@ -187,12 +188,10 @@ async function fetchNotionHoldings() {
     avgPrice: Number(p.properties['매 입 가']?.number || 0),
     strategy: p.properties['전략']?.select?.name || null,
   }));
-  // 2026-08-26 추가: DB쿼리 응답이 select("전략") 필드만 간헐적으로 null을 반환하는 현상이 관측됨
-  // (같은 페이지를 재조회하면 정상값 — Notion 쪽 읽기 일관성 지연으로 추정, 기존 title lag 버그와 동일 계열).
-  // name/code/qty/avgPrice 정상인데 strategy만 없는 경우도 단건 재조회로 보정한다.
+  // name/code/qty/avgPrice가 비어있는 경우(신규 페이지 인덱싱 지연 등) 단건 재조회로 보정한다.
   for (const h of rows) {
     for (let attempt = 0; attempt < 3 && (!h.name || !h.code || h.qty <= 0 || !h.avgPrice || !h.strategy); attempt++) {
-      if (attempt > 0) await new Promise(r => setTimeout(r, 400)); // 일관성 지연 대비 재시도 간격
+      if (attempt > 0) await new Promise(r => setTimeout(r, 400));
       const fixed = await refetchPage(h.pageId);
       if (fixed) {
         if (!h.name && fixed.name) h.name = fixed.name;
