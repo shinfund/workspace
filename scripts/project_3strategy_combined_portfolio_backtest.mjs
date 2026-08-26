@@ -19,7 +19,8 @@
 //    백테스트는 지속일마다 잡지만, 메모에 이 방식이 "연단위 5슬롯 가정"에서 비현실적 수치(+35,405%)를 냈다고
 //    명시돼 있어 실제 포지션 엔진에서는 onset만 쓰는 쪽이 안전하다고 판단.
 //  - 청산은 각 전략 확정 스크립트의 일별 로직을 그대로 스텝 단위로 이식(부분매도 포함): 눌림목 SL8/18%·
-//    TRAIL8/18%·EMA50이탈·TP+10%50%매도·시간청산40일, 괴리율 SL12%(2026-08-26 15→12 재조정)·TP+20%50%매도→EMA20돌파25%매도→
+//    TRAIL8/18%·EMA50이탈·TP+10%50%매도·시간청산40일·손절후 5거래일 재진입쿨다운(v13, 2026-08-26 신설),
+//    괴리율 SL12%(2026-08-26 15→12 재조정)·TP+20%50%매도→EMA20돌파25%매도→
 //    EMA5이탈 잔량전량·시간청산20일, 라운드넘버 STOP(레벨×98%)·TP(레벨+step)·시간청산60일(부분매도 없음).
 //
 // 사용법: node scripts/project_3strategy_combined_portfolio_backtest.mjs [--from 2019-08-27] [--to 2026-08-25] [--month 2026-08]
@@ -44,7 +45,7 @@ const PD_UNIVERSE = [...FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' })), ..
 const RN_UNIVERSE = FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' })); // 라운드넘버(코스피 전용)
 
 // ── 파라미터 (각 확정 전략 스크립트와 동일) ──
-const PB = { MA_SHORT: 50, MA_LONG: 100, SLOPE_LOOKBACK: 10, BREAKOUT_LOOKBACK: 6, ATR_PERIOD: 14, BAND_K: 0.4, SL: 8, TRAIL: 8, TP_PCT: 10, TP_FRAC: 0.5, SL_KOSDAQ: 18, TRAIL_KOSDAQ: 18, REGIME_STREAK_MIN: 10, KOSPI_ATR_PERIOD: 14, VOL_CAP: 4, STOCK_ATR_CAP: 6, MAX_HOLD: 40, CAP: 3 };
+const PB = { MA_SHORT: 50, MA_LONG: 100, SLOPE_LOOKBACK: 10, BREAKOUT_LOOKBACK: 6, ATR_PERIOD: 14, BAND_K: 0.4, SL: 8, TRAIL: 8, TP_PCT: 10, TP_FRAC: 0.5, SL_KOSDAQ: 18, TRAIL_KOSDAQ: 18, REGIME_STREAK_MIN: 10, KOSPI_ATR_PERIOD: 14, VOL_CAP: 4, STOCK_ATR_CAP: 6, MAX_HOLD: 40, CAP: 3, COOLDOWN_DAYS: 5 }; // COOLDOWN_DAYS: 손절 후 재진입쿨다운(v13, 2026-08-26 확정)
 const DV = { ROLL: 250, Z_THRESHOLD: -2, ENTRY_PCT_THRESHOLD: 3, FAST: 5, SLOW: 20, MID: 50, MID2: 100, LONG: 200, SL: 12, TP: 20, MAX_HOLD: 20, CAP: 3 }; // SL 15→12 (2026-08-26 재조정 확정)
 const RN = { WINDOW_DAYS: 150, TARGET_TICKS: 30, RECENT_LOOKBACK: 20, PRIOR_ABOVE_DAYS: 5, MIN_TOUCHES: 3, RECLAIM_WINDOW: 5, STOP_BUFFER_PCT: 2, MAX_HOLD: 60, MIN_ENTRY_POSITION_PCT: 20, MIN_BAND_WIDTH_PCT: 2.5, CAP: 3 };
 
@@ -53,11 +54,13 @@ const START_CAPITAL = 10_000_000;
 
 function parseArgs() {
   const argv = process.argv.slice(2);
-  const o = { from: '2019-08-27', to: null, fetchFrom: '2017-01-01', month: null };
+  const o = { from: '2019-08-27', to: null, fetchFrom: '2017-01-01', month: null, year: null, list: false };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--from') o.from = argv[++i];
     if (argv[i] === '--to') o.to = argv[++i];
     if (argv[i] === '--month') o.month = argv[++i]; // YYYY-MM, 월/주간 집계 대상 월(기본: 이번달)
+    if (argv[i] === '--year') o.year = argv[++i]; // YYYY, 연간 월별 집계 대상 연도(지정 시 --month 대신 이 모드로 동작)
+    if (argv[i] === '--list') o.list = true; // 대상월(--month) 개별 청산건 목록 출력(원인 분석용)
   }
   return o;
 }
@@ -286,6 +289,7 @@ function runPortfolioSim(calendarSlice, startCapital, ctx, snapshotTargets = [],
   const positions = [];
   const trades = [];
   let skipCount = 0;
+  const pbCooldownUntil = new Map(); // code -> 종목자체seq idx(눌림목 손절 후 이 idx까지 재진입 금지, v13)
   const pendingSnapshots = [...snapshotTargets];
   const snapshots = {};
 
@@ -351,7 +355,7 @@ function runPortfolioSim(calendarSlice, startCapital, ctx, snapshotTargets = [],
           partialSell(pos, close, PB.TP_FRAC, 'TP10', date);
         } else {
           let exited = false;
-          if (ret <= -pos.slFor) { tryFullExit(pos, i, close, 'SL', date); exited = true; }
+          if (ret <= -pos.slFor) { tryFullExit(pos, i, close, 'SL', date); exited = true; pbCooldownUntil.set(pos.code, i + PB.COOLDOWN_DAYS); }
           else if (maShort != null && close < maShort) { tryFullExit(pos, i, close, 'TREND_BREAK', date); exited = true; }
           else {
             if (close > pos.st.peak) pos.st.peak = close;
@@ -390,7 +394,7 @@ function runPortfolioSim(calendarSlice, startCapital, ctx, snapshotTargets = [],
       if (held.has(s.code)) continue;
       const st = byCode.get(s.code); if (!st) continue;
       const m = idxMap.get(s.code); const i = m ? m.get(date) : null; if (i == null) continue;
-      const pb = pbData.get(s.code); if (pb.onsetIdx.has(i)) pbCandsRaw.push({ s, st, i, sc: pb.score.get(i) });
+      const pb = pbData.get(s.code); if (pb.onsetIdx.has(i) && i > (pbCooldownUntil.get(s.code) ?? -1)) pbCandsRaw.push({ s, st, i, sc: pb.score.get(i) });
       const dv = dvData.get(s.code); if (dv.onsetIdx.has(i)) dvCandsRaw.push({ s, st, i, sc: dv.score.get(i) });
     }
     for (const s of RN_UNIVERSE) {
@@ -512,6 +516,31 @@ async function main() {
   const totalPnl = trades.reduce((a, t) => a + t.realizedPnl, 0);
   console.log(`  합계    ${String(trades.length).padStart(4)}건  실현손익 ${fmtWon(totalPnl)}원`);
 
+  console.log('\n전략별 시장(코스피/코스닥) 청산건수 비중(전체 기간):');
+  for (const strat of ['눌림목', '괴리율', '라운드넘버']) {
+    const arr = byStrat[strat] || [];
+    const kospi = arr.filter(t => t.market !== 'KOSDAQ');
+    const kosdaq = arr.filter(t => t.market === 'KOSDAQ');
+    const kospiPnl = kospi.reduce((a, t) => a + t.realizedPnl, 0);
+    const kosdaqPnl = kosdaq.reduce((a, t) => a + t.realizedPnl, 0);
+    const kosdaqPct = arr.length ? (kosdaq.length / arr.length * 100).toFixed(0) : '0';
+    console.log(`  ${strat.padEnd(6)} 코스피 ${String(kospi.length).padStart(3)}건(${fmtWon(kospiPnl)}원)  코스닥 ${String(kosdaq.length).padStart(3)}건(${fmtWon(kosdaqPnl)}원)  코스닥비중 ${kosdaqPct}%`);
+  }
+
+  console.log('\n전략별 시장(코스피/코스닥) 리스크 지표(전체 기간, 수익률% 기준 — 규모 무관 비교):');
+  for (const strat of ['눌림목', '괴리율', '라운드넘버']) {
+    const arr = byStrat[strat] || [];
+    for (const [label, sub] of [['코스피', arr.filter(t => t.market !== 'KOSDAQ')], ['코스닥', arr.filter(t => t.market === 'KOSDAQ')]]) {
+      if (!sub.length) { console.log(`  ${strat.padEnd(6)} ${label.padEnd(4)} 0건`); continue; }
+      const rets = sub.map(t => t.ret);
+      const win = sub.filter(t => t.ret > 0).length;
+      const avgRet = mean(rets);
+      const worst = Math.min(...rets);
+      const slCount = sub.filter(t => t.reason === 'SL' || t.reason === 'STOP').length;
+      console.log(`  ${strat.padEnd(6)} ${label.padEnd(4)} ${String(sub.length).padStart(3)}건  승률 ${(win / sub.length * 100).toFixed(0)}%  평균수익률 ${avgRet >= 0 ? '+' : ''}${avgRet.toFixed(2)}%  최악 ${worst.toFixed(2)}%  손절/스탑 ${slCount}건`);
+    }
+  }
+
   function monthAgg(fromD, toD, label) {
     const sub = trades.filter(t => t.exitDate >= fromD && t.exitDate <= toD);
     console.log(`\n━━━ ${label}(${fromD}~${toD}) 청산 집계 — 전략별 수익금(복리·실제 슬롯예산) ━━━`);
@@ -526,7 +555,7 @@ async function main() {
     console.log(`  합계    ${String(totN).padStart(3)}건  실현손익 ${fmtWon(totPnl)}원  건당평균 ${totN ? fmtWon(totPnl / totN) : '─'}원`);
     return sub;
   }
-  const compoundedMonthTrades = monthAgg(monthStart, isolatedTo, `${targetMonth}`);
+  const compoundedMonthTrades = opts.year ? null : monthAgg(monthStart, isolatedTo, `${targetMonth}`);
 
   function printWeeklyTable(label, arr, tag) {
     const byWeek = {};
@@ -547,11 +576,22 @@ async function main() {
     const tpct = tinv ? (tpnl / tinv * 100).toFixed(2) : '0.00';
     console.log(`합계\t${tn}건\t${fmtWon(tinv)}원\t${fmtWon(tpnl)}원\t${tpct}%`);
   }
-  console.log(`\n━━━ ${targetMonth} 전략별 주간 세부표(복리반영, 실제 슬롯예산) ━━━`);
-  for (const strat of ['눌림목', '괴리율', '라운드넘버']) {
-    printWeeklyTable(strat, compoundedMonthTrades.filter(t => t.strategy === strat));
+  if (!opts.year) {
+    console.log(`\n━━━ ${targetMonth} 전략별 주간 세부표(복리반영, 실제 슬롯예산) ━━━`);
+    for (const strat of ['눌림목', '괴리율', '라운드넘버']) {
+      printWeeklyTable(strat, compoundedMonthTrades.filter(t => t.strategy === strat));
+    }
+    printWeeklyTable('전체(3전략 합계)', compoundedMonthTrades);
   }
-  printWeeklyTable('전체(3전략 합계)', compoundedMonthTrades);
+
+  if (opts.list && !opts.year) {
+    console.log(`\n━━━ ${targetMonth} 개별 청산건 목록(복리 실행 기준, 진입일 순) ━━━`);
+    console.log('전략\t종목\t진입일\t청산일\t사유\t진입가\t수익률\t손익금');
+    const sorted = [...compoundedMonthTrades].sort((a, b) => a.entryDate.localeCompare(b.entryDate));
+    for (const t of sorted) {
+      console.log(`${t.strategy}\t${t.name}(${t.code})\t${t.entryDate}\t${t.exitDate}\t${t.reason}\t${fmtWon(t.entryPrice)}\t${t.ret.toFixed(2)}%\t${fmtWon(t.realizedPnl)}원`);
+    }
+  }
 
   // (B) 슬롯당 고정 200만원(5슬롯=1,000만원) 예산 — 월초 리셋 없이 전체기간 연속 시뮬레이션(실전 운용방침과 동일한
   // 고정 슬롯예산, 2026-08-25 확정). 진입시그널 사전계산은 자본과 무관해 그대로 재사용, 슬롯 예산만 복리로 커지지
@@ -561,25 +601,53 @@ async function main() {
   const fixedRun = runPortfolioSim(calendar, SLOTS * FIXED_SLOT_BUDGET, ctx, [], FIXED_SLOT_BUDGET);
   console.error(`[5/5] 완료 — 청산 ${fixedRun.trades.length}건, 미청산 ${fixedRun.finalPositions.length}건, 슬롯부족 스킵 ${fixedRun.skipCount}건`);
 
-  const fixedMonthTrades = fixedRun.trades.filter(t => t.exitDate >= monthStart && t.exitDate <= isolatedTo);
-  console.log(`\n━━━ ${targetMonth} 청산 집계 — 전략별 수익금(슬롯당 고정 ${fmtWon(FIXED_SLOT_BUDGET)}원, 전체기간 연속 시뮬) ━━━`);
-  let ftotN = 0, ftotPnl = 0, ftotInv = 0;
-  for (const strat of ['눌림목', '괴리율', '라운드넘버']) {
-    const arr = fixedMonthTrades.filter(t => t.strategy === strat);
-    const pnl = arr.reduce((a, t) => a + t.realizedPnl, 0);
-    const invested = arr.reduce((a, t) => a + t.investedTotal, 0);
-    const stocks = new Set(arr.map(t => t.code)).size;
-    ftotN += arr.length; ftotPnl += pnl; ftotInv += invested;
-    console.log(`  ${strat.padEnd(6)} ${String(arr.length).padStart(3)}건(${stocks}종목)  투입 ${fmtWon(invested)}원  실현손익 ${fmtWon(pnl)}원  건당평균 ${arr.length ? fmtWon(pnl / arr.length) : '─'}원`);
-  }
-  const ftotPct = ftotInv ? (ftotPnl / ftotInv * 100).toFixed(2) : '0.00';
-  console.log(`  합계    ${String(ftotN).padStart(3)}건  투입 ${fmtWon(ftotInv)}원  실현손익 ${fmtWon(ftotPnl)}원  수익률 ${ftotPct}%`);
+  if (!opts.year) {
+    const fixedMonthTrades = fixedRun.trades.filter(t => t.exitDate >= monthStart && t.exitDate <= isolatedTo);
+    console.log(`\n━━━ ${targetMonth} 청산 집계 — 전략별 수익금(슬롯당 고정 ${fmtWon(FIXED_SLOT_BUDGET)}원, 전체기간 연속 시뮬) ━━━`);
+    let ftotN = 0, ftotPnl = 0, ftotInv = 0;
+    for (const strat of ['눌림목', '괴리율', '라운드넘버']) {
+      const arr = fixedMonthTrades.filter(t => t.strategy === strat);
+      const pnl = arr.reduce((a, t) => a + t.realizedPnl, 0);
+      const invested = arr.reduce((a, t) => a + t.investedTotal, 0);
+      const stocks = new Set(arr.map(t => t.code)).size;
+      ftotN += arr.length; ftotPnl += pnl; ftotInv += invested;
+      console.log(`  ${strat.padEnd(6)} ${String(arr.length).padStart(3)}건(${stocks}종목)  투입 ${fmtWon(invested)}원  실현손익 ${fmtWon(pnl)}원  건당평균 ${arr.length ? fmtWon(pnl / arr.length) : '─'}원`);
+    }
+    const ftotPct = ftotInv ? (ftotPnl / ftotInv * 100).toFixed(2) : '0.00';
+    console.log(`  합계    ${String(ftotN).padStart(3)}건  투입 ${fmtWon(ftotInv)}원  실현손익 ${fmtWon(ftotPnl)}원  수익률 ${ftotPct}%`);
 
-  console.log(`\n━━━ ${targetMonth} 전략별 주간 세부표(슬롯당 고정 ${fmtWon(FIXED_SLOT_BUDGET)}원, 전체기간 연속 시뮬) ━━━`);
-  for (const strat of ['눌림목', '괴리율', '라운드넘버']) {
-    printWeeklyTable(strat, fixedMonthTrades.filter(t => t.strategy === strat), '고정슬롯시뮬');
+    console.log(`\n━━━ ${targetMonth} 전략별 주간 세부표(슬롯당 고정 ${fmtWon(FIXED_SLOT_BUDGET)}원, 전체기간 연속 시뮬) ━━━`);
+    for (const strat of ['눌림목', '괴리율', '라운드넘버']) {
+      printWeeklyTable(strat, fixedMonthTrades.filter(t => t.strategy === strat), '고정슬롯시뮬');
+    }
+    printWeeklyTable('전체(3전략 합계)', fixedMonthTrades, '고정슬롯시뮬');
   }
-  printWeeklyTable('전체(3전략 합계)', fixedMonthTrades, '고정슬롯시뮬');
+
+  // ── 연간 월별 집계 모드(--year) ──
+  if (opts.year) {
+    const y = opts.year;
+    const nowKstMonth = currentKstMonth(); // YYYY-MM
+    const lastMonthNum = y === nowKstMonth.slice(0, 4) ? Number(nowKstMonth.slice(5, 7)) : 12;
+    console.log(`\n━━━ ${y}년 월별 청산 수익금 집계 — 복리(실제 슬롯예산) vs 슬롯당 고정 ${fmtWon(FIXED_SLOT_BUDGET)}원 ━━━`);
+    console.log('월\t복리건수\t복리손익금\t고정건수\t고정투입금\t고정손익금\t고정수익률');
+    let cTotN = 0, cTotPnl = 0, fTotN = 0, fTotInv = 0, fTotPnl = 0;
+    for (let m = 1; m <= lastMonthNum; m++) {
+      const mm = `${y}-${String(m).padStart(2, '0')}`;
+      const mStart = `${mm}-01`;
+      const mEnd = [monthEndDate(mm), toDate].sort()[0];
+      if (mStart > toDate) break;
+      const cArr = trades.filter(t => t.exitDate >= mStart && t.exitDate <= mEnd);
+      const cPnl = cArr.reduce((a, t) => a + t.realizedPnl, 0);
+      const fArr = fixedRun.trades.filter(t => t.exitDate >= mStart && t.exitDate <= mEnd);
+      const fPnl = fArr.reduce((a, t) => a + t.realizedPnl, 0);
+      const fInv = fArr.reduce((a, t) => a + t.investedTotal, 0);
+      const fPct = fInv ? (fPnl / fInv * 100).toFixed(2) : '0.00';
+      cTotN += cArr.length; cTotPnl += cPnl; fTotN += fArr.length; fTotInv += fInv; fTotPnl += fPnl;
+      console.log(`${mm}\t${cArr.length}건\t${fmtWon(cPnl)}원\t${fArr.length}건\t${fmtWon(fInv)}원\t${fmtWon(fPnl)}원\t${fPct}%`);
+    }
+    const fTotPct = fTotInv ? (fTotPnl / fTotInv * 100).toFixed(2) : '0.00';
+    console.log(`합계\t${cTotN}건\t${fmtWon(cTotPnl)}원\t${fTotN}건\t${fmtWon(fTotInv)}원\t${fmtWon(fTotPnl)}원\t${fTotPct}%`);
+  }
 }
 
 main().catch(e => { console.error('오류:', e.message, e.stack); process.exit(1); });
