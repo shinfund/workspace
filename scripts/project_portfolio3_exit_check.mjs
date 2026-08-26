@@ -155,10 +155,27 @@ async function refetchPage(pageId) {
     };
   } catch { return null; }
 }
+// 2026-08-26 버그 수정: Notion API의 page_size 최대치는 100(요청값 200은 조용히 100으로 잘림)이라
+// has_more를 무시하고 단건 조회하면 "오늘 날짜" 보유종목 중 일부가 응답 순서에 따라 간헐적으로
+// 누락됨(HD현대중공업이 "전략 미지정"으로 잘못 표시되던 실사례로 발견) — start_cursor로 끝까지 순회한다.
+async function queryAllNotion(url, baseBody, headers) {
+  const results = [];
+  let cursor = undefined;
+  for (let page = 0; page < 20; page++) {
+    const body = cursor ? { ...baseBody, start_cursor: cursor } : baseBody;
+    const data = await httpPostJson(url, body, headers);
+    if (!data?.results) break;
+    results.push(...data.results);
+    if (!data.has_more) break;
+    cursor = data.next_cursor;
+  }
+  return results;
+}
 async function fetchNotionHoldings() {
   if (!NOTION_TOKEN) { console.error('[Notion] NOTION_TOKEN 없음'); return []; }
-  const data = await httpPostJson(`https://api.notion.com/v1/databases/${HOLDINGS_DB_ID}/query`, { sorts: [{ property: '날짜', direction: 'descending' }], page_size: 200 }, { 'Authorization': `Bearer ${NOTION_TOKEN}`, 'Notion-Version': '2022-06-28' });
-  if (!data?.results?.length) return [];
+  const results = await queryAllNotion(`https://api.notion.com/v1/databases/${HOLDINGS_DB_ID}/query`, { sorts: [{ property: '날짜', direction: 'descending' }], page_size: 100 }, { 'Authorization': `Bearer ${NOTION_TOKEN}`, 'Notion-Version': '2022-06-28' });
+  if (!results.length) return [];
+  const data = { results };
   const allDates = [...new Set(data.results.map(p => p.properties['날짜']?.date?.start).filter(Boolean))].sort();
   const latestDate = allDates[allDates.length - 1];
   console.error(`[Notion] 보유종목DB 기준일: ${latestDate}`);
@@ -170,8 +187,12 @@ async function fetchNotionHoldings() {
     avgPrice: Number(p.properties['매 입 가']?.number || 0),
     strategy: p.properties['전략']?.select?.name || null,
   }));
+  // 2026-08-26 추가: DB쿼리 응답이 select("전략") 필드만 간헐적으로 null을 반환하는 현상이 관측됨
+  // (같은 페이지를 재조회하면 정상값 — Notion 쪽 읽기 일관성 지연으로 추정, 기존 title lag 버그와 동일 계열).
+  // name/code/qty/avgPrice 정상인데 strategy만 없는 경우도 단건 재조회로 보정한다.
   for (const h of rows) {
-    if (!h.name || !h.code || h.qty <= 0 || !h.avgPrice) {
+    for (let attempt = 0; attempt < 3 && (!h.name || !h.code || h.qty <= 0 || !h.avgPrice || !h.strategy); attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, 400)); // 일관성 지연 대비 재시도 간격
       const fixed = await refetchPage(h.pageId);
       if (fixed) {
         if (!h.name && fixed.name) h.name = fixed.name;
@@ -294,9 +315,13 @@ async function judgeRoundnumber(h) {
   const step = computeStepAt(highs, lows, i, RN_WINDOW, RN_TICKS);
   if (!step) return { ...h, market: 'KOSPI', close: price, ret, verdict: '감시레벨 계산 불가', urgent: false };
 
+  // 2026-08-26 버그 수정: 감시레벨을 "오늘 종가" 기준으로 다시 잡으면, 진입 후 주가가 이미 TP를
+  // 돌파한 종목도 그 돌파가격을 새 지지선으로 재설정해버려 TP 도달 사실이 영구히 사라짐(LS ELECTRIC·
+  // POSCO홀딩스 실사례로 발견). 진입가(h.avgPrice) 기준으로 감시레벨을 잡아야 실제 매수 시점의
+  // 지지/저항이 유지되고, 그 이후 가격이 얼마나 올랐든 TP 도달 여부를 정확히 판정할 수 있다.
   const lo0 = Math.max(0, i - RN_LOOKBACK);
   let watchLevel = null;
-  for (let L = Math.floor(price / step) * step; L > 0 && (price - L) / price < 0.3; L -= step) {
+  for (let L = Math.floor(h.avgPrice / step) * step; L > 0 && (h.avgPrice - L) / h.avgPrice < 0.3; L -= step) {
     let aboveCount = 0;
     for (let k = lo0; k < i; k++) if (closes[k] >= L) aboveCount++;
     const touch = touchCountBefore(highs, lows, i, L, RN_WINDOW);

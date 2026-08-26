@@ -218,11 +218,28 @@ async function refetchHeldRow(pageId) {
     };
   } catch { return null; }
 }
+// 2026-08-26 버그 수정: Notion API의 page_size 최대치는 100(요청값 200은 조용히 100으로 잘림)이라
+// has_more를 무시하고 단건 조회하면 "오늘 날짜" 보유종목 중 일부가 응답 순서에 따라 간헐적으로
+// 누락됨(project_portfolio3_exit_check.mjs에서 HD현대중공업 실사례로 먼저 발견) — start_cursor로 끝까지 순회한다.
+async function queryAllNotion(url, baseBody, headers) {
+  const results = [];
+  let cursor = undefined;
+  for (let page = 0; page < 20; page++) {
+    const body = cursor ? { ...baseBody, start_cursor: cursor } : baseBody;
+    const data = await httpPostJson(url, body, headers);
+    if (!data?.results) break;
+    results.push(...data.results);
+    if (!data.has_more) break;
+    cursor = data.next_cursor;
+  }
+  return results;
+}
 async function fetchHeldCodes() {
   // 빈슬롯은 3전략(눌림목/괴리율/라운드넘버) 5슬롯 공유자본 기준 — 매도완료(보유수량 0)나 기준선 전략(축소·배제 대상) 보유분은 슬롯 점유로 세지 않는다.
   if (!NOTION_TOKEN) { console.error('[Notion] NOTION_TOKEN 없음 — 빈슬롯 계산 불가, 5슬롯 전부 빈 것으로 가정'); return new Set(); }
-  const data = await httpPostJson(`https://api.notion.com/v1/databases/${HOLDINGS_DB_ID}/query`, { sorts: [{ property: '날짜', direction: 'descending' }], page_size: 200 }, { 'Authorization': `Bearer ${NOTION_TOKEN}`, 'Notion-Version': '2022-06-28' });
-  if (!data?.results?.length) return new Set();
+  const results = await queryAllNotion(`https://api.notion.com/v1/databases/${HOLDINGS_DB_ID}/query`, { sorts: [{ property: '날짜', direction: 'descending' }], page_size: 100 }, { 'Authorization': `Bearer ${NOTION_TOKEN}`, 'Notion-Version': '2022-06-28' });
+  if (!results.length) return new Set();
+  const data = { results };
   const allDates = [...new Set(data.results.map(p => p.properties['날짜']?.date?.start).filter(Boolean))].sort();
   const latestDate = allDates[allDates.length - 1];
   console.error(`[Notion] 보유종목DB 기준일: ${latestDate}`);
@@ -232,9 +249,12 @@ async function fetchHeldCodes() {
     let code = (p.properties['종목코드']?.rich_text?.[0]?.plain_text || '').trim();
     let qty = Number(p.properties['보유수량']?.number || 0);
     let strategy = p.properties['전략']?.select?.name || null;
-    if (!code) { // rich_text가 인덱싱 지연으로 비어있는 경우 재조회
+    // 2026-08-26 추가: select("전략") 필드가 간헐적으로 null을 반환하는 현상 보정(같은 페이지 재조회하면
+    // 정상값 — title lag와 동일 계열). null이면 기준선 여부를 오판해 빈슬롯 계산이 틀어질 수 있어 재조회.
+    for (let attempt = 0; attempt < 3 && (!code || !strategy); attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, 400));
       const refetched = await refetchHeldRow(p.id);
-      if (refetched) { code = refetched.code; qty = refetched.qty; strategy = refetched.strategy; }
+      if (refetched) { code = code || refetched.code; qty = qty || refetched.qty; strategy = strategy || refetched.strategy; }
     }
     if (code && qty > 0 && strategy !== '기준선') codes.push(code);
   }
