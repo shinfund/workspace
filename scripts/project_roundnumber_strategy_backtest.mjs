@@ -65,6 +65,15 @@
 //
 // 진단: 터치카운트(밀집도) 구간별 성과 분리(검증 강도가 실제 승률에 영향을 주는지), EMA200 기준
 // 상승/하락 국면별 성과 분리(회귀/추세추종 어느 쪽에 더 유리한지, feedback_strategy_regime_pairing 관점).
+//
+// v15(2026-08-26, 코스피 유니버스 확장 검증 중 사용자가 진입/청산 트리거 재튜닝 요청 — 확장은 역효과로
+// TOP50 유지 확정, 대신 청산 파라미터 재검토). stopBufferPct는 2026-08-21 원 스윕에서 0.5~3% 구간만
+// 테스트해 2%를 변곡점으로 확정했었으나, 이번 재검증(scripts/project_roundnumber_exit_grid_v15.mjs,
+// 1.5~15% 확장)에서 perDay(하루당 기대수익률, 원 스윕과 동일 기준)가 실제로는 3%에서 최고치(0.403%,
+// 2%는 0.380%)를 찍고 이후 하락함을 확인 — 3%로 소폭 상향. 5% 이상은 승률·평균수익률·Sharpe 전부
+// 계속 개선되지만(최대 15%까지) perDay는 오히려 하락(평균보유일이 2.6일→6.9일로 늘어나 슬롯회전율
+// 악화, 5슬롯 공유자본 포트폴리오에서는 손해) + 손절이 사실상 무력화(레벨 붕괴 판정이라는 전략
+// 본연의 취지 훼손)돼 기각. n=511(동일), 평균+1.00%→+1.23%, 승률66%→71%, Sharpe0.184→0.217.)
 
 import https from 'https';
 
@@ -98,7 +107,7 @@ function parseArgs() {
     stocks: DEFAULT_STOCKS, calendarDays: 2555,
     windowDays: 150, targetTicks: 30, minTouches: 3,
     recentLookback: 20, priorAboveDays: 5, reclaimWindow: 5,
-    stopBufferPct: 2, maxHold: 60, minEntryPositionPct: 20, minBandWidthPct: 2.5,
+    stopBufferPct: 3, maxHold: 60, minEntryPositionPct: 20, minBandWidthPct: 2.5, // stopBufferPct v15(2026-08-26): 청산 그리드서치 재확정(2→3)
   };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--calendar-days') o.calendarDays = parseInt(argv[++i]);

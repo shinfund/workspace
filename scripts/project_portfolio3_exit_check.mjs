@@ -225,11 +225,11 @@ async function judgePullback(h, market) {
   const prevRet = (prevClose - h.avgPrice) / h.avgPrice * 100;
   const aboveEma50 = close >= ema50;
   const breakdown50 = !aboveEma50;
-  const freshTp10 = ret >= 10 && !(prevRet >= 10);
+  const freshTp20 = ret >= 20 && !(prevRet >= 20); // v15(2026-08-26): TP 10%→20% 청산 그리드서치 재확정(perDay 기준)
   let v;
   if (ret <= -sl) v = { label: `손절검토(-${sl}%)`, urgent: true };
   else if (breakdown50) v = { label: '전량매도검토(50EMA이탈)', urgent: true };
-  else if (freshTp10) v = { label: '1차익절검토(+10%)', urgent: true };
+  else if (freshTp20) v = { label: '1차익절검토(+20%)', urgent: true };
   else if (aboveEma50) v = { label: '홀딩(50EMA위)', urgent: false };
   else if (ret <= -sl * 0.6) v = { label: '주의', urgent: false };
   else v = { label: '관찰', urgent: false };
@@ -237,7 +237,7 @@ async function judgePullback(h, market) {
 }
 
 // ── 괴리율 판정 ──
-const DV_FAST = 5, DV_SLOW = 20, DV_SL = 12; // 2026-08-26 손절 15→12 재조정 확정
+const DV_FAST = 5, DV_SLOW = 20, DV_SL = 18; // v15(2026-08-26): 청산 그리드서치 재확정(perDay 기준, SL 12→18)
 async function judgeDeviation(h, market) {
   const p2 = Math.floor(Date.now() / 1000), p1 = p2 - 400 * 24 * 3600;
   const symbol = market === 'KOSDAQ' ? `${h.code}.KQ` : `${h.code}.KS`;

@@ -8,6 +8,17 @@
 //   ③ 2차 매도(잔량50%=전체25%): ②이후 종가가 EMA20을 돌파(종가>=EMA20)한 날 발생(②와 같은 날도 가능)
 //   ④ 지속 보유: ③ 이후 종가가 EMA5 아래로 하향 이탈하기 전까지 잔량(25%) 계속 홀딩, 이탈 시 그 시점에 잔량 전량 청산
 //   ⑤ 시간청산: 위 조건 없이 최대보유일(N거래일) 도달 시 잔량 전량 청산
+// v15(2026-08-26, 코스피 유니버스 확장 검증 중 사용자가 진입/청산 트리거 재튜닝 요청 — 확장은 역효과로 TOP50
+//    유지 확정, 대신 청산 파라미터만 그리드서치(scripts/project_deviation_exit_grid_v15.mjs, SL 8~20·TP% 12~30·
+//    최대보유일 15~30, 240개 조합, TOP50 확정 유니버스·진입로직 그대로 고정). 1차로 Sharpe 기준 채택했던
+//    SL16%/최대보유일25일은 3전략 통합포트폴리오 재검증(project_3strategy_combined_portfolio_backtest.mjs)
+//    결과 헤드라인이 오히려 하락(+1221%→+1090%)해 원인 진단 — 최대보유일을 늘리면 트레이드당 수익률은
+//    개선되지만 5슬롯 공유자본 포트폴리오의 슬롯 회전율(자본효율)이 나빠짐을 발견, perDay(하루당
+//    기대수익률) 기준으로 재평가해 정정: 최대보유일 20일은 그대로 유지(평균보유일 불변)한 채 SL만
+//    12%→18%로 조정(17%부터 손절이 거의 발생하지 않아 포화, 18%는 포화 직후 안전마진). n=173→173(동일),
+//    가중평균+6.29%→+6.62%, perDay 0.338%→0.346%, Sharpe0.583→0.638, IS0.391→0.424(더 건강)/OOS0.900→1.020.
+//    기존 SL=15→12 재조정(2026-08-26 앞선 결정)은 KOSDAQ 포함 유니버스 기준이었고, 이번은 KOSPI 전용
+//    확정 유니버스·perDay 기준 재탐색이라 값이 다름 — 최신값(18)이 유효.)
 import https from 'https';
 
 const YF_HEADERS = {
@@ -81,7 +92,7 @@ const TREND_SLOPE_LOOKBACK = 10;
 
 function parseArgs() {
   const argv = process.argv.slice(2);
-  const o = { stocks: DEFAULT_STOCKS, maxHold: 20, sl: 15, tp: 20, calendarDays: 2555, trendFilter: true, trendDef: 'ema50-ema200' };
+  const o = { stocks: DEFAULT_STOCKS, maxHold: 20, sl: 18, tp: 20, calendarDays: 2555, trendFilter: true, trendDef: 'ema50-ema200' };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--calendar-days') o.calendarDays = parseInt(argv[++i]);
     if (argv[i] === '--max-hold') o.maxHold = parseInt(argv[++i]);

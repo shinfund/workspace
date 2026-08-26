@@ -2,7 +2,7 @@
 // 진입: 시장국면(KOSPI>EMA100, 상승) + 종목추세(정배열 EMA50>EMA100, EMA100 상승) + 50일 신고가(최근6일내) 재지지
 //       + 되돌림밴드 = 눌림폭(50일고점 대비 %) <= 종목 14일 ATR% × 0.4 (종목별 변동성 정규화, 고정%아님)
 // 청산: 손절-8% / EMA50이탈 / 트레일링-8%(고점대비) / 40거래일 시간청산, 최초 도달 규칙 적용
-// 부분익절: +10% 도달 시 50% 매도 확정, 잔량은 동일 청산규칙 유지
+// 부분익절: +20% 도달 시 40% 매도 확정, 잔량은 동일 청산규칙 유지(v15, 2026-08-26)
 // 검증: 날짜순 60/40 분할(IS/OOS)로 확정 파라미터가 최근 구간에서도 견고한지 스냅샷 점검(재탐색 없음 — 파라미터는 이미 확정됨)
 // 연혁: v1(entry_variants 5종비교, SMA60/120) → v2(SL/TRAIL 그리드) → v3(OOS+부분익절, 고정92~98%밴드) →
 //       v4(결측치 fillForward 버그 정정) → v5(되돌림밴드 고정%→ATR%×0.4 정규화) →
@@ -46,6 +46,18 @@
 //          모두 열위. 코스닥 종목(알테오젠) 유니버스에서 완전 제외, 코스피 전용으로 전환(사용자 확정).
 //          단, 반대쪽 지수(코스닥지수) 상승국면 병행확인(v12 조건①)은 종목이 아닌 시장 breadth
 //          신호라 그대로 유지 — 코스닥 종목을 매매하지 않는 것과는 별개.)
+//       v15(2026-08-26 같은 날, "코스피 유니버스 확장" 검증 중 사용자가 "진입/청산 트리거도 재튜닝해달라"
+//          요청 — 확장 실험은 역효과로 판명돼 TOP50 유지 확정(별도 기록), 대신 청산 파라미터(SL/TRAIL/TP%/
+//          TP비율)만 TOP50 확정 유니버스·v14 진입로직 그대로 고정한 채 그리드서치
+//          (scripts/project_pullback_exit_grid_v15.mjs, SL 6~10·TRAIL 8~20·TP% 8~20·TP비율 0.4~1.0,
+//          1890개 조합). 1차로 Sharpe 기준 채택했던 TRAIL16%/TP15%/frac0.7은 3전략 통합포트폴리오
+//          재검증(project_3strategy_combined_portfolio_backtest.mjs) 결과 헤드라인이 오히려 하락
+//          (+1221%→+1090%)해 원인 진단 — TRAIL을 넓히면 트레이드당 수익률은 개선되지만 평균보유일이
+//          늘어(18.3일→더 김) 5슬롯 공유자본 포트폴리오의 슬롯 회전율(자본효율)이 나빠짐을 발견,
+//          라운드넘버 재튜닝에 썼던 perDay(하루당 기대수익률) 기준으로 재평가해 정정: TRAIL8%는 그대로
+//          유지(평균보유일 불변, 슬롯회전 비용 0)한 채 TP% 10→20·TP비율 0.5→0.4만 조정. n=569(불변,
+//          SL·TRAIL 그대로라 진입·쿨다운도 불변), 평균+8.29%→+9.48%, perDay 0.454%→0.520%(+15%),
+//          IS0.538/OOS0.544(v14의 IS0.600/OOS0.558와 유사 수준, 과최적화 우려 없음).)
 //       과거 그리드서치 원본 수치는 메모리(project_pullback_entry_variants_backtest.md) 참고.
 // 사용법: node scripts/project_stock_pullback.mjs [--max-hold N] [--calendar-days N]
 import https from 'https';
@@ -89,9 +101,12 @@ const KOSDAQ_SYMBOL = '%5EKQ11'; // 2026-08-19: 코스닥 종목엔 코스피지
 const MA_SHORT = 50, MA_LONG = 100, SLOPE_LOOKBACK = 10; // 사용자 개인 이평체계(5/10/20/50/100/200/400 EMA) — 구 SMA60/120을 비율(1:2) 유지한 채 EMA50/100으로 교체
 const BREAKOUT_LOOKBACK = 6; // 신고가 재지지 최근성 기준(2026-08-06 재탐색: 10일→6일, MA_SHORT 축소에 맞춰 비율 재조정)
 const ATR_PERIOD = 14, BAND_K = 0.4; // 되돌림밴드 = 눌림폭 <= ATR% × BAND_K
-const SL = 8, TRAIL = 8, TP_PCT = 10, TP_FRAC = 0.5;
+const SL = 8, TRAIL = 8, TP_PCT = 20, TP_FRAC = 0.4;
 // v14(2026-08-26): 코스닥 종목을 유니버스에서 완전 제외해 코스피 전용으로 전환 — 코스닥 전용
 // SL18/TRAIL18(v11) 분기는 더 이상 쓰이지 않아 제거, SL/TRAIL 단일값만 사용.
+// v15(2026-08-26 같은 날): 청산 그리드서치로 TP% 10→20, TP비율 0.5→0.4 재확정(SL8%·TRAIL8%는 유지 —
+// perDay(하루당 기대수익률) 기준 재평가 결과 TRAIL을 넓히면 평균보유일이 늘어 슬롯회전율이 나빠짐을
+// 발견, 최초 Sharpe 기준 채택안(TRAIL16/TP15/frac0.7)을 기각하고 원래 TRAIL8% 유지로 정정).
 function slFor() { return SL; }
 function trailFor() { return TRAIL; }
 const REGIME_STREAK_MIN = 10; // 시장국면(상승) 전환 후 최소 10거래일 지나야 진입 허용 — 막 전환된 직후 휩소 구간 배제(2026-08-06 그리드서치 채택, v9)
@@ -376,7 +391,7 @@ function fmtRow(label, s) {
 
 async function main() {
   const opts = parseArgs();
-  console.error(`[눌림목 V3_RETEST v14 검증] ${opts.stocks.length}종목, 최대${opts.maxHold}거래일, 최근${opts.calendarDays}일, 추세필터=EMA${MA_SHORT}/${MA_LONG}, 되돌림밴드=ATR%×${BAND_K}, 시장국면지속≥${REGIME_STREAK_MIN}일, KOSPI변동성≤${VOL_CAP}%, 지수병행확인, 개별ATR%상한≤${STOCK_ATR_CAP}%, 손절후재진입쿨다운≥${COOLDOWN_DAYS}일`);
+  console.error(`[눌림목 V3_RETEST v15 검증] ${opts.stocks.length}종목, 최대${opts.maxHold}거래일, 최근${opts.calendarDays}일, 추세필터=EMA${MA_SHORT}/${MA_LONG}, 되돌림밴드=ATR%×${BAND_K}, 시장국면지속≥${REGIME_STREAK_MIN}일, KOSPI변동성≤${VOL_CAP}%, 지수병행확인, 개별ATR%상한≤${STOCK_ATR_CAP}%, 손절후재진입쿨다운≥${COOLDOWN_DAYS}일`);
 
   const p2 = Math.floor(Date.now() / 1000);
   const p1 = p2 - opts.calendarDays * 24 * 3600;
@@ -397,7 +412,7 @@ async function main() {
   allEntries.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
   console.error(`[진입시점 추출 완료] 총 ${allEntries.length}건`);
 
-  console.log('\n════════ 눌림목 V3_RETEST v14 확정 전략 — 전체구간 성과 ════════');
+  console.log('\n════════ 눌림목 V3_RETEST v15 확정 전략 — 전체구간 성과 ════════');
   console.log(`진입: 코스피전용 유니버스 + 시장국면(지속≥${REGIME_STREAK_MIN}일·지수변동성≤${VOL_CAP}%, 코스피+코스닥 지수 둘다 상승국면)+종목추세(정배열, EMA${MA_SHORT}/${MA_LONG}) + ${MA_SHORT}일신고가 재지지 + 눌림폭<=ATR%×${BAND_K} + 개별ATR%≤${STOCK_ATR_CAP}% + 동일종목 손절후 재진입쿨다운≥${COOLDOWN_DAYS}거래일 / 청산: SL${SL}%·TRAIL${TRAIL}%·EMA${MA_SHORT}이탈·시간청산40일\n`);
 
   console.log('전략'.padEnd(26) + 'n'.padStart(6) + '평균'.padStart(10) + '중앙값'.padStart(10) + '승률'.padStart(8) + 'Sharpe'.padStart(9));

@@ -15,14 +15,12 @@ const HOLDINGS_JSON = 'C:\\Users\\shinf\\workspace\\data\\holdings.json';
 const CALENDAR_DAYS = 400;
 const HOLDINGS_CHART_DAYS = 60;
 
-// 표(p2)에 이미 반영한 라이브 값과 100% 동일해야 함(2026-08-25 장마감 최종 갱신 실행 결과)
+// 표(p2)에 이미 반영한 라이브 값과 100% 동일해야 함(2026-08-26 장마감 갱신 — 2026-08-25 리밸런싱분 반영, 4종목)
 const HOLDINGS = [
-  { name: 'POSCO홀딩스', price: 332000, avgPrice: 316333, ret: 4.95, support: 325000, supportDistPct: -2.11, resistance: 350000, resistanceDistPct: 5.42, verdict: '박스권 홀드', badge: 'bdg-gray', code: '005490', market: 'KOSPI' },
-  { name: 'LS ELECTRIC', price: 195400, avgPrice: 193850, ret: 0.80, support: 175000, supportDistPct: -10.44, resistance: 200000, resistanceDistPct: 2.35, verdict: '박스권 홀드', badge: 'bdg-gray', code: '010120', market: 'KOSPI' },
-  { name: '한미반도체', price: 217500, avgPrice: 217500, ret: 0.00, support: 200000, supportDistPct: -8.05, resistance: 225000, resistanceDistPct: 3.45, verdict: '박스권 홀드', badge: 'bdg-gray', code: '042700', market: 'KOSPI' },
-  { name: 'HD현대중공업', price: 464500, avgPrice: 472000, ret: -1.59, support: 450000, supportDistPct: -3.12, resistance: 475000, resistanceDistPct: 2.26, verdict: '박스권 홀드', badge: 'bdg-gray', code: '329180', market: 'KOSPI' },
-  { name: '삼성중공업', price: 20450, avgPrice: 21350, ret: -4.22, support: 20000, supportDistPct: -2.20, resistance: 22000, resistanceDistPct: 7.58, verdict: '박스권 홀드', badge: 'bdg-gray', code: '010140', market: 'KOSPI' },
-  { name: '두산로보틱스', price: 70200, avgPrice: 79706, ret: -11.93, support: 70000, supportDistPct: -0.28, resistance: 80000, resistanceDistPct: 13.96, verdict: '지지 임박·이탈시 손절검토', badge: 'bdg-red', code: '454910', market: 'KOSPI' },
+  { name: '두산로보틱스', price: 71800, avgPrice: 79706, ret: -9.92, support: 70000, supportDistPct: -2.51, resistance: 75000, resistanceDistPct: 4.46, verdict: '박스권 홀드', badge: 'bdg-gray', code: '454910', market: 'KOSPI' },
+  { name: '삼성중공업', price: 20700, avgPrice: 21350, ret: -3.04, support: 20500, supportDistPct: -0.97, resistance: 21000, resistanceDistPct: 1.45, verdict: '지지 임박·이탈시 손절검토', badge: 'bdg-red', code: '010140', market: 'KOSPI' },
+  { name: 'HD현대일렉트릭', price: 733000, avgPrice: 733000, ret: 0.00, support: 725000, supportDistPct: -1.09, resistance: 750000, resistanceDistPct: 2.32, verdict: '지지 임박·이탈시 손절검토', badge: 'bdg-red', code: '267260', market: 'KOSPI' },
+  { name: '한미반도체', price: 219500, avgPrice: 217500, ret: 0.92, support: 210000, supportDistPct: -4.33, resistance: 220000, resistanceDistPct: 0.23, verdict: '저항 근접·돌파시 익절검토', badge: 'bdg-amber', code: '042700', market: 'KOSPI' },
 ];
 
 function httpGetJson(url) {

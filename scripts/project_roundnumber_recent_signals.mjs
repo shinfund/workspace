@@ -21,7 +21,7 @@ const FALLBACK_KOSDAQ = [
 const DEFAULT_STOCKS = FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' }));
 
 // project_roundnumber_strategy_backtest.mjs 확정값과 동일(2026-08-21 스윕 결론)
-const WINDOW_DAYS = 150, TARGET_TICKS = 30, RECENT_LOOKBACK = 20, PRIOR_ABOVE_DAYS = 5, MIN_TOUCHES = 3, STOP_BUFFER_PCT = 2;
+const WINDOW_DAYS = 150, TARGET_TICKS = 30, RECENT_LOOKBACK = 20, PRIOR_ABOVE_DAYS = 5, MIN_TOUCHES = 3, STOP_BUFFER_PCT = 3; // v15(2026-08-26): 청산 그리드서치 재확정(2→3)
 
 function parseArgs() {
   const argv = process.argv.slice(2);

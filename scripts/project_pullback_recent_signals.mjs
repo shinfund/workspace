@@ -35,7 +35,7 @@ const KOSDAQ_SYMBOL = '%5EKQ11'; // v14: 코스닥 종목은 더 이상 매매�
 const MA_SHORT = 50, MA_LONG = 100, SLOPE_LOOKBACK = 10;
 const BREAKOUT_LOOKBACK = 6;
 const ATR_PERIOD = 14, BAND_K = 0.4;
-const SL = 8, TRAIL = 8, TP_PCT = 10, TP_FRAC = 0.5, MAX_HOLD = 40;
+const SL = 8, TRAIL = 8, TP_PCT = 20, TP_FRAC = 0.4, MAX_HOLD = 40; // v15(2026-08-26): 청산 그리드서치 재확정(perDay 기준, TRAIL은 불변)
 // v14(2026-08-26): 코스닥 종목을 유니버스에서 완전 제외 — 코스닥 전용 SL18/TRAIL18(v11) 분기 제거
 function slFor() { return SL; }
 function trailFor() { return TRAIL; }
@@ -297,7 +297,7 @@ function statusInfo(row) {
   let note = '';
   if (row.status === 'OPEN') {
     note = row.tpTaken
-      ? '<span style="color:var(--txt3);font-size:12.5px">(1차익절완료(잔량50%))</span>'
+      ? '<span style="color:var(--txt3);font-size:12.5px">(1차익절완료(잔량60%))</span>'
       : '<span style="color:var(--txt3);font-size:12.5px">(익절대기(보유100%))</span>';
   }
   const day = row.day;

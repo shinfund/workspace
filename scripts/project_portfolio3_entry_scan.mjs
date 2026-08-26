@@ -255,7 +255,7 @@ const PB_MA_SHORT = 50, PB_MA_LONG = 100, PB_SLOPE_LOOKBACK = 10, PB_BREAKOUT_LO
 const PB_ATR_PERIOD = 14, PB_BAND_K = 0.4;
 const PB_SL = 8, PB_TRAIL = 8;
 const PB_REGIME_STREAK_MIN = 10, PB_KOSPI_ATR_PERIOD = 14, PB_VOL_CAP = 4, PB_STOCK_ATR_CAP = 6;
-const PB_TP_PCT = 10, PB_TP_FRAC = 0.5, PB_MAX_HOLD = 40, PB_COOLDOWN_DAYS = 5; // v13(2026-08-26): 손절 후 재진입쿨다운
+const PB_TP_PCT = 20, PB_TP_FRAC = 0.4, PB_MAX_HOLD = 40, PB_COOLDOWN_DAYS = 5; // v15(2026-08-26): TP%·TP비율 청산 그리드서치 재확정(perDay 기준, v13은 재진입쿨다운)
 // v14(2026-08-26): 코스닥 종목을 유니버스에서 완전 제외 — 코스닥 전용 SL18/TRAIL18(v11) 분기 제거
 function pbSlFor() { return PB_SL; }
 function pbTrailFor() { return PB_TRAIL; }

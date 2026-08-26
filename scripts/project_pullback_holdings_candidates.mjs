@@ -32,7 +32,7 @@ async function buildKospiUniverse() {
 
 const MA_SHORT = 50, MA_LONG = 100, SLOPE_LOOKBACK = 10;
 const ATR_PERIOD = 14, BAND_K = 0.4;
-const SL = 8, TP_PCT = 10;
+const SL = 8, TP_PCT = 20; // v15(2026-08-26): 청산 그리드서치 재확정(TP 10→20, perDay 기준)
 // v14(2026-08-26): 코스닥 종목을 유니버스에서 완전 제외 — 코스닥 전용 SL18(v11) 분기 제거
 function slFor() { return SL; }
 const CHART_DAYS = 70, CALENDAR_DAYS = 400;
@@ -327,7 +327,7 @@ function verdict(r) {
   const sl = slFor(r.market);
   if (r.unrealizedRet != null && r.unrealizedRet <= -sl) return { label: '손절검토', cls: 'red' };
   if (r.breakdown50) return { label: '전량매도검토(50EMA이탈)', cls: 'red' };
-  if (r.freshTp10) return { label: '1차익절검토(+10%)', cls: 'teal' };
+  if (r.freshTp10) return { label: '1차익절검토(+20%)', cls: 'teal' };
   if (r.aboveEma50) return { label: '홀딩(50EMA위)', cls: 'teal' };
   if (r.unrealizedRet != null && r.unrealizedRet <= -sl * 0.6) return { label: '주의', cls: 'amber' };
   return { label: '관찰', cls: 'gray' };
