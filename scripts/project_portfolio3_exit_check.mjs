@@ -296,7 +296,7 @@ async function judgeBaseline(h, market) {
 }
 
 // ── 라운드넘버 판정 ──
-const RN_WINDOW = 150, RN_TICKS = 30, RN_LOOKBACK = 20, RN_PRIOR = 5, RN_TOUCHES = 3, RN_STOPBUF = 2;
+const RN_WINDOW = 150, RN_TICKS = 30, RN_LOOKBACK = 20, RN_PRIOR = 5, RN_TOUCHES = 3, RN_STOPBUF = 3; // v15(2026-08-26): stopBufferPct 2→3 청산 그리드서치 재확정(누락분 반영, 2026-08-27 정정)
 async function judgeRoundnumber(h) {
   const p2 = Math.floor(Date.now() / 1000), p1 = p2 - 400 * 24 * 3600;
   const symbol = `${h.code}.KS`;

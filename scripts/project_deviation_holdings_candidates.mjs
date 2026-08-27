@@ -228,8 +228,8 @@ async function fetchNotionHoldings() {
 // 2026-08-10 3단계 매도규칙. 2026-08-12 수정: breakdown5(전량매도검토)를 "당일 신규 이탈"이 아닌
 // "현재 EMA5 아래 상태"(state) 기준으로 재정의 — pullback 앱 두산에너빌리티 사각지대 사례(commit 9fe8f30)와 동일 버그.
 function verdict(r) {
-  // 2026-08-26 손절 -15%→-12% 재조정 확정
-  if (r.unrealizedRet != null && r.unrealizedRet <= -12) return { label: '손절검토', cls: 'red' };
+  // v15(2026-08-26): 청산 그리드서치 재확정(perDay 기준, SL 12→18, 2026-08-27 반영 정정)
+  if (r.unrealizedRet != null && r.unrealizedRet <= -18) return { label: '손절검토', cls: 'red' };
   if (r.breakdown5) return { label: '전량매도검토(5EMA이탈)', cls: 'red' };
   if (r.freshLeg20) return { label: '2차익절검토(20EMA돌파)', cls: 'teal' };
   if (r.aboveEma20) return { label: '홀딩(20EMA위)', cls: 'teal' };
@@ -266,7 +266,7 @@ function buildChartSvg(rows, opts) {
 function holdingCardHtml(r) {
   const v = verdict(r);
   const badgeCls = { red: 'bdg-red', teal: 'bdg-teal', amber: 'bdg-amber', gray: 'bdg-gray' }[v.cls];
-  const slPrice = r.avgPrice * 0.88; // 2026-08-26 손절 -15%→-12% 재조정 확정
+  const slPrice = r.avgPrice * 0.82; // v15(2026-08-26): 청산 그리드서치 재확정(perDay 기준, SL 12→18, 2026-08-27 반영 정정)
   const zpPrice = Math.min(r.z20Price, r.z5Price);
   const svg = buildChartSvg(r.chartRows, { avgPrice: r.avgPrice, slPrice, longKey: 'ema200', longColor: 'amber' });
   return `      <div class="chart-card">
