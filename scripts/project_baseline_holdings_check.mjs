@@ -323,6 +323,58 @@ async function main() {
   fs.writeFileSync('holdings_chart_cards2.html', chartHtml, 'utf-8');
   console.error(`[산출완료] table→holdings_table_rows2.html, charts→holdings_chart_cards2.html`);
 
+  spliceIntoHtml(okResults);
+
   console.log('\n' + JSON.stringify({ holdings: results.map(({ seq, ...r }) => ({ ...r, verdict: verdict(r) })) }, null, 2));
+}
+
+// 2026-08-27: 표+차트를 파일로만 뽑아 매번 수기로 stock-baseline.html에 옮기던 과정을 생략하고
+// 앱 파일(p2 "보유종목" 탭) KPI 3장·표·차트를 직접 갱신한다(project_roundnumber_holdings_chart_refresh.mjs와 동일 패턴).
+function spliceIntoHtml(okResults) {
+  const HTML_PATH = 'C:\\Users\\shinf\\workspace\\apps\\stock-portal\\stock-baseline.html';
+  let html = fs.readFileSync(HTML_PATH, 'utf8');
+  const eol = html.includes('\r\n') ? '\r\n' : '\n';
+  const toEol = s => s.replace(/\n/g, eol);
+
+  const n = okResults.length;
+  const belowCount = okResults.filter(({ r }) => r.belowBaseline).length;
+  const avgRet = okResults.reduce((s, { r }) => s + (r.unrealizedRet ?? 0), 0) / n;
+  const avgCls = avgRet >= 0 ? 't-pos' : 't-neg';
+  const avgStr = `${avgRet >= 0 ? '+' : ''}${avgRet.toFixed(2)}%`;
+
+  html = html.replace(
+    /(<div class="kpi-card kpi-sky"><div class="num">)\d+(<\/div><div class="lbl">보유종목 수<\/div>)/,
+    `$1${n}$2`
+  );
+  html = html.replace(
+    /(<div class="kpi-card kpi-teal"><div class="num">)\d+(<\/div><div class="lbl">기준선 아래\(관찰권\)<\/div>)/,
+    `$1${belowCount}$2`
+  );
+  html = html.replace(
+    /(<div class="kpi-card kpi-amber"><div class="num )[^"]+?(">)[^<]+(<\/div><div class="lbl">평단대비 평균수익률<\/div>)/,
+    `$1${avgCls}$2${avgStr}$3`
+  );
+
+  const tableStartIdx = html.indexOf('보유종목 현황');
+  if (tableStartIdx < 0) throw new Error('보유종목 현황 앵커를 찾지 못함');
+  const tbodyOpenIdx = html.indexOf('<tbody>', tableStartIdx);
+  const tbodyOpenEnd = tbodyOpenIdx + '<tbody>'.length;
+  const tbodyCloseIdx = html.indexOf('</tbody>', tbodyOpenEnd);
+  if (tbodyOpenIdx < 0 || tbodyCloseIdx < 0) throw new Error('보유종목 표 tbody 앵커를 찾지 못함');
+  const newTableHtml = toEol(okResults.map(({ r, v }) => tableRowHtml(r, v)).join('\n'));
+  html = html.slice(0, tbodyOpenEnd) + eol + newTableHtml + eol + html.slice(tbodyCloseIdx);
+
+  const chartTitleIdx = html.indexOf('보유종목 차트');
+  if (chartTitleIdx < 0) throw new Error('보유종목 차트 앵커를 찾지 못함');
+  const gridOpenIdx = html.indexOf('<div class="chart-grid">', chartTitleIdx);
+  const gridOpenEnd = gridOpenIdx + '<div class="chart-grid">'.length;
+  const gridCloseAnchor = `${eol}    </div>${eol}    <div class="sc-note">기준선 전략은 자동 손절규칙이 없습니다`;
+  const gridCloseIdx = html.indexOf(gridCloseAnchor, gridOpenEnd);
+  if (gridOpenIdx < 0 || gridCloseIdx < 0) throw new Error('보유종목 차트 grid 앵커를 찾지 못함');
+  const newChartHtml = toEol(okResults.map(({ r, v }) => chartCardHtml(r, v)).join('\n'));
+  html = html.slice(0, gridOpenEnd) + eol + newChartHtml + html.slice(gridCloseIdx);
+
+  fs.writeFileSync(HTML_PATH, html, 'utf8');
+  console.error(`[저장완료] ${HTML_PATH}`);
 }
 main().catch(e => { console.error('오류:', e.message); process.exit(1); });
