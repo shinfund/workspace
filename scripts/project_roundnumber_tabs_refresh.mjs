@@ -20,7 +20,7 @@ const DEFAULT_STOCKS = FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' }));
 
 const WINDOW_DAYS = 150, TARGET_TICKS = 30, RECENT_LOOKBACK = 20, PRIOR_ABOVE_DAYS = 5, MIN_TOUCHES = 3;
 const RECLAIM_WINDOW = 5, STOP_BUFFER_PCT = 3, MAX_HOLD = 60, CALENDAR_DAYS = 2555, MIN_ENTRY_POSITION_PCT = 20, MIN_BAND_WIDTH_PCT = 2.5;
-const RECENT_DAYS = 45, TOP_CHART_N = 10, PRE_ENTRY_PADDING = 16, NEAR_THRESHOLD_PCT = 0.5, PRIORITY_CAP = 3;
+const RECENT_DAYS = 45, TOP_CHART_N = 10, PRE_ENTRY_PADDING = 16, NEAR_THRESHOLD_PCT = 0.5;
 
 function httpGetJson(url) {
   return new Promise((res, rej) => {
@@ -66,6 +66,34 @@ async function batchAll(items, fn, concurrency = 5, delay = 150) {
   await Promise.all(Array.from({ length: concurrency }, worker));
   return results;
 }
+
+// 베타(KOSPI상관) — project_portfolio3_entry_scan.mjs의 슬롯부족 타이브레이커와 동일한 계산식, 여기선 참고표시 전용.
+function computeBetaVsSeries(closes, dates, kospiRetByDate) {
+  const rets = [], kospiRets = [];
+  for (let i = 1; i < dates.length; i++) {
+    if (closes[i] == null || closes[i - 1] == null) continue;
+    const kr = kospiRetByDate.get(dates[i]); if (kr == null) continue;
+    rets.push((closes[i] - closes[i - 1]) / closes[i - 1] * 100); kospiRets.push(kr);
+  }
+  if (rets.length < 30) return null;
+  const mean = a => a.reduce((x, y) => x + y, 0) / a.length;
+  const mR = mean(rets), mK = mean(kospiRets);
+  let cov = 0, varK = 0;
+  for (let i = 0; i < rets.length; i++) { cov += (rets[i] - mR) * (kospiRets[i] - mK); varK += (kospiRets[i] - mK) ** 2; }
+  return varK ? cov / varK : null;
+}
+async function fetchKospiRetMap(p1, p2) {
+  const chart = await fetchYahooChart('^KS11', p1, p2);
+  if (!chart || !chart.ts.length) return new Map();
+  const dates = chart.ts.map(tsToKstDate);
+  const map = new Map();
+  for (let i = 1; i < dates.length; i++) {
+    if (chart.close[i] == null || chart.close[i - 1] == null) continue;
+    map.set(dates[i], (chart.close[i] - chart.close[i - 1]) / chart.close[i - 1] * 100);
+  }
+  return map;
+}
+function fmtBeta(b) { return b != null ? b.toFixed(2) : '─'; }
 
 const NICE_FAMILY = [1, 2, 2.5, 5, 10];
 function niceStep(rawStep) {
@@ -144,7 +172,7 @@ function simulateLive(seq, ev, latestIdx) {
   return null;
 }
 
-async function scanTradesStock(stock, cutoffDate) {
+async function scanTradesStock(stock, cutoffDate, kospiRetByDate) {
   const p2 = Math.floor(Date.now() / 1000);
   const p1 = p2 - CALENDAR_DAYS * 24 * 3600;
   const symbol = stock.market === 'KOSDAQ' ? `${stock.code}.KQ` : `${stock.code}.KS`;
@@ -162,13 +190,14 @@ async function scanTradesStock(stock, cutoffDate) {
   const n = seq.length;
   if (n < WINDOW_DAYS + RECENT_LOOKBACK + 10) return { ...stock, error: '데이터 부족' };
 
+  const beta = computeBetaVsSeries(seq.map(s => s.close), seq.map(s => s.date), kospiRetByDate);
   const events = detectRoundSignals(seq, highs, lows);
   const latestIdx = n - 1;
   const recentTrades = [];
   for (const ev of events) {
     if (seq[ev.entryIdx].date < cutoffDate) continue;
     const res = simulateLive(seq, ev, latestIdx);
-    if (res) recentTrades.push({ name: stock.name, entryIdx: ev.entryIdx, entryDate: seq[ev.entryIdx].date, entryPrice: seq[ev.entryIdx].close, level: ev.level, step: ev.step, touchCount: ev.touchCount, aboveCount: ev.aboveCount, seq, latestIdx, ...res });
+    if (res) recentTrades.push({ name: stock.name, code: stock.code, beta, entryIdx: ev.entryIdx, entryDate: seq[ev.entryIdx].date, entryPrice: seq[ev.entryIdx].close, level: ev.level, step: ev.step, touchCount: ev.touchCount, aboveCount: ev.aboveCount, seq, latestIdx, ...res });
   }
   return { ...stock, recentTrades };
 }
@@ -265,18 +294,12 @@ function statusBadge(t) {
   if (t.status === 'STOP') return `<span class="badge bdg-red">STOP손절</span>`;
   return `<span class="badge bdg-purple">시간청산</span>`;
 }
-function priorityBadge(p) {
-  if (p == null) return '-';
-  if (p <= PRIORITY_CAP) return `<span class="badge bdg-purple">${p}순위</span>`;
-  return `<span class="badge bdg-coral" title="동시신호 3건 초과 — 밀집도·트랙레코드 우선순위 하위, 30%노출상한 초과분 스킵 권장">${p}순위 초과</span>`;
-}
-
-function tradeRowHtml(t, priorityOf_i) {
+function tradeRowHtml(t) {
   const tp = t.level + t.step, stop = t.level * (1 - STOP_BUFFER_PCT / 100);
   const curPrice = t.curClose ?? t.entryPrice * (1 + t.ret / 100);
-  return `<tr><td class="l">${t.entryDate}</td><td class="l">${esc(t.name)}</td><td>${fmtWon(curPrice)}</td><td>${fmtWon(t.entryPrice)}</td><td>${fmtWon(t.level)}</td><td>${fmtWon(tp)}</td><td>${fmtWon(stop)}</td><td class="c">${t.aboveCount}/20일</td><td class="c">${t.touchCount}봉</td><td class="c">${priorityBadge(priorityOf_i)}</td><td class="l">${statusBadge(t)}</td><td class="${retClass(t.ret)}">${fmtPct(t.ret)}</td></tr>`;
+  return `<tr><td class="l">${t.entryDate}</td><td class="l">${esc(t.name)}</td><td>${fmtWon(curPrice)}</td><td>${fmtWon(t.entryPrice)}</td><td>${fmtWon(t.level)}</td><td>${fmtWon(tp)}</td><td>${fmtWon(stop)}</td><td class="c">${t.aboveCount}/20일</td><td class="c">${t.touchCount}봉</td><td class="c">${fmtBeta(t.beta)}</td><td class="l">${statusBadge(t)}</td><td class="${retClass(t.ret)}">${fmtPct(t.ret)}</td></tr>`;
 }
-function tradeChartCardHtml(t, priorityOf_i) {
+function tradeChartCardHtml(t) {
   const tp = t.level + t.step, stop = t.level * (1 - STOP_BUFFER_PCT / 100);
   const startIdx = Math.max(0, t.entryIdx - PRE_ENTRY_PADDING);
   const rows = t.seq.slice(startIdx, t.latestIdx + 1);
@@ -287,10 +310,9 @@ function tradeChartCardHtml(t, priorityOf_i) {
     { value: stop, color: 'coral', dash: '2,2', width: 1.3 },
   ], t.entryPrice);
   const curPrice = t.curClose ?? t.entryPrice * (1 + t.ret / 100);
-  const p = priorityOf_i;
-  const prioHtml = p == null ? '' : (p <= PRIORITY_CAP ? `<span class="badge bdg-purple">${p}순위</span>` : `<span class="badge bdg-coral" title="동시신호 3건 초과">${p}순위 초과</span>`);
+  const betaHtml = `<span class="badge bdg-purple">베타 ${fmtBeta(t.beta)}</span>`;
   return `      <div class="chart-card">
-        <div class="chart-card-head"><span class="chart-card-name">${esc(t.name)}</span>${prioHtml}${statusBadge(t)}&nbsp;<span style="color:var(--txt3);font-size:12.5px">${t.entryDate}</span></div>
+        <div class="chart-card-head"><span class="chart-card-name">${esc(t.name)}</span>${betaHtml}${statusBadge(t)}&nbsp;<span style="color:var(--txt3);font-size:12.5px">${t.entryDate}</span></div>
         ${svg}
         <div class="chart-card-stats">
           <span>진입가 <span>${fmtWon(t.entryPrice)}</span> <span class="sep">|</span> 현재가 <span>${fmtWon(curPrice)}</span> <span class="sep">|</span> 수익률 <span class="${retClass(t.ret)}">${fmtPct(t.ret)}</span></span>
@@ -345,32 +367,19 @@ async function main() {
   console.error(`[라운드넘버 탭 갱신] 기준일 ${todayStr}`);
 
   // ── 최근신호(트레이드) 스캔 ──
+  const p2 = Math.floor(Date.now() / 1000), p1 = p2 - CALENDAR_DAYS * 24 * 3600;
+  const kospiRetByDate = await fetchKospiRetMap(p1, p2);
   const cutoff = new Date(Date.now() - RECENT_DAYS * 24 * 3600 * 1000);
   const cutoffDate = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}-${String(cutoff.getDate()).padStart(2, '0')}`;
-  const tradeResults = await batchAll(DEFAULT_STOCKS, s => scanTradesStock(s, cutoffDate));
+  const tradeResults = await batchAll(DEFAULT_STOCKS, s => scanTradesStock(s, cutoffDate, kospiRetByDate));
   const all = [];
   for (const r of tradeResults) { if (!r.error) all.push(...r.recentTrades); }
-  all.sort((a, b) => b.entryDate.localeCompare(a.entryDate));
 
-  const byDate = {};
-  all.forEach((t, i) => { (byDate[t.entryDate] ||= []).push(i); });
-  const priorityOf = new Array(all.length).fill(null);
-  for (const date in byDate) {
-    const idxs = byDate[date];
-    if (idxs.length < PRIORITY_CAP) continue;
-    const sorted = [...idxs].sort((a, b) => {
-      if (all[b].touchCount !== all[a].touchCount) return all[b].touchCount - all[a].touchCount;
-      if (all[b].aboveCount !== all[a].aboveCount) return all[b].aboveCount - all[a].aboveCount;
-      return a - b;
-    });
-    sorted.forEach((idx, pos) => { priorityOf[idx] = pos + 1; });
-  }
   const order = all.map((t, i) => i).sort((a, b) => {
     const dateCmp = all[b].entryDate.localeCompare(all[a].entryDate);
     if (dateCmp !== 0) return dateCmp;
-    const ra = priorityOf[a] == null ? Infinity : priorityOf[a];
-    const rb = priorityOf[b] == null ? Infinity : priorityOf[b];
-    if (ra !== rb) return ra - rb;
+    const ba = all[a].beta ?? -Infinity, bb = all[b].beta ?? -Infinity;
+    if (ba !== bb) return bb - ba;
     return a - b;
   });
 
@@ -379,8 +388,8 @@ async function main() {
   const closedWinRate = closedTrades.length ? Math.round(closedTrades.filter(t => t.status === 'TP').length / closedTrades.length * 100) : 0;
   console.error(`[최근신호] 총 ${all.length}건(보유중 ${openCount}, 청산 ${closedTrades.length}, 청산승률 ${closedWinRate}%)`);
 
-  const tradeTableRows = order.map(i => tradeRowHtml(all[i], priorityOf[i])).join('\n          ');
-  const tradeChartCards = order.slice(0, TOP_CHART_N).map(i => tradeChartCardHtml(all[i], priorityOf[i])).join('\n');
+  const tradeTableRows = order.map(i => tradeRowHtml(all[i])).join('\n          ');
+  const tradeChartCards = order.slice(0, TOP_CHART_N).map(i => tradeChartCardHtml(all[i])).join('\n');
 
   // ── 예상종목(감시레벨 근접) 스캔 ──
   const candResults = await batchAll(DEFAULT_STOCKS, scanCandidateStock);

@@ -119,6 +119,42 @@ async function batchAll(items, fn, concurrency = 5, delay = 150) {
   return results;
 }
 
+// 베타(KOSPI상관) — project_portfolio3_entry_scan.mjs의 슬롯부족 타이브레이커와 동일한 계산식, 여기선 참고표시 전용.
+function fillForward(arr) {
+  const out = arr.slice();
+  let last = null;
+  for (let i = 0; i < out.length; i++) { if (out[i] == null) out[i] = last; else last = out[i]; }
+  return out;
+}
+function computeBetaVsSeries(closes, dates, kospiRetByDate) {
+  const rets = [], kospiRets = [];
+  for (let i = 1; i < dates.length; i++) {
+    if (closes[i] == null || closes[i - 1] == null) continue;
+    const kr = kospiRetByDate.get(dates[i]); if (kr == null) continue;
+    rets.push((closes[i] - closes[i - 1]) / closes[i - 1] * 100); kospiRets.push(kr);
+  }
+  if (rets.length < 30) return null;
+  const m = a => a.reduce((x, y) => x + y, 0) / a.length;
+  const mR = m(rets), mK = m(kospiRets);
+  let cov = 0, varK = 0;
+  for (let i = 0; i < rets.length; i++) { cov += (rets[i] - mR) * (kospiRets[i] - mK); varK += (kospiRets[i] - mK) ** 2; }
+  return varK ? cov / varK : null;
+}
+const KOSPI_SYMBOL = '^KS11'; // fetchYahooChart가 내부에서 encodeURIComponent 처리
+async function fetchKospiRetMap(p1, p2) {
+  const chart = await fetchYahooChart(KOSPI_SYMBOL, p1, p2);
+  if (!chart || !chart.ts.length) return new Map();
+  const dates = chart.ts.map(tsToKstDate);
+  const closes = fillForward(chart.close);
+  const map = new Map();
+  for (let i = 1; i < dates.length; i++) {
+    if (closes[i] == null || closes[i - 1] == null) continue;
+    map.set(dates[i], (closes[i] - closes[i - 1]) / closes[i - 1] * 100);
+  }
+  return map;
+}
+function fmtBeta(b) { return b != null ? b.toFixed(2) : '─'; }
+
 function rollingZPct(seq, j, devKey) {
   const win = seq.slice(j - ROLL + 1, j + 1).map(r => r[devKey]);
   const m = mean(win), sd = stdev(win, m);
@@ -200,7 +236,7 @@ async function fetchKisPriceMap(codes) {
   return map;
 }
 
-async function loadStockSignals(stock, opts, kisMap, todayDate) {
+async function loadStockSignals(stock, opts, kisMap, todayDate, kospiRetByDate) {
   const p2 = Math.floor(Date.now() / 1000);
   const p1 = p2 - opts.calendarDays * 24 * 3600;
   const symbol = `${stock.code}.KS`; // v14: 코스피 전용 유니버스로 전환
@@ -226,6 +262,7 @@ async function loadStockSignals(stock, opts, kisMap, todayDate) {
     });
   }
   if (seq.length < ROLL + 1) return { ...stock, error: '데이터 부족', seq: null, entries: [] };
+  const beta = computeBetaVsSeries(seq.map(s => s.close), seq.map(s => s.date), kospiRetByDate);
 
   // 장중/장마감 직후 Yahoo 당일 종가가 지연 반영될 수 있어, 오늘 날짜 마지막 봉은 KIS 당일 현재가로 덮어쓴다
   const lastIdx = seq.length - 1;
@@ -252,7 +289,7 @@ async function loadStockSignals(stock, opts, kisMap, todayDate) {
       entries.push({ i, date: seq[i].date, zSum: z5.z + z20.z, pctSum: z5.pct + z20.pct });
     }
   }
-  return { ...stock, seq, entries };
+  return { ...stock, seq, entries, beta };
 }
 
 function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
@@ -286,36 +323,12 @@ function statusInfo(row) {
   return { primary, subBadges, note, day };
 }
 
-// 동시신호 우선순위(2026-08-26 확장 적용, project_3strategy_combined_portfolio_backtest.mjs와 동일 기준):
-// 같은 날 진입 신호가 CAP건을 넘으면 EMA5·20 Z-score합asc·백분위합asc(더 과매도일수록 우선)로 1~CAP순위만
-// 부여, 초과분은 "N순위 초과" 배지로 표시. CAP건 미만인 날짜는 배지 없음(round-number와 동일 규칙).
-const PRIORITY_CAP = 3;
-function assignPriority(rows) {
-  const byDate = {};
-  rows.forEach((r, i) => { (byDate[r.date] ||= []).push(i); });
-  const priorityOf = new Array(rows.length).fill(null);
-  for (const date in byDate) {
-    const idxs = byDate[date];
-    if (idxs.length < PRIORITY_CAP) continue;
-    const sorted = [...idxs].sort((a, b) => (rows[a].zSum - rows[b].zSum) || (rows[a].pctSum - rows[b].pctSum));
-    sorted.forEach((idx, pos) => { priorityOf[idx] = pos + 1; });
-  }
-  return priorityOf;
-}
-function priorityBadge(p) {
-  if (p == null) return '';
-  return p <= PRIORITY_CAP
-    ? `<span class="badge bdg-purple">${p}순위</span>`
-    : `<span class="badge bdg-coral" title="동시신호 ${PRIORITY_CAP}건 초과 — Z-score·백분위 우선순위 하위, 스킵 권장">${p}순위 초과</span>`;
-}
-
-function tableRowHtml(row, seq, priority) {
+function tableRowHtml(row, seq) {
   const s = statusInfo(row);
   const statusCell = `<span class="badge ${s.primary.cls}">${s.primary.label}</span>${s.subBadges ? ' ' + s.subBadges.trim() : ''}`;
   const noteCell = s.note ? s.note.trim() : '<span class="t-flat">&mdash;</span>';
   const curClose = seq[seq.length - 1].close;
-  const prioCell = priority == null ? '<span class="t-flat">&mdash;</span>' : priorityBadge(priority);
-  return `          <tr><td class="l">${row.date}</td><td class="l">${esc(row.name)}</td><td>${fmtV(curClose)}</td><td>${fmtV(row.entryClose)}</td><td class="c">${prioCell}</td><td class="l">${statusCell}</td><td class="c">D+${s.day}</td><td class="${retClass(row.ret)}">${fmt(row.ret)}</td><td class="l">${noteCell}</td></tr>`;
+  return `          <tr><td class="l">${row.date}</td><td class="l">${esc(row.name)}</td><td>${fmtV(curClose)}</td><td>${fmtV(row.entryClose)}</td><td class="c">${fmtBeta(row.beta)}</td><td class="l">${statusCell}</td><td class="c">D+${s.day}</td><td class="${retClass(row.ret)}">${fmt(row.ret)}</td><td class="l">${noteCell}</td></tr>`;
 }
 
 function buildChartSvg(rows) {
@@ -343,15 +356,15 @@ function buildChartSvg(rows) {
   return `<svg viewBox="0 0 480 220" width="100%" height="220" style="display:block;max-width:100%">\n    ${svg}\n  </svg>`;
 }
 
-function chartCardHtml(row, seq, entryIdx, priority) {
+function chartCardHtml(row, seq, entryIdx) {
   const windowStart = Math.max(0, entryIdx - CHART_LEAD_DAYS);
   const chartRows = seq.slice(windowStart, seq.length).map((r, k) => ({ ...r, isEntry: windowStart + k === entryIdx }));
   const svg = buildChartSvg(chartRows);
   const s = statusInfo(row);
   const cur = seq[seq.length - 1];
-  const prioBadge = priority == null ? '' : priorityBadge(priority);
+  const betaBadge = `<span class="badge bdg-purple">베타 ${fmtBeta(row.beta)}</span>`;
   return `      <div class="chart-card">
-        <div class="chart-card-head"><span class="chart-card-name">${esc(row.name)}</span>${prioBadge}<span class="badge ${s.primary.cls}">${s.primary.label}</span>${s.subBadges.trim()}</div>
+        <div class="chart-card-head"><span class="chart-card-name">${esc(row.name)}</span>${betaBadge}<span class="badge ${s.primary.cls}">${s.primary.label}</span>${s.subBadges.trim()}</div>
         ${svg}
         <div class="chart-card-stats">
           <span>진입일 ${row.date} <span class="sep">|</span> 진입가 <span>${fmtV(row.entryClose)}</span> <span class="sep">|</span> 현재가 <span>${fmtV(cur.close)}</span></span>
@@ -363,8 +376,8 @@ function chartCardHtml(row, seq, entryIdx, priority) {
       </div>`;
 }
 
-async function runMarket(universe, opts, cutoffDate, kisMap, todayDate) {
-  const loaded = await batchAll(universe, s => loadStockSignals(s, opts, kisMap, todayDate));
+async function runMarket(universe, opts, cutoffDate, kisMap, todayDate, kospiRetByDate) {
+  const loaded = await batchAll(universe, s => loadStockSignals(s, opts, kisMap, todayDate, kospiRetByDate));
   const valid = loaded.filter(r => !r.error && r.entries.length);
   const errors = loaded.filter(r => r.error).map(r => `${r.name}: ${r.error}`);
   if (errors.length) console.error(`[조회실패] ${errors.join(', ')}`);
@@ -375,28 +388,25 @@ async function runMarket(universe, opts, cutoffDate, kisMap, todayDate) {
     for (const e of r.entries) {
       if (e.date < cutoffDate) continue;
       const status = simulateLiveStatus(r.seq, e.i, opts);
-      rows.push({ date: e.date, name: r.name, code: r.code, entryClose: r.seq[e.i].close, zSum: e.zSum, pctSum: e.pctSum, ...status });
+      rows.push({ date: e.date, name: r.name, code: r.code, entryClose: r.seq[e.i].close, beta: r.beta, ...status });
       rowMeta.push({ seq: r.seq, entryIdx: e.i });
     }
   }
-  const priorityOf = assignPriority(rows);
-  // 표시 순서: 진입일 최신순, 같은 날짜 내에서는 우선순위(1→2→3→초과) 순(라운드넘버 정렬 방식과 동일, 2026-08-26)
+  // 표시 순서: 진입일 최신순, 같은 날짜 내에서는 베타 높은순(2026-08-27, 기존 동시신호 우선순위 컬럼 폐지)
   const order = rows.map((_, i) => i).sort((a, b) => {
     if (rows[a].date !== rows[b].date) return rows[a].date < rows[b].date ? 1 : -1;
-    const pa = priorityOf[a] == null ? Infinity : priorityOf[a];
-    const pb = priorityOf[b] == null ? Infinity : priorityOf[b];
-    return pa - pb;
+    const ba = rows[a].beta ?? -Infinity, bb = rows[b].beta ?? -Infinity;
+    return bb - ba;
   });
   const sortedRows = order.map(i => rows[i]);
   const sortedMeta = order.map(i => rowMeta[i]);
-  const sortedPriority = order.map(i => priorityOf[i]);
 
   const closed = sortedRows.filter(x => x.status === 'CLOSED');
   const open = sortedRows.filter(x => x.status === 'OPEN');
   const wins = closed.filter(x => x.ret > 0).length;
 
-  const tableHtml = sortedRows.map((row, i) => tableRowHtml(row, sortedMeta[i].seq, sortedPriority[i])).join('\n');
-  const chartCardsHtml = sortedRows.map((row, i) => chartCardHtml(row, sortedMeta[i].seq, sortedMeta[i].entryIdx, sortedPriority[i])).join('\n');
+  const tableHtml = sortedRows.map((row, i) => tableRowHtml(row, sortedMeta[i].seq)).join('\n');
+  const chartCardsHtml = sortedRows.map((row, i) => chartCardHtml(row, sortedMeta[i].seq, sortedMeta[i].entryIdx)).join('\n');
 
   return {
     tableHtml, chartCardsHtml,
@@ -416,8 +426,10 @@ async function main() {
 
   const todayDate = kstTodayDate();
   const kisMap = await fetchKisPriceMap(kospiUniverse.map(s => s.code));
+  const p2 = Math.floor(Date.now() / 1000), p1 = p2 - CALENDAR_DAYS * 24 * 3600;
+  const kospiRetByDate = await fetchKospiRetMap(p1, p2);
 
-  const ks = await runMarket(kospiUniverse, opts, cutoffDate, kisMap, todayDate);
+  const ks = await runMarket(kospiUniverse, opts, cutoffDate, kisMap, todayDate, kospiRetByDate);
 
   const fs = await import('fs');
   fs.writeFileSync('recent_signals_table_ks.html', ks.tableHtml, 'utf-8');
