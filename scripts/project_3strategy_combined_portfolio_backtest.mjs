@@ -50,20 +50,28 @@ const RN_UNIVERSE = FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' })); // 라
 const PB = { MA_SHORT: 50, MA_LONG: 100, SLOPE_LOOKBACK: 10, BREAKOUT_LOOKBACK: 6, ATR_PERIOD: 14, BAND_K: 0.4, SL: 8, TRAIL: 8, TP_PCT: 20, TP_FRAC: 0.4, REGIME_STREAK_MIN: 10, KOSPI_ATR_PERIOD: 14, VOL_CAP: 4, STOCK_ATR_CAP: 6, MAX_HOLD: 40, CAP: 3, COOLDOWN_DAYS: 5 }; // COOLDOWN_DAYS: 손절 후 재진입쿨다운(v13, 2026-08-26 확정). TP_PCT/TP_FRAC은 v15(2026-08-26) 청산 그리드서치 재확정(perDay 기준, TRAIL은 슬롯회전 비용 때문에 불변 유지). SL_KOSDAQ/TRAIL_KOSDAQ는 v14(코스닥 제외)로 삭제
 const DV = { ROLL: 250, Z_THRESHOLD: -2, ENTRY_PCT_THRESHOLD: 3, FAST: 5, SLOW: 20, MID: 50, MID2: 100, LONG: 200, SL: 18, TP: 20, MAX_HOLD: 20, CAP: 3 }; // SL은 v15(2026-08-26) 청산 그리드서치 재확정(perDay 기준, 12→18, 최대보유일은 슬롯회전 비용 때문에 불변)
 const RN = { WINDOW_DAYS: 150, TARGET_TICKS: 30, RECENT_LOOKBACK: 20, PRIOR_ABOVE_DAYS: 5, MIN_TOUCHES: 3, RECLAIM_WINDOW: 5, STOP_BUFFER_PCT: 3, MAX_HOLD: 60, MIN_ENTRY_POSITION_PCT: 20, MIN_BAND_WIDTH_PCT: 2.5, CAP: 3 }; // STOP_BUFFER_PCT는 v15(2026-08-26) 청산 그리드서치 재확정(2→3)
+// 급락주 필터(2026-08-27 신설): 일/주 단위 인과분석 결과 라운드넘버 STOP의 70%·괴리율 SL의 40%가 KOSPI 급락주(하위10%)에 집중,
+// 눌림목은 비례적 수준(9.4%)이라 제외. 직전 5거래일 KOSPI 누적수익률이 임계치 이하면 괴리율·라운드넘버 신규진입만 중단.
+const CRASH_FILTER = { LOOKBACK_DAYS: 5, THRESHOLD_PCT: -3 };
 
 const SLOTS = 5;
 const START_CAPITAL = 10_000_000;
 
 function parseArgs() {
   const argv = process.argv.slice(2);
-  const o = { from: '2019-08-27', to: null, fetchFrom: '2017-01-01', month: null, year: null, list: false };
+  const o = { from: '2019-08-27', to: null, fetchFrom: '2017-01-01', month: null, year: null, list: false, dump: null, crashFilter: false };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--from') o.from = argv[++i];
     if (argv[i] === '--to') o.to = argv[++i];
     if (argv[i] === '--month') o.month = argv[++i]; // YYYY-MM, 월/주간 집계 대상 월(기본: 이번달)
     if (argv[i] === '--year') o.year = argv[++i]; // YYYY, 연간 월별 집계 대상 연도(지정 시 --month 대신 이 모드로 동작)
     if (argv[i] === '--list') o.list = true; // 대상월(--month) 개별 청산건 목록 출력(원인 분석용)
+    if (argv[i] === '--dump') o.dump = argv[++i]; // 파일경로: 전체기간 거래내역(복리·고정)+시장국면(KOSPI/KOSDAQ 변동성·추세) JSON 덤프(상관분석용)
+    if (argv[i] === '--crash-filter') o.crashFilter = true; // 급락주 필터 활성화(기본 OFF, A/B 검증 결과 순개선 미확인이라 기본값 유지)
+    if (argv[i] === '--no-crash-filter') o.crashFilter = false;
+    if (argv[i] === '--crash-scope') o.crashScope = argv[++i]; // 'dv,rn'(기본) | 'rn' | 'dv' — 급락주 필터를 적용할 전략 범위(A/B 비교용)
   }
+  o.crashScope = new Set((o.crashScope || 'dv,rn').split(','));
   return o;
 }
 // dateStr(YYYY-MM-DD) 기준 이번주 월요일 날짜(YYYY-MM-DD) 계산 — weekBucket과 동일 주 정의
@@ -285,7 +293,7 @@ function monthEndDate(monthStr) {
 // "특정월 1,000만원 리셋" 격리실행을 동일 로직으로 재사용(진입시그널 사전계산 데이터 pbData/dvData/rnData는
 // 자본과 무관하므로 공유). snapshotTargets 지정 시 해당 날짜 직전 거래일 종가 기준 시가평가 스냅샷도 반환.
 function runPortfolioSim(calendarSlice, startCapital, ctx, snapshotTargets = [], fixedSlotBudget = null) {
-  const { byCode, idxMap, pbData, dvData, rnData } = ctx;
+  const { byCode, idxMap, pbData, dvData, rnData, kospi5dRet, crashFilterOn, crashScope } = ctx;
   let cash = startCapital;
   let costBasisTotal = 0;
   const positions = [];
@@ -391,19 +399,26 @@ function runPortfolioSim(calendarSlice, startCapital, ctx, snapshotTargets = [],
     if (openSlots <= 0) continue;
     const held = new Set(positions.map(p => p.code));
 
+    const crash5d = kospi5dRet ? kospi5dRet.get(date) : null;
+    const crashNow = !!crashFilterOn && crash5d != null && crash5d <= CRASH_FILTER.THRESHOLD_PCT;
+    const dvBlocked = crashNow && crashScope?.has('dv');
+    const rnBlocked = crashNow && crashScope?.has('rn');
+
     const pbCandsRaw = [], dvCandsRaw = [], rnCandsRaw = [];
     for (const s of PD_UNIVERSE) {
       if (held.has(s.code)) continue;
       const st = byCode.get(s.code); if (!st) continue;
       const m = idxMap.get(s.code); const i = m ? m.get(date) : null; if (i == null) continue;
       const pb = pbData.get(s.code); if (pb.onsetIdx.has(i) && i > (pbCooldownUntil.get(s.code) ?? -1)) pbCandsRaw.push({ s, st, i, sc: pb.score.get(i) });
-      const dv = dvData.get(s.code); if (dv.onsetIdx.has(i)) dvCandsRaw.push({ s, st, i, sc: dv.score.get(i) });
+      const dv = dvData.get(s.code); if (!dvBlocked && dv.onsetIdx.has(i)) dvCandsRaw.push({ s, st, i, sc: dv.score.get(i) });
     }
-    for (const s of RN_UNIVERSE) {
-      if (held.has(s.code)) continue;
-      const rn = rnData.get(s.code); if (!rn) continue;
-      const m = idxMap.get(s.code); const i = m ? m.get(date) : null; if (i == null) continue;
-      const ev = rn.events.get(i); if (ev) rnCandsRaw.push({ s, st: byCode.get(s.code), i, ev });
+    if (!rnBlocked) {
+      for (const s of RN_UNIVERSE) {
+        if (held.has(s.code)) continue;
+        const rn = rnData.get(s.code); if (!rn) continue;
+        const m = idxMap.get(s.code); const i = m ? m.get(date) : null; if (i == null) continue;
+        const ev = rn.events.get(i); if (ev) rnCandsRaw.push({ s, st: byCode.get(s.code), i, ev });
+      }
     }
     // 눌림목 동시신호 1~3순위 캡(추세강도desc·눌림폭ATR정규화asc, 2026-08-26 확장 적용)
     pbCandsRaw.sort((a, b) => (b.sc.trendStrength - a.sc.trendStrength) || (a.sc.pullbackNorm - b.sc.pullbackNorm));
@@ -486,7 +501,16 @@ async function main() {
   for (const st of byCode.values()) { const m = new Map(); st.dates.forEach((d, i) => m.set(d, i)); idxMap.set(st.code, m); }
 
   // ── 4) 시뮬레이션 실행 ──
-  const ctx = { byCode, idxMap, pbData, dvData, rnData };
+  const kospiDatesAll = kospiChart.ts.map(tsToKstDate);
+  const kospiClosesFF = fillForward(kospiChart.close);
+  const kospi5dRet = new Map();
+  for (let i = 0; i < kospiDatesAll.length; i++) {
+    const from = Math.max(0, i - CRASH_FILTER.LOOKBACK_DAYS);
+    if (kospiClosesFF[from] == null || kospiClosesFF[i] == null) continue;
+    kospi5dRet.set(kospiDatesAll[i], (kospiClosesFF[i] - kospiClosesFF[from]) / kospiClosesFF[from] * 100);
+  }
+  const ctx = { byCode, idxMap, pbData, dvData, rnData, kospi5dRet, crashFilterOn: opts.crashFilter, crashScope: opts.crashScope };
+  console.error(`[4/5] 급락주 필터: ${opts.crashFilter ? `ON(직전${CRASH_FILTER.LOOKBACK_DAYS}거래일 KOSPI ${CRASH_FILTER.THRESHOLD_PCT}% 이하 시 [${[...opts.crashScope].join(',')}] 신규진입 중단)` : 'OFF'}`);
 
   // (A) 전체기간 복리 실행 — 헤드라인/검증용, 기존과 동일
   const SNAPSHOT_TARGETS = ['2026-08-01', '2026-08-03', '2026-08-10', '2026-08-17', '2026-08-24'];
@@ -577,6 +601,17 @@ async function main() {
   console.error(`[5/5] 슬롯당 고정 ${fmtWon(FIXED_SLOT_BUDGET)}원 전체기간 시뮬레이션 실행 중...`);
   const fixedRun = runPortfolioSim(calendar, SLOTS * FIXED_SLOT_BUDGET, ctx, [], FIXED_SLOT_BUDGET);
   console.error(`[5/5] 완료 — 청산 ${fixedRun.trades.length}건, 미청산 ${fixedRun.finalPositions.length}건, 슬롯부족 스킵 ${fixedRun.skipCount}건`);
+
+  if (opts.dump) {
+    const fs = await import('fs');
+    const kospiDates = kospiChart.ts.map(tsToKstDate);
+    fs.writeFileSync(opts.dump, JSON.stringify({
+      trades, fixedTrades: fixedRun.trades,
+      kospi: { dates: kospiDates, close: kospiChart.close, high: kospiChart.high, low: kospiChart.low },
+      regimeKospi, regimeKosdaq,
+    }));
+    console.error(`[dump] ${opts.dump} 저장 완료`);
+  }
 
   if (!opts.year) {
     const fixedMonthTrades = fixedRun.trades.filter(t => t.exitDate >= monthStart && t.exitDate <= isolatedTo);
