@@ -53,13 +53,16 @@ const RN = { WINDOW_DAYS: 150, TARGET_TICKS: 30, RECENT_LOOKBACK: 20, PRIOR_ABOV
 // 급락주 필터(2026-08-27 신설): 일/주 단위 인과분석 결과 라운드넘버 STOP의 70%·괴리율 SL의 40%가 KOSPI 급락주(하위10%)에 집중,
 // 눌림목은 비례적 수준(9.4%)이라 제외. 직전 5거래일 KOSPI 누적수익률이 임계치 이하면 괴리율·라운드넘버 신규진입만 중단.
 const CRASH_FILTER = { LOOKBACK_DAYS: 5, THRESHOLD_PCT: -3 };
+// 급락주 청산측 필터(2026-08-27 신설, --crash-filter A/B에서 진입차단이 효과 없어 방향 전환): 신규진입 대신
+// 폭락 감지 시(위와 동일 임계치) 이미 보유중인 괴리율·라운드넘버 포지션을 그 날 즉시 강제청산(CRASH_EXIT).
+// STOP/SL 손실의 대부분이 폭락 전에 이미 잡혀있던 포지션에서 발생한다는 분석 결과에 직접 대응.
 
 const SLOTS = 5;
 const START_CAPITAL = 10_000_000;
 
 function parseArgs() {
   const argv = process.argv.slice(2);
-  const o = { from: '2019-08-27', to: null, fetchFrom: '2017-01-01', month: null, year: null, list: false, dump: null, crashFilter: false };
+  const o = { from: '2019-08-27', to: null, fetchFrom: '2017-01-01', month: null, year: null, list: false, dump: null, crashFilter: false, crashExit: false };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--from') o.from = argv[++i];
     if (argv[i] === '--to') o.to = argv[++i];
@@ -67,11 +70,15 @@ function parseArgs() {
     if (argv[i] === '--year') o.year = argv[++i]; // YYYY, 연간 월별 집계 대상 연도(지정 시 --month 대신 이 모드로 동작)
     if (argv[i] === '--list') o.list = true; // 대상월(--month) 개별 청산건 목록 출력(원인 분석용)
     if (argv[i] === '--dump') o.dump = argv[++i]; // 파일경로: 전체기간 거래내역(복리·고정)+시장국면(KOSPI/KOSDAQ 변동성·추세) JSON 덤프(상관분석용)
-    if (argv[i] === '--crash-filter') o.crashFilter = true; // 급락주 필터 활성화(기본 OFF, A/B 검증 결과 순개선 미확인이라 기본값 유지)
+    if (argv[i] === '--crash-filter') o.crashFilter = true; // 급락주 진입차단 필터 활성화(기본 OFF, A/B 검증 결과 순개선 미확인이라 기본값 유지)
     if (argv[i] === '--no-crash-filter') o.crashFilter = false;
-    if (argv[i] === '--crash-scope') o.crashScope = argv[++i]; // 'dv,rn'(기본) | 'rn' | 'dv' — 급락주 필터를 적용할 전략 범위(A/B 비교용)
+    if (argv[i] === '--crash-scope') o.crashScope = argv[++i]; // 'dv,rn'(기본) | 'rn' | 'dv' — 진입차단 필터를 적용할 전략 범위(A/B 비교용)
+    if (argv[i] === '--crash-exit') o.crashExit = true; // 급락주 청산측 필터 활성화(기본 OFF): 폭락 감지 시 보유중인 포지션 강제청산
+    if (argv[i] === '--no-crash-exit') o.crashExit = false;
+    if (argv[i] === '--crash-exit-scope') o.crashExitScope = argv[++i]; // 'dv,rn'(기본) | 'rn' | 'dv' — 강제청산을 적용할 전략 범위(A/B 비교용)
   }
   o.crashScope = new Set((o.crashScope || 'dv,rn').split(','));
+  o.crashExitScope = new Set((o.crashExitScope || 'dv,rn').split(','));
   return o;
 }
 // dateStr(YYYY-MM-DD) 기준 이번주 월요일 날짜(YYYY-MM-DD) 계산 — weekBucket과 동일 주 정의
@@ -293,7 +300,7 @@ function monthEndDate(monthStr) {
 // "특정월 1,000만원 리셋" 격리실행을 동일 로직으로 재사용(진입시그널 사전계산 데이터 pbData/dvData/rnData는
 // 자본과 무관하므로 공유). snapshotTargets 지정 시 해당 날짜 직전 거래일 종가 기준 시가평가 스냅샷도 반환.
 function runPortfolioSim(calendarSlice, startCapital, ctx, snapshotTargets = [], fixedSlotBudget = null) {
-  const { byCode, idxMap, pbData, dvData, rnData, kospi5dRet, crashFilterOn, crashScope } = ctx;
+  const { byCode, idxMap, pbData, dvData, rnData, kospi5dRet, crashFilterOn, crashScope, crashExitOn, crashExitScope } = ctx;
   let cash = startCapital;
   let costBasisTotal = 0;
   const positions = [];
@@ -347,6 +354,9 @@ function runPortfolioSim(calendarSlice, startCapital, ctx, snapshotTargets = [],
       snapshots[target] = { asOfDate: asOf, value: markToMarket(asOf) };
     }
 
+    const crash5d = kospi5dRet ? kospi5dRet.get(date) : null;
+    const crashNow = crash5d != null && crash5d <= CRASH_FILTER.THRESHOLD_PCT;
+
     // ── EXIT PHASE ──
     for (let pi = positions.length - 1; pi >= 0; pi--) {
       const pos = positions[pi];
@@ -355,6 +365,15 @@ function runPortfolioSim(calendarSlice, startCapital, ctx, snapshotTargets = [],
       const st = byCode.get(pos.code);
       const close = st.closes[i];
       const daysHeld = i - pos.entryIdx;
+
+      if (crashExitOn && crashNow) {
+        const scopeKey = pos.strategy === '라운드넘버' ? 'rn' : pos.strategy === '괴리율' ? 'dv' : null;
+        if (scopeKey && crashExitScope?.has(scopeKey)) {
+          tryFullExit(pos, i, close, 'CRASH_EXIT', date);
+          positions.splice(pi, 1);
+          continue;
+        }
+      }
 
       if (pos.strategy === '눌림목') {
         const pb = pbData.get(pos.code);
@@ -399,10 +418,8 @@ function runPortfolioSim(calendarSlice, startCapital, ctx, snapshotTargets = [],
     if (openSlots <= 0) continue;
     const held = new Set(positions.map(p => p.code));
 
-    const crash5d = kospi5dRet ? kospi5dRet.get(date) : null;
-    const crashNow = !!crashFilterOn && crash5d != null && crash5d <= CRASH_FILTER.THRESHOLD_PCT;
-    const dvBlocked = crashNow && crashScope?.has('dv');
-    const rnBlocked = crashNow && crashScope?.has('rn');
+    const dvBlocked = !!crashFilterOn && crashNow && crashScope?.has('dv');
+    const rnBlocked = !!crashFilterOn && crashNow && crashScope?.has('rn');
 
     const pbCandsRaw = [], dvCandsRaw = [], rnCandsRaw = [];
     for (const s of PD_UNIVERSE) {
@@ -509,8 +526,8 @@ async function main() {
     if (kospiClosesFF[from] == null || kospiClosesFF[i] == null) continue;
     kospi5dRet.set(kospiDatesAll[i], (kospiClosesFF[i] - kospiClosesFF[from]) / kospiClosesFF[from] * 100);
   }
-  const ctx = { byCode, idxMap, pbData, dvData, rnData, kospi5dRet, crashFilterOn: opts.crashFilter, crashScope: opts.crashScope };
-  console.error(`[4/5] 급락주 필터: ${opts.crashFilter ? `ON(직전${CRASH_FILTER.LOOKBACK_DAYS}거래일 KOSPI ${CRASH_FILTER.THRESHOLD_PCT}% 이하 시 [${[...opts.crashScope].join(',')}] 신규진입 중단)` : 'OFF'}`);
+  const ctx = { byCode, idxMap, pbData, dvData, rnData, kospi5dRet, crashFilterOn: opts.crashFilter, crashScope: opts.crashScope, crashExitOn: opts.crashExit, crashExitScope: opts.crashExitScope };
+  console.error(`[4/5] 급락주 진입차단: ${opts.crashFilter ? `ON(직전${CRASH_FILTER.LOOKBACK_DAYS}거래일 KOSPI ${CRASH_FILTER.THRESHOLD_PCT}% 이하 시 [${[...opts.crashScope].join(',')}] 신규진입 중단)` : 'OFF'} / 급락주 강제청산: ${opts.crashExit ? `ON([${[...opts.crashExitScope].join(',')}] 보유포지션 강제청산)` : 'OFF'}`);
 
   // (A) 전체기간 복리 실행 — 헤드라인/검증용, 기존과 동일
   const SNAPSHOT_TARGETS = ['2026-08-01', '2026-08-03', '2026-08-10', '2026-08-17', '2026-08-24'];
