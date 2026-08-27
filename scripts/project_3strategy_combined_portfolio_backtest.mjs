@@ -24,6 +24,11 @@
 //    괴리율 SL12%(2026-08-26 15→12 재조정)·TP+20%50%매도→EMA20돌파25%매도→
 //    EMA5이탈 잔량전량·시간청산20일, 라운드넘버 STOP(레벨×98%)·TP(레벨+step)·시간청산60일(부분매도 없음).
 //
+// 베타 우선순위(2026-08-27, 기본 ON, [[project_stock_factor_score_backtest]] 참고): 같은 날 후보수가 남은 슬롯보다
+// 많을 때만 전략우선순위(눌림목>괴리율>라운드넘버) 대신 베타(KOSPI상관) 높은 종목부터 슬롯 배정. 유니버스 완전제외
+// 버전(--beta-filter)은 슬롯회전율 악화로 헤드라인이 오히려 하락(+1814.72%→+1445.49%)해 기각했으나, 이 "약한
+// 버전"은 유니버스를 그대로 두고 슬롯이 실제로 부족한 날에만 재정렬해 헤드라인 개선 확인(+1814.72%→+2200.44%,
+// 2020~2026 전 연도 개선). --no-beta-priority로 끌 수 있음(A/B 비교용).
 // 사용법: node scripts/project_3strategy_combined_portfolio_backtest.mjs [--from 2019-08-27] [--to 2026-08-25] [--month 2026-08]
 //   --month(기본: 이번달 KST): 그 달만 별도로 두 방식으로 집계 — ① 전체기간 복리 실행 결과에서 그 달분만 발췌(슬롯예산=운용자산/5, 계속 성장)
 //   ② 슬롯당 고정 200만원(5슬롯=1,000만원 예산) 전체기간 연속 시뮬레이션 결과에서 그 달분만 발췌 — 월초 리셋 없이
@@ -43,8 +48,26 @@ const YF_HEADERS = {
 const FALLBACK_KOSPI = [
   { code: '005930', name: '삼성전자' }, { code: '000660', name: 'SK하이닉스' }, { code: '402340', name: 'SK스퀘어' }, { code: '009150', name: '삼성전기' }, { code: '005380', name: '현대차' }, { code: '373220', name: 'LG에너지솔루션' }, { code: '207940', name: '삼성바이오로직스' }, { code: '032830', name: '삼성생명' }, { code: '028260', name: '삼성물산' }, { code: '012450', name: '한화에어로스페이스' }, { code: '105560', name: 'KB금융' }, { code: '000270', name: '기아' }, { code: '034020', name: '두산에너빌리티' }, { code: '329180', name: 'HD현대중공업' }, { code: '055550', name: '신한지주' }, { code: '012330', name: '현대모비스' }, { code: '068270', name: '셀트리온' }, { code: '034730', name: 'SK' }, { code: '006400', name: '삼성SDI' }, { code: '086790', name: '하나금융지주' }, { code: '035420', name: 'NAVER' }, { code: '066570', name: 'LG전자' }, { code: '010120', name: 'LS ELECTRIC' }, { code: '042660', name: '한화오션' }, { code: '267260', name: 'HD현대일렉트릭' }, { code: '000810', name: '삼성화재' }, { code: '298040', name: '효성중공업' }, { code: '009540', name: 'HD한국조선해양' }, { code: '005490', name: 'POSCO홀딩스' }, { code: '010130', name: '고려아연' }, { code: '316140', name: '우리금융지주' }, { code: '096770', name: 'SK이노베이션' }, { code: '042700', name: '한미반도체' }, { code: '017670', name: 'SK텔레콤' }, { code: '011200', name: 'HMM' }, { code: '015760', name: '한국전력' }, { code: '006800', name: '미래에셋증권' }, { code: '000150', name: '두산' }, { code: '051910', name: 'LG화학' }, { code: '010140', name: '삼성중공업' }, { code: '018260', name: '삼성에스디에스' }, { code: '267250', name: 'HD현대' }, { code: '033780', name: 'KT&G' }, { code: '003550', name: 'LG' }, { code: '079550', name: 'LIG디펜스앤에어로스페이스' }, { code: '035720', name: '카카오' }, { code: '010950', name: 'S-Oil' }, { code: '024110', name: '기업은행' }, { code: '064350', name: '현대로템' }, { code: '086280', name: '현대글로비스' },
 ];
-const PD_UNIVERSE = FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' })); // 눌림목·괴리율(코스피 전용)
-const RN_UNIVERSE = FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' })); // 라운드넘버(코스피 전용)
+let PD_UNIVERSE = FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' })); // 눌림목·괴리율(코스피 전용)
+let RN_UNIVERSE = FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' })); // 라운드넘버(코스피 전용)
+// 베타(KOSPI상관) 하위종목 제외 필터(2026-08-27 신설, --beta-filter): [[project_stock_factor_score_backtest]]
+// 워크포워드 3구간 검증(exp1~exp3)에서 유일하게 3구간 전부 재현된 팩터 — 베타 상위33%가 하위33%보다
+// 승률·평균수익률 뚜렷이 우수(spread +2.84/+2.95/+5.07%p). 하위33% 종목을 3전략 신규진입 대상에서 제외.
+const BETA = { LOOKBACK_ATR: 14, EXCLUDE_FRACTION: 1 / 3 };
+function computeBeta(st, kospiRetByDate) {
+  const rets = [], kospiRets = [];
+  for (let i = 1; i < st.dates.length; i++) {
+    if (st.closes[i] == null || st.closes[i - 1] == null) continue;
+    const kr = kospiRetByDate.get(st.dates[i]); if (kr == null) continue;
+    rets.push((st.closes[i] - st.closes[i - 1]) / st.closes[i - 1] * 100); kospiRets.push(kr);
+  }
+  if (rets.length < 30) return null;
+  const mean = a => a.reduce((x, y) => x + y, 0) / a.length;
+  const mR = mean(rets), mK = mean(kospiRets);
+  let cov = 0, varK = 0;
+  for (let i = 0; i < rets.length; i++) { cov += (rets[i] - mR) * (kospiRets[i] - mK); varK += (kospiRets[i] - mK) ** 2; }
+  return varK ? cov / varK : null;
+}
 
 // ── 파라미터 (각 확정 전략 스크립트와 동일) ──
 const PB = { MA_SHORT: 50, MA_LONG: 100, SLOPE_LOOKBACK: 10, BREAKOUT_LOOKBACK: 6, ATR_PERIOD: 14, BAND_K: 0.4, SL: 8, TRAIL: 8, TP_PCT: 20, TP_FRAC: 0.4, REGIME_STREAK_MIN: 10, KOSPI_ATR_PERIOD: 14, VOL_CAP: 4, STOCK_ATR_CAP: 6, MAX_HOLD: 40, CAP: 3, COOLDOWN_DAYS: 5 }; // COOLDOWN_DAYS: 손절 후 재진입쿨다운(v13, 2026-08-26 확정). TP_PCT/TP_FRAC은 v15(2026-08-26) 청산 그리드서치 재확정(perDay 기준, TRAIL은 슬롯회전 비용 때문에 불변 유지). SL_KOSDAQ/TRAIL_KOSDAQ는 v14(코스닥 제외)로 삭제
@@ -62,7 +85,7 @@ const START_CAPITAL = 10_000_000;
 
 function parseArgs() {
   const argv = process.argv.slice(2);
-  const o = { from: '2019-08-27', to: null, fetchFrom: '2017-01-01', month: null, year: null, list: false, dump: null, crashFilter: false, crashExit: false };
+  const o = { from: '2019-08-27', to: null, fetchFrom: '2017-01-01', month: null, year: null, list: false, dump: null, crashFilter: false, crashExit: false, betaFilter: false, betaPriority: true };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--from') o.from = argv[++i];
     if (argv[i] === '--to') o.to = argv[++i];
@@ -76,6 +99,10 @@ function parseArgs() {
     if (argv[i] === '--crash-exit') o.crashExit = true; // 급락주 청산측 필터 활성화(기본 OFF): 폭락 감지 시 보유중인 포지션 강제청산
     if (argv[i] === '--no-crash-exit') o.crashExit = false;
     if (argv[i] === '--crash-exit-scope') o.crashExitScope = argv[++i]; // 'dv,rn'(기본) | 'rn' | 'dv' — 강제청산을 적용할 전략 범위(A/B 비교용)
+    if (argv[i] === '--beta-filter') o.betaFilter = true; // 베타 하위33% 종목 신규진입 제외(기본 OFF, A/B 검증용)
+    if (argv[i] === '--no-beta-filter') o.betaFilter = false;
+    if (argv[i] === '--beta-priority') o.betaPriority = true; // 약한 버전(유니버스 유지, 슬롯부족 시에만 베타로 우선순위 재정렬)
+    if (argv[i] === '--no-beta-priority') o.betaPriority = false;
   }
   o.crashScope = new Set((o.crashScope || 'dv,rn').split(','));
   o.crashExitScope = new Set((o.crashExitScope || 'dv,rn').split(','));
@@ -300,7 +327,7 @@ function monthEndDate(monthStr) {
 // "특정월 1,000만원 리셋" 격리실행을 동일 로직으로 재사용(진입시그널 사전계산 데이터 pbData/dvData/rnData는
 // 자본과 무관하므로 공유). snapshotTargets 지정 시 해당 날짜 직전 거래일 종가 기준 시가평가 스냅샷도 반환.
 function runPortfolioSim(calendarSlice, startCapital, ctx, snapshotTargets = [], fixedSlotBudget = null) {
-  const { byCode, idxMap, pbData, dvData, rnData, kospi5dRet, crashFilterOn, crashScope, crashExitOn, crashExitScope } = ctx;
+  const { byCode, idxMap, pbData, dvData, rnData, kospi5dRet, crashFilterOn, crashScope, crashExitOn, crashExitScope, betaPriorityOn, betaMap } = ctx;
   let cash = startCapital;
   let costBasisTotal = 0;
   const positions = [];
@@ -451,6 +478,11 @@ function runPortfolioSim(calendarSlice, startCapital, ctx, snapshotTargets = [],
     skipCount += Math.max(0, rnCandsRaw.length - RN.CAP);
 
     const queue = [...pbCands.map(c => ({ ...c, strategy: '눌림목' })), ...dvCands.map(c => ({ ...c, strategy: '괴리율' })), ...rnCands.map(c => ({ ...c, strategy: '라운드넘버' }))];
+    // 베타 우선순위 "약한 버전"(2026-08-27, --beta-priority): 유니버스 축소 없이, 슬롯이 실제로 부족해
+    // 오늘 후보 전부를 못 받을 때만 전략우선순위 대신 베타 높은 종목부터 채움(슬롯 널널하면 순서 무관 — 전부 진입).
+    if (betaPriorityOn && queue.length > openSlots) {
+      queue.sort((a, b) => (betaMap.get(b.s.code) ?? -Infinity) - (betaMap.get(a.s.code) ?? -Infinity));
+    }
 
     for (const cand of queue) {
       if (openSlots <= 0) { skipCount++; continue; }
@@ -498,6 +530,25 @@ async function main() {
   for (const st of loaded) { if (!st.error) byCode.set(st.code, st); }
   console.error(`[1/5] 완료 — ${byCode.size}/${PD_UNIVERSE.length}종목 로드 성공`);
 
+  let betaMap = new Map();
+  if (opts.betaFilter || opts.betaPriority) {
+    const kospiRetByDate = new Map();
+    const kospiChartForBeta = await fetchYahooChart('^KS11', p1, p2);
+    const kd = kospiChartForBeta.ts.map(tsToKstDate), kc = fillForward(kospiChartForBeta.close);
+    for (let i = 1; i < kd.length; i++) if (kc[i] != null && kc[i - 1] != null) kospiRetByDate.set(kd[i], (kc[i] - kc[i - 1]) / kc[i - 1] * 100);
+    const betas = [];
+    for (const st of byCode.values()) { const b = computeBeta(st, kospiRetByDate); if (b != null) { betas.push({ code: st.code, beta: b }); betaMap.set(st.code, b); } }
+    betas.sort((a, b) => b.beta - a.beta);
+    if (opts.betaFilter) {
+      const excludeCount = Math.floor(betas.length * BETA.EXCLUDE_FRACTION);
+      const excluded = new Set(betas.slice(-excludeCount).map(b => b.code));
+      PD_UNIVERSE = PD_UNIVERSE.filter(s => !excluded.has(s.code));
+      RN_UNIVERSE = RN_UNIVERSE.filter(s => !excluded.has(s.code));
+      console.error(`[베타필터] ON — 하위${excludeCount}종목 제외(${[...excluded].join(',')}), 진입대상 ${PD_UNIVERSE.length}종목으로 축소`);
+    }
+    if (opts.betaPriority) console.error(`[베타우선순위-약한버전] ON — 유니버스 유지(${PD_UNIVERSE.length}종목), 슬롯부족일에만 베타 높은 순으로 재정렬`);
+  }
+
   console.error('[2/5] 전략별 지표·진입시그널 사전계산 중...');
   const pbData = new Map(), dvData = new Map(), rnData = new Map();
   for (const st of byCode.values()) {
@@ -526,7 +577,7 @@ async function main() {
     if (kospiClosesFF[from] == null || kospiClosesFF[i] == null) continue;
     kospi5dRet.set(kospiDatesAll[i], (kospiClosesFF[i] - kospiClosesFF[from]) / kospiClosesFF[from] * 100);
   }
-  const ctx = { byCode, idxMap, pbData, dvData, rnData, kospi5dRet, crashFilterOn: opts.crashFilter, crashScope: opts.crashScope, crashExitOn: opts.crashExit, crashExitScope: opts.crashExitScope };
+  const ctx = { byCode, idxMap, pbData, dvData, rnData, kospi5dRet, crashFilterOn: opts.crashFilter, crashScope: opts.crashScope, crashExitOn: opts.crashExit, crashExitScope: opts.crashExitScope, betaPriorityOn: opts.betaPriority, betaMap };
   console.error(`[4/5] 급락주 진입차단: ${opts.crashFilter ? `ON(직전${CRASH_FILTER.LOOKBACK_DAYS}거래일 KOSPI ${CRASH_FILTER.THRESHOLD_PCT}% 이하 시 [${[...opts.crashScope].join(',')}] 신규진입 중단)` : 'OFF'} / 급락주 강제청산: ${opts.crashExit ? `ON([${[...opts.crashExitScope].join(',')}] 보유포지션 강제청산)` : 'OFF'}`);
 
   // (A) 전체기간 복리 실행 — 헤드라인/검증용, 기존과 동일

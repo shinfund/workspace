@@ -7,6 +7,9 @@
 // 같은 날 같은 전략 내 후보가 3건을 넘으면 신호강도 기준 1~3순위만 채택(project_3strategy_combined_portfolio_backtest.mjs와
 // 동일 기준, 2026-08-26 눌림목·괴리율까지 확장): 눌림목=추세강도desc·눌림폭(ATR정규화)asc, 괴리율=EMA5·20 Z합asc·백분위합asc,
 // 라운드넘버=밀집도(touchCount)desc·지지일수(aboveCount)desc.
+// 베타 우선순위(2026-08-27, [[project_stock_factor_score_backtest]]): 위 캡을 통과한 전체 후보가 오늘 빈슬롯보다
+// 많을 때만 전략우선순위(눌림목>괴리율>라운드넘버) 대신 베타(KOSPI상관) 높은 종목부터 추천 — 유니버스 축소판은
+// 헤드라인 하락(+1814.72%→+1445.49%)으로 기각, 이 방식(유니버스 유지)은 헤드라인 개선(+1814.72%→+2200.44%) 확인.
 // 사용법: node scripts/project_portfolio3_entry_scan.mjs
 import https from 'https';
 import { fetchKrxUniverse, getToken as getKisToken, fetchKisPrice } from './kis_api.mjs';
@@ -603,6 +606,40 @@ function judgeBt(bt) {
   return '중립';
 }
 
+// ── 베타 우선순위(2026-08-27, [[project_stock_factor_score_backtest]]): 오늘 빈슬롯보다 후보가 많을 때만
+// 전략우선순위 대신 베타(KOSPI상관) 높은 종목부터 슬롯 배정. project_3strategy_combined_portfolio_backtest.mjs
+// --beta-priority(기본ON)와 동일 로직 — 유니버스 축소판(--beta-filter)은 헤드라인 하락으로 기각됐음.
+function computeBetaVsSeries(closes, dates, kospiRetByDate) {
+  const rets = [], kospiRets = [];
+  for (let i = 1; i < dates.length; i++) {
+    if (closes[i] == null || closes[i - 1] == null) continue;
+    const kr = kospiRetByDate.get(dates[i]); if (kr == null) continue;
+    rets.push((closes[i] - closes[i - 1]) / closes[i - 1] * 100); kospiRets.push(kr);
+  }
+  if (rets.length < 30) return null;
+  const mean = a => a.reduce((x, y) => x + y, 0) / a.length;
+  const mR = mean(rets), mK = mean(kospiRets);
+  let cov = 0, varK = 0;
+  for (let i = 0; i < rets.length; i++) { cov += (rets[i] - mR) * (kospiRets[i] - mK); varK += (kospiRets[i] - mK) ** 2; }
+  return varK ? cov / varK : null;
+}
+async function fetchBetaMap(codes, p1, p2) {
+  const kospiChart = await fetchYahooChart(KOSPI_SYMBOL, p1, p2);
+  if (!kospiChart || !kospiChart.ts.length) return new Map();
+  const kDates = kospiChart.ts.map(tsToKstDate), kCloses = fillForward(kospiChart.close);
+  const kospiRetByDate = new Map();
+  for (let i = 1; i < kDates.length; i++) if (kCloses[i] != null && kCloses[i - 1] != null) kospiRetByDate.set(kDates[i], (kCloses[i] - kCloses[i - 1]) / kCloses[i - 1] * 100);
+  const map = new Map();
+  await batchAll(codes, async (code) => {
+    const chart = await fetchYahooChart(`${code}.KS`, p1, p2);
+    if (!chart || !chart.ts.length) return;
+    const dates = chart.ts.map(tsToKstDate), closes = fillForward(chart.close);
+    const b = computeBetaVsSeries(closes, dates, kospiRetByDate);
+    if (b != null) map.set(code, b);
+  });
+  return map;
+}
+
 async function main() {
   console.error('[3전략 진입신호 체크] 시작');
   const heldCodes = await fetchHeldCodes();
@@ -648,8 +685,17 @@ async function main() {
     ...rnResults.map(r => ({ ...r, strategy: '라운드넘버' })),
   ];
 
+  let betaReordered = false;
+  if (combined.length > openSlots && openSlots > 0) {
+    console.error('[베타 우선순위] 후보가 빈슬롯보다 많아 베타(KOSPI상관) 조회 중...');
+    const betaMap = await fetchBetaMap(combined.map(r => r.code), p1, p2);
+    combined.sort((a, b) => (betaMap.get(b.code) ?? -Infinity) - (betaMap.get(a.code) ?? -Infinity));
+    betaReordered = true;
+  }
+
   console.log(`\n━━━ 3전략 진입신호 체크 (${todayDate} 기준) ━━━`);
   if (openSlots === 0) console.log('⚠ 빈슬롯 없음 — 신규 진입 보류(아래는 참고용 전체 후보)');
+  else if (betaReordered) console.log(`빈슬롯 ${openSlots}개 — 후보(${combined.length}건)가 슬롯보다 많아 전략우선순위 대신 베타(KOSPI상관) 상위 ${openSlots}개 추천`);
   else console.log(`빈슬롯 ${openSlots}개 — 아래 우선순위(눌림목>괴리율>라운드넘버) 상위 ${openSlots}개 추천`);
 
   if (!combined.length) {
