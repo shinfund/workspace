@@ -6,7 +6,9 @@
  * project_market_regime_filter_rejected 메모리 참고) — 수시 조회용 스냅샷.
  *
  * 데이터 소스: Yahoo Finance (지수 현재가·과거 종가/고가/저가 전부)
- * 출력: 터미널 표 — 지수명,현재가,등락률,5/20/50/100/200EMA(괴리율%,돌파▲▼),변동성(ATR14%),5일누적등락률
+ * 출력: 터미널 표 2개
+ *   ① 지수 시세표 — 지수명,현재가,등락률,5/20/50/100/200EMA(괴리율%,돌파▲▼),변동성(ATR14%),5일누적등락률
+ *   ② 시황 요약 — 국내증시/미국증시/반도체/VIX/환율 5개 구분별 현황+판단(규칙 기반 자동 생성, 2026-08-27 추가)
  *
  * Usage: node project_index_quote_table.mjs
  */
@@ -120,6 +122,84 @@ function fmtPct(n) { return n != null ? `${n >= 0 ? '+' : ''}${n.toFixed(2)}%` :
 function fmtPctPlain(n) { return n != null ? `${n.toFixed(2)}%` : '─'; }
 function fmtDev(n, marker) { return n == null ? '─' : `${marker ? marker + ' ' : ''}${fmtPct(n)}`; }
 
+// 개별 지수의 단기(20EMA)·장기(200EMA) 추세 조합 + EMA 돌파 여부를 문장으로 요약
+function judgeTrend(r) {
+  if (!r || r.error) return '조회실패';
+  const parts = [`${fmtPct(r.등락률)}(5일 ${fmtPct(r.ret5d)})`];
+  const dev20 = r.dev[20], dev200 = r.dev[200];
+  if (dev20 != null && dev200 != null) {
+    if (dev20 > 0 && dev200 > 0) parts.push('단기·장기 동반 강세');
+    else if (dev20 < 0 && dev200 > 0) parts.push('장기 상승추세 속 단기 조정');
+    else if (dev20 > 0 && dev200 < 0) parts.push('장기 약세 속 단기 반등');
+    else parts.push('단기·장기 동반 약세');
+  }
+  const crosses = EMA_PERIODS.filter(p => r.cross[p]).map(p => `${p}EMA${r.cross[p]}`);
+  if (crosses.length) parts.push(crosses.join(' '));
+  return parts.join(', ');
+}
+
+// 여러 지수를 묶어 평균 등락률·평균 200EMA 괴리로 그룹 추세를 요약(예: 미국증시 3개 지수)
+function judgeGroup(members) {
+  const valids = members.filter(r => r && !r.error);
+  if (!valids.length) return '데이터없음';
+  const avgChg = valids.reduce((a, r) => a + (r.등락률 || 0), 0) / valids.length;
+  const dev200s = valids.map(r => r.dev[200]).filter(v => v != null);
+  const avgDev200 = dev200s.length ? dev200s.reduce((a, b) => a + b, 0) / dev200s.length : null;
+  const trend = avgDev200 == null ? '' : (avgDev200 > 0 ? '장기 상승추세 유지' : '장기 하락추세');
+  const move = avgChg > 0.5 ? '뚜렷한 상승' : avgChg < -0.5 ? '뚜렷한 하락' : '보합권';
+  return `${trend ? trend + ' 속 ' : ''}${move}(평균 ${fmtPct(avgChg)})`;
+}
+
+function judgeVix(r) {
+  if (!r || r.error) return '조회실패';
+  const v = r.현재가;
+  const level = v == null ? '' : v < 15 ? '안정(저변동)' : v < 20 ? '보통' : v < 30 ? '경계(변동성 확대)' : '위험(패닉권)';
+  return `${level}, ${fmtPct(r.등락률)}`;
+}
+
+function judgeFx(r) {
+  if (!r || r.error) return '조회실패';
+  const dir = r.등락률 > 0 ? '원화 약세' : r.등락률 < 0 ? '원화 강세' : '보합';
+  const dev20 = r.dev[20];
+  const trend = dev20 == null ? '' : dev20 > 0 ? '단기 상승(약세)추세' : '단기 하락(강세)추세';
+  return `${dir}${trend ? ', ' + trend : ''}`;
+}
+
+function buildMarketSummary(rows) {
+  const bySym = name => rows.find(r => r.name === name);
+  const kospi = bySym('코스피'), kosdaq = bySym('코스닥');
+  const sp = bySym('S&P500'), nasdaq = bySym('나스닥종합'), dow = bySym('다우존스');
+  const sox = bySym('필라델피아반도체'), vix = bySym('VIX(변동성)'), fx = bySym('원/달러');
+
+  return [
+    {
+      구분: '국내증시',
+      현황: `코스피 ${fmtPct(kospi?.등락률)} / 코스닥 ${fmtPct(kosdaq?.등락률)}`,
+      판단: `코스피: ${judgeTrend(kospi)} | 코스닥: ${judgeTrend(kosdaq)}`,
+    },
+    {
+      구분: '미국증시',
+      현황: `S&P500 ${fmtPct(sp?.등락률)} / 나스닥 ${fmtPct(nasdaq?.등락률)} / 다우 ${fmtPct(dow?.등락률)}`,
+      판단: judgeGroup([sp, nasdaq, dow]),
+    },
+    {
+      구분: '반도체(필라델피아)',
+      현황: `${fmtPct(sox?.등락률)}(5일 ${fmtPct(sox?.ret5d)})`,
+      판단: judgeTrend(sox),
+    },
+    {
+      구분: '변동성(VIX)',
+      현황: `${fmtIdx(vix?.현재가)}`,
+      판단: judgeVix(vix),
+    },
+    {
+      구분: '환율(원/달러)',
+      현황: `${fmtIdx(fx?.현재가)}원(${fmtPct(fx?.등락률)})`,
+      판단: judgeFx(fx),
+    },
+  ];
+}
+
 async function main() {
   const p2 = Math.floor(Date.now() / 1000);
   const p1 = p2 - WARMUP_DAYS * 24 * 3600;
@@ -162,6 +242,12 @@ async function main() {
     if (r.error) { console.log(`${r.name}\t조회실패`); continue; }
     const emaCols = EMA_PERIODS.map(p => fmtDev(r.dev[p], r.cross[p])).join('\t');
     console.log(`${r.name}\t${fmtIdx(r.현재가)}\t${fmtPct(r.등락률)}\t${emaCols}\t${fmtPctPlain(r.atrPct)}\t${fmtPct(r.ret5d)}`);
+  }
+
+  console.log(`\n시황 요약`);
+  console.log(`구분\t현황\t판단`);
+  for (const s of buildMarketSummary(rows)) {
+    console.log(`${s.구분}\t${s.현황}\t${s.판단}`);
   }
 }
 
