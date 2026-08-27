@@ -266,7 +266,7 @@ function pbSimulate(seq, i0, entryClose, sl, trail, maxHold, tpPct, tpFrac) {
     const close = seq[j].close, maShort = seq[j].maShort;
     const ret = (close - entryClose) / entryClose * 100;
     if (!tpTaken && ret >= tpPct) { tpTaken = true; tpReturn = ret; if (close > peak) peak = close; continue; }
-    const finish = (reason) => ({ reason, day: d });
+    const finish = (reason) => ({ reason, day: d, ret: tpTaken ? tpFrac * tpReturn + (1 - tpFrac) * ret : ret, date: seq[j].date });
     if (ret <= -sl) return finish('SL');
     if (close < maShort) return finish('TREND_BREAK');
     if (close > peak) peak = close;
@@ -332,7 +332,7 @@ async function checkPullbackEntry(stock, regimeByMarket, kisMap, todayDate) {
     let highK = -Infinity, highKIdx = -1;
     for (let m = k - (PB_MA_SHORT - 1); m <= k - 1; m++) if (seq[m].close > highK) { highK = seq[m].close; highKIdx = m; }
     if (!(highKIdx >= k - PB_BREAKOUT_LOOKBACK) || sk.close > highK || sk.close <= sk.maShort) continue;
-    if (((highK - sk.close) / highK) / sk.atrPct > PB_BAND_K) continue;
+    if (((highK - sk.close) / highK * 100) / sk.atrPct > PB_BAND_K) continue; // 2026-08-27 버그수정: *100 누락으로 눌림폭 필터 사실상 무력화됐던 것 정정
     if (k <= blockedUntilIdx) continue;
     const trade = pbSimulate(seq, k, sk.close, sl, trail, PB_MAX_HOLD, PB_TP_PCT, PB_TP_FRAC);
     if (trade && trade.reason === 'SL') blockedUntilIdx = k + trade.day + PB_COOLDOWN_DAYS;
@@ -359,6 +359,7 @@ async function checkPullbackEntry(stock, regimeByMarket, kisMap, todayDate) {
 
 // ── 괴리율: 오늘 진입신호 판정 ──
 const DV_ROLL = 250, DV_Z = -2, DV_PCT = 3, DV_FAST = 5, DV_SLOW = 20, DV_MID = 50, DV_LONG = 200;
+const DV_SL = 18, DV_TP = 20, DV_MAXHOLD = 20; // v15(2026-08-26): project_deviation_tp20_exit_backtest.mjs 확정값과 동일(SL18/TP20/최대보유20일, 3단계 부분매도)
 async function checkDeviationEntry(stock, kisMap, todayDate) {
   const p2 = Math.floor(Date.now() / 1000);
   const p1 = p2 - 1100 * 24 * 3600;
@@ -395,7 +396,7 @@ async function checkDeviationEntry(stock, kisMap, todayDate) {
 }
 
 // ── 라운드넘버: 오늘 진입신호 판정 ──
-const RN_WINDOW = 150, RN_TICKS = 30, RN_LOOKBACK = 20, RN_PRIOR = 5, RN_TOUCHES = 3, RN_RECLAIM = 5, RN_STOPBUF = 2, RN_MINPOS = 20, RN_MINBAND = 2.5;
+const RN_WINDOW = 150, RN_TICKS = 30, RN_LOOKBACK = 20, RN_PRIOR = 5, RN_TOUCHES = 3, RN_RECLAIM = 5, RN_STOPBUF = 3, RN_MINPOS = 20, RN_MINBAND = 2.5, RN_MAXHOLD = 60; // stopBufferPct v15(2026-08-26): 2→3 재확정(기존 미사용 상수 정정)
 async function checkRoundnumberEntry(stock, kisMap, todayDate) {
   const p2 = Math.floor(Date.now() / 1000);
   const p1 = p2 - 2555 * 24 * 3600;
@@ -443,6 +444,163 @@ async function checkRoundnumberEntry(stock, kisMap, todayDate) {
     }
   }
   return null;
+}
+
+// ── 추천 후보 전용: 개별종목 과거 매매성과 백테스트(2026-08-27 추가) ──
+// 전체 유니버스가 아닌 "오늘 추천된 소수 후보"에 대해서만 각 전략의 확정 파라미터로 전체기간 재현,
+// 진입신호체크 결과에 승률·평균수익률·최근 트레이드 이력을 덧붙여 매수 판단 근거를 함께 보여준다.
+function summarizeBtTrades(trades) {
+  if (!trades.length) return null;
+  const n = trades.length;
+  const winRate = trades.filter(t => t.ret > 0).length / n * 100;
+  const avgRet = trades.reduce((a, t) => a + t.ret, 0) / n;
+  const recent = trades.slice(-3).reverse();
+  return { n, winRate, avgRet, recent };
+}
+async function backtestPullbackStock(stock, regimeByMarket) {
+  const marketRegime = regimeByMarket.KOSPI, otherRegime = regimeByMarket.KOSDAQ;
+  const p2 = Math.floor(Date.now() / 1000), p1 = p2 - 1100 * 24 * 3600; // project_stock_pullback.mjs 기본 calendarDays=1100과 동일(정식 스크립트 기준)
+  const chart = await fetchYahooChart(`${stock.code}.KS`, p1, p2);
+  if (!chart || !chart.ts.length) return null;
+  const dates = chart.ts.map(tsToKstDate);
+  const closes = fillForward(chart.close), highs = fillForward(chart.high), lows = fillForward(chart.low);
+  const maShort = buildEma(closes, PB_MA_SHORT), maLong = buildEma(closes, PB_MA_LONG);
+  const atr = buildAtr(highs, lows, closes, PB_ATR_PERIOD);
+  const seq = [];
+  for (let i = 0; i < dates.length; i++) {
+    if (closes[i] == null || maShort[i] == null || maLong[i] == null) continue;
+    const atrPct = atr[i] != null ? atr[i] / closes[i] * 100 : null;
+    seq.push({ date: dates[i], close: closes[i], maShort: maShort[i], maLong: maLong[i], atrPct });
+  }
+  const sl = pbSlFor(), trail = pbTrailFor();
+  const trades = [];
+  let blockedUntilIdx = -1;
+  for (let k = PB_MA_LONG + PB_SLOPE_LOOKBACK; k < seq.length - 1; k++) {
+    const sk = seq[k], priorK = seq[k - PB_SLOPE_LOOKBACK];
+    const trendUpK = sk.close > sk.maLong && sk.maShort > sk.maLong && sk.maLong > priorK.maLong;
+    if (!trendUpK || marketRegime.regime[sk.date] !== true || otherRegime.regime[sk.date] !== true) continue;
+    if ((marketRegime.streak[sk.date] ?? 0) < PB_REGIME_STREAK_MIN) continue;
+    const volK = marketRegime.volPct[sk.date];
+    if (volK == null || volK > PB_VOL_CAP) continue;
+    if (k < PB_MA_SHORT || sk.atrPct == null || sk.atrPct <= 0 || sk.atrPct > PB_STOCK_ATR_CAP) continue;
+    let highK = -Infinity, highKIdx = -1;
+    for (let m = k - (PB_MA_SHORT - 1); m <= k - 1; m++) if (seq[m].close > highK) { highK = seq[m].close; highKIdx = m; }
+    if (!(highKIdx >= k - PB_BREAKOUT_LOOKBACK) || sk.close > highK || sk.close <= sk.maShort) continue;
+    if (((highK - sk.close) / highK * 100) / sk.atrPct > PB_BAND_K) continue;
+    if (k <= blockedUntilIdx) continue;
+    const trade = pbSimulate(seq, k, sk.close, sl, trail, PB_MAX_HOLD, PB_TP_PCT, PB_TP_FRAC);
+    if (!trade) continue; // 미확정(최근 진입, 아직 청산 안됨)은 표본 제외
+    trades.push({ date: sk.date, reason: trade.reason, ret: trade.ret });
+    if (trade.reason === 'SL') blockedUntilIdx = k + trade.day + PB_COOLDOWN_DAYS;
+  }
+  return summarizeBtTrades(trades);
+}
+async function backtestDeviationStock(stock) {
+  const p2 = Math.floor(Date.now() / 1000), p1 = p2 - 2555 * 24 * 3600;
+  const chart = await fetchYahooChart(`${stock.code}.KS`, p1, p2);
+  if (!chart || !chart.ts.length) return null;
+  const dates = chart.ts.map(tsToKstDate);
+  const closes = chart.close;
+  const ema5s = buildEma(closes, DV_FAST), ema20s = buildEma(closes, DV_SLOW), ema50s = buildEma(closes, DV_MID), ema200s = buildEma(closes, DV_LONG);
+  const seq = [];
+  for (let i = 0; i < dates.length; i++) {
+    if (closes[i] == null || ema5s[i] == null || ema20s[i] == null) continue;
+    seq.push({ date: dates[i], close: closes[i], ema5: ema5s[i], ema20: ema20s[i], ema50: ema50s[i], ema200: ema200s[i], dev5: (closes[i] - ema5s[i]) / ema5s[i] * 100, dev20: (closes[i] - ema20s[i]) / ema20s[i] * 100 });
+  }
+  if (seq.length < DV_ROLL + DV_MAXHOLD + 1) return null;
+  const flags = new Array(seq.length).fill(false);
+  for (let i = DV_ROLL - 1; i < seq.length; i++) {
+    const z5 = rollingZPct(seq, i, 'dev5', DV_ROLL), z20 = rollingZPct(seq, i, 'dev20', DV_ROLL);
+    const sig5 = z5.z <= DV_Z && z5.pct <= DV_PCT, sig20 = z20.z <= DV_Z && z20.pct <= DV_PCT;
+    const downTrend = seq[i].ema50 != null && seq[i].ema200 != null && seq[i].ema50 < seq[i].ema200;
+    flags[i] = sig5 && sig20 && downTrend;
+  }
+  const trades = [];
+  for (let i = DV_ROLL - 1; i < seq.length; i++) {
+    if (!(flags[i] && !flags[i - 1])) continue;
+    // 3단계 부분매도(SL18/TP20/EMA20 2차매도/EMA5 이탈 전량청산/시간청산20일) — project_deviation_tp20_exit_backtest.mjs와 동일
+    const entryClose = seq[i].close;
+    let openWeight = 1.0, stage = 'INIT', tpTaken = false;
+    const legs = [];
+    for (let d = 1; d <= DV_MAXHOLD; d++) {
+      const j = i + d;
+      if (j >= seq.length) { legs.length = 0; break; } // 미확정 표본 제외
+      const close = seq[j].close, ema20 = seq[j].ema20, ema5 = seq[j].ema5;
+      const ret = (close - entryClose) / entryClose * 100;
+      if (ret <= -DV_SL) { legs.push({ weight: openWeight, ret }); openWeight = 0; break; }
+      if (stage === 'INIT' && ret >= DV_TP) { const w = openWeight * 0.5; legs.push({ weight: w, ret }); openWeight -= w; tpTaken = true; stage = 'TP20_DONE'; }
+      if (stage === 'TP20_DONE' && close >= ema20) { const w = openWeight * 0.5; legs.push({ weight: w, ret }); openWeight -= w; stage = 'HOLD'; }
+      if (stage === 'HOLD' && close < ema5) { legs.push({ weight: openWeight, ret }); openWeight = 0; break; }
+      if (d === DV_MAXHOLD && openWeight > 1e-9) { legs.push({ weight: openWeight, ret }); openWeight = 0; }
+    }
+    if (!legs.length || openWeight > 1e-9) continue;
+    const weightedRet = legs.reduce((a, l) => a + l.weight * l.ret, 0);
+    trades.push({ date: seq[i].date, reason: tpTaken ? 'TP경유청산' : (weightedRet <= -DV_SL + 0.01 ? 'SL' : '청산'), ret: weightedRet });
+  }
+  return summarizeBtTrades(trades);
+}
+async function backtestRoundnumberStock(stock) {
+  const p2 = Math.floor(Date.now() / 1000), p1 = p2 - 2555 * 24 * 3600;
+  const chart = await fetchYahooChart(`${stock.code}.KS`, p1, p2);
+  if (!chart || !chart.ts.length) return null;
+  const dates = chart.ts.map(tsToKstDate);
+  const closes = [], highs = [], lows = [];
+  for (let i = 0; i < dates.length; i++) {
+    if (chart.close[i] == null) continue;
+    closes.push(chart.close[i]); highs.push(chart.high[i] ?? chart.close[i]); lows.push(chart.low[i] ?? chart.close[i]);
+  }
+  const seq = closes.map((c, i) => ({ date: dates[i], close: c }));
+  const n = seq.length;
+  const trades = [];
+  for (let i = 1; i < n; i++) {
+    const prev = seq[i - 1].close, cur = seq[i].close;
+    const step = computeStepAt(highs, lows, i, RN_WINDOW, RN_TICKS);
+    if (!step) continue;
+    const L = Math.floor(prev / step) * step;
+    const breached = prev >= L && cur < L;
+    if (!breached || L <= 0) continue;
+    if (step / L * 100 < RN_MINBAND) continue;
+    const lo = Math.max(0, i - 1 - RN_LOOKBACK);
+    let aboveCount = 0;
+    for (let k = lo; k < i - 1; k++) if (seq[k].close >= L) aboveCount++;
+    if (aboveCount < RN_PRIOR) continue;
+    const touch = touchCountBefore(highs, lows, i, L, RN_WINDOW);
+    if (touch < RN_TOUCHES) continue;
+    for (let f = i; f < Math.min(n, i + RN_RECLAIM); f++) {
+      if (seq[f].close < L - step) break;
+      if (seq[f].close >= L) {
+        if (seq[f].close < L + step) {
+          const entryPosition = (seq[f].close - L) / step * 100;
+          if (entryPosition >= RN_MINPOS) {
+            const target = L + step, stop = L * (1 - RN_STOPBUF / 100);
+            for (let d = 1; d <= RN_MAXHOLD; d++) {
+              const j = f + d;
+              if (j >= n) break; // 미확정 표본 제외
+              const close = seq[j].close;
+              if (close <= stop) { trades.push({ date: seq[f].date, reason: 'STOP', ret: (close - seq[f].close) / seq[f].close * 100 }); break; }
+              if (close >= target) { trades.push({ date: seq[f].date, reason: 'TP', ret: (close - seq[f].close) / seq[f].close * 100 }); break; }
+              if (d === RN_MAXHOLD) { trades.push({ date: seq[f].date, reason: 'TIME', ret: (close - seq[f].close) / seq[f].close * 100 }); break; }
+            }
+          }
+        }
+        break;
+      }
+    }
+  }
+  return summarizeBtTrades(trades);
+}
+async function backtestCandidate(r, regimeByMarket) {
+  const stock = { code: r.code, name: r.name };
+  const bt = r.strategy === '눌림목' ? await backtestPullbackStock(stock, regimeByMarket)
+    : r.strategy === '괴리율' ? await backtestDeviationStock(stock)
+    : await backtestRoundnumberStock(stock);
+  return { ...r, bt };
+}
+function judgeBt(bt) {
+  if (!bt || bt.n < 3) return '표본 부족(참고용)';
+  if (bt.winRate >= 55 && bt.avgRet > 0) return '우호적(승률·평균수익률 양호)';
+  if (bt.avgRet <= 0) return '주의(평균수익률 마이너스)';
+  return '중립';
 }
 
 async function main() {
@@ -498,7 +656,20 @@ async function main() {
     console.log('\n오늘 발생한 진입신호 없음.');
   } else {
     console.log(`\n[추천 ${Math.min(openSlots, combined.length)}건]`);
-    combined.slice(0, openSlots).forEach((r, i) => console.log(`${i + 1}. [${r.strategy}] ${r.name}(${r.code}) ${Math.round(r.price).toLocaleString()}원 — ${r.reason}`));
+    const finalists = combined.slice(0, openSlots);
+    finalists.forEach((r, i) => console.log(`${i + 1}. [${r.strategy}] ${r.name}(${r.code}) ${Math.round(r.price).toLocaleString()}원 — ${r.reason}`));
+
+    if (finalists.length) {
+      console.error('[백테스트] 추천 후보 과거 매매성과 조회 중...');
+      const withBt = await Promise.all(finalists.map(r => backtestCandidate(r, regimeByMarket)));
+      console.log(`\n[추천 후보 과거 매매성과]`);
+      withBt.forEach((r, i) => {
+        if (!r.bt) { console.log(`${i + 1}. ${r.name}: 과거 신호 없음/데이터 부족`); return; }
+        const { n, winRate, avgRet, recent } = r.bt;
+        console.log(`${i + 1}. ${r.name}: n=${n}  평균 ${avgRet >= 0 ? '+' : ''}${avgRet.toFixed(2)}%  승률${winRate.toFixed(0)}%  → 판단: ${judgeBt(r.bt)}`);
+        console.log(`   최근: ${recent.map(t => `${t.date} ${t.reason} ${t.ret >= 0 ? '+' : ''}${t.ret.toFixed(2)}%`).join(', ')}`);
+      });
+    }
 
     console.log(`\n[전체 후보 ${combined.length}건]`);
     for (const strat of ['눌림목', '괴리율', '라운드넘버']) {
