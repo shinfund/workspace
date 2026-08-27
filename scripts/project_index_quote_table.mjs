@@ -23,6 +23,11 @@ const INDICES = [
   { symbol: '^SOX',  name: '필라델피아반도체' },
   { symbol: '^VIX',  name: 'VIX(변동성)' },
   { symbol: 'KRW=X', name: '원/달러' },
+  { symbol: 'CL=F',  name: 'WTI원유' },
+  { symbol: 'GC=F',  name: '금(Gold)' },
+  { symbol: '^TNX',  name: '美10년물금리' },
+  { symbol: 'DX-Y.NYB', name: '달러인덱스' },
+  { symbol: 'HG=F',  name: '구리' },
 ];
 
 const YF_HEADERS = {
@@ -165,11 +170,35 @@ function judgeFx(r) {
   return `${dir}${trend ? ', ' + trend : ''}`;
 }
 
+function judgeCommodities(wti, gold, copper) {
+  if (!wti || !gold || !copper || wti.error || gold.error || copper.error) return '데이터없음';
+  const goldUp = gold.등락률 > 0, copperUp = copper.등락률 > 0;
+  let label;
+  if (goldUp && copperUp) label = '금·구리 동반 상승 — 안전자산 선호와 경기 기대가 동시 반영(리플레이션 신호)';
+  else if (goldUp && !copperUp) label = '금 강세·구리 약세 — 안전자산 선호 우위(경기 불확실성)';
+  else if (!goldUp && copperUp) label = '구리 강세·금 약세 — 위험선호·경기 회복 기대 우위';
+  else label = '금·구리 동반 약세 — 원자재 수요 둔화 우려';
+  return `WTI ${fmtPct(wti.등락률)}, ${label}`;
+}
+
+function judgeRatesFx(tnx, dxy) {
+  if (!tnx || !dxy || tnx.error || dxy.error) return '데이터없음';
+  const rateUp = tnx.등락률 > 0, dollarUp = dxy.등락률 > 0;
+  let label;
+  if (rateUp && dollarUp) label = '금리·달러 동반 강세 — 긴축 우려/안전자산 선호(신흥국 자금유출 경계)';
+  else if (!rateUp && !dollarUp) label = '금리·달러 동반 약세 — 완화 기대(위험자산 우호적)';
+  else if (rateUp && !dollarUp) label = '금리는 상승, 달러는 약세 — 인플레 기대 반영';
+  else label = '금리는 하락, 달러는 강세 — 안전자산 선호(경기 둔화 경계)';
+  return label;
+}
+
 function buildMarketSummary(rows) {
   const bySym = name => rows.find(r => r.name === name);
   const kospi = bySym('코스피'), kosdaq = bySym('코스닥');
   const sp = bySym('S&P500'), nasdaq = bySym('나스닥종합'), dow = bySym('다우존스');
   const sox = bySym('필라델피아반도체'), vix = bySym('VIX(변동성)'), fx = bySym('원/달러');
+  const wti = bySym('WTI원유'), gold = bySym('금(Gold)'), copper = bySym('구리');
+  const tnx = bySym('美10년물금리'), dxy = bySym('달러인덱스');
 
   return [
     {
@@ -196,6 +225,16 @@ function buildMarketSummary(rows) {
       구분: '환율(원/달러)',
       현황: `${fmtIdx(fx?.현재가)}원(${fmtPct(fx?.등락률)})`,
       판단: judgeFx(fx),
+    },
+    {
+      구분: '원자재',
+      현황: `WTI ${fmtPct(wti?.등락률)} / 금 ${fmtPct(gold?.등락률)} / 구리 ${fmtPct(copper?.등락률)}`,
+      판단: judgeCommodities(wti, gold, copper),
+    },
+    {
+      구분: '금리·달러',
+      현황: `美10년물 ${fmtPct(tnx?.등락률)} / 달러인덱스 ${fmtPct(dxy?.등락률)}`,
+      판단: judgeRatesFx(tnx, dxy),
     },
   ];
 }
