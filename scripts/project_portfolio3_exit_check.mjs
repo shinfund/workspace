@@ -1,7 +1,9 @@
-// 3전략(눌림목+괴리율+라운드넘버) 통합 5슬롯 포트폴리오 — 보유종목 강제청산 체크
-// 노션 보유종목DB(9f666aeb-832a-4aa2-9e52-e37515b75e56)의 "전략" 선택 필드(눌림목/괴리율/라운드넘버/미분류)로
+// 4전략(눌림목+괴리율+라운드넘버+장대양봉) 통합 5슬롯 포트폴리오 — 보유종목 강제청산 체크
+// 노션 보유종목DB(9f666aeb-832a-4aa2-9e52-e37515b75e56)의 "전략" 선택 필드(눌림목/괴리율/라운드넘버/장대양봉/미분류)로
 // 그룹화해, 각 전략의 정식 청산조건(project_stock_pullback.mjs / project_deviation_tp20_exit_backtest.mjs /
 // project_roundnumber_strategy_backtest.mjs)을 그대로 적용해 판정한다.
+// 장대양봉(2026-09-01 편입)은 진입캔들 고가/저가/진입일자가 노션DB에 없어 정밀 청산판정 불가 — 아래
+// judgeBigcandleApprox 참고(참고용 손익률만 표시).
 // 주의: 이 노션DB엔 정확한 진입일자가 없어(증권사 연동 스냅샷) TRAIL(고점대비)·TIME(경과일수) 같은 상태이력
 // 기반 청산조건은 완전 재현 불가 — project_pullback_holdings_candidates.mjs 등 기존 스크립트와 동일하게
 // EMA크로스·현재손익률 기준 근사 판정(verdict)을 사용한다.
@@ -295,6 +297,22 @@ async function judgeBaseline(h, market) {
   return { ...h, market, close, ema200, ema5, ret, formalSignal: signal };
 }
 
+// ── 장대양봉 판정(2026-09-01 4번째 확정전략 편입) — 한계: 정밀판정 불가(참고용) ──
+// 정식 청산조건(TP=진입캔들고가/STOP=진입캔들저가×99.5%/TIME=진입후15거래일)은 원본 장대양봉의
+// 고가·저가와 정확한 진입일자가 있어야 계산되는데, 노션 보유종목DB(증권사 연동 스냅샷)엔 이 값이
+// 없다. 억지 근사치를 만들어 잘못된 매도신호를 내는 것보다, 현재가·평단·손익률만 참고용으로 보여주고
+// 실제 매도판단은 매수 당시 별도로 기록해둔 진입캔들 고가/저가/진입일로 수동 확인하도록 안내한다.
+async function judgeBigcandleApprox(h) {
+  const p2 = Math.floor(Date.now() / 1000), p1 = p2 - 60 * 24 * 3600;
+  const chart = await fetchYahooChart(`${h.code}.KS`, p1, p2);
+  if (!chart || !chart.ts.length) return { ...h, market: 'KOSPI', error: '데이터 조회 실패' };
+  const closes = fillForward(chart.close);
+  const close = closes[closes.length - 1];
+  if (close == null) return { ...h, market: 'KOSPI', error: '데이터 부족' };
+  const ret = (close - h.avgPrice) / h.avgPrice * 100;
+  return { ...h, market: 'KOSPI', close, ret, verdict: '정밀판정불가(참고용) — 매수시 기록한 진입캔들 고가/저가/진입일로 수동확인', urgent: false };
+}
+
 // ── 라운드넘버 판정 ──
 const RN_WINDOW = 150, RN_TICKS = 30, RN_LOOKBACK = 20, RN_PRIOR = 5, RN_TOUCHES = 3, RN_STOPBUF = 3; // v15(2026-08-26): stopBufferPct 2→3 청산 그리드서치 재확정(누락분 반영, 2026-08-27 정정)
 async function judgeRoundnumber(h) {
@@ -356,15 +374,17 @@ async function main() {
   const pb = holdings.filter(h => h.strategy === '눌림목');
   const dv = holdings.filter(h => h.strategy === '괴리율');
   const rn = holdings.filter(h => h.strategy === '라운드넘버');
+  const bc = holdings.filter(h => h.strategy === '장대양봉');
   const bl = holdings.filter(h => h.strategy === '기준선');
-  const un = holdings.filter(h => !['눌림목', '괴리율', '라운드넘버', '기준선'].includes(h.strategy));
+  const un = holdings.filter(h => !['눌림목', '괴리율', '라운드넘버', '장대양봉', '기준선'].includes(h.strategy));
 
   const pbResults = await batchAll(pb, h => judgePullback(h, marketMap.get(h.code) || 'KOSPI'));
   const dvResults = await batchAll(dv, h => judgeDeviation(h, marketMap.get(h.code) || 'KOSPI'));
   const rnResults = await batchAll(rn, h => judgeRoundnumber(h));
+  const bcResults = await batchAll(bc, h => judgeBigcandleApprox(h));
   const blResults = await batchAll(bl, h => judgeBaseline(h, marketMap.get(h.code) || 'KOSPI'));
 
-  const all = [...pbResults.map(r => ({ ...r, strategy: '눌림목' })), ...dvResults.map(r => ({ ...r, strategy: '괴리율' })), ...rnResults.map(r => ({ ...r, strategy: '라운드넘버' }))];
+  const all = [...pbResults.map(r => ({ ...r, strategy: '눌림목' })), ...dvResults.map(r => ({ ...r, strategy: '괴리율' })), ...rnResults.map(r => ({ ...r, strategy: '라운드넘버' })), ...bcResults.map(r => ({ ...r, strategy: '장대양봉' }))];
 
   console.log(`\n━━━ 보유종목 청산체크 (${todayDate} 기준) ━━━`);
 
@@ -391,7 +411,7 @@ async function main() {
     console.log('\n청산검토 대상 없음 — 전 종목 홀딩/관찰');
   }
 
-  for (const strat of ['눌림목', '괴리율', '라운드넘버']) {
+  for (const strat of ['눌림목', '괴리율', '라운드넘버', '장대양봉']) {
     const rows = all.filter(r => r.strategy === strat);
     if (!rows.length) continue;
     console.log(`\n· ${strat} (${rows.length}건)`);

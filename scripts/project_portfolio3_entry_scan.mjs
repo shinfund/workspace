@@ -1,5 +1,7 @@
-// 3전략(눌림목+괴리율+라운드넘버) 통합 5슬롯 포트폴리오 — "오늘" 진입신호 스캔
+// 4전략(눌림목+괴리율+라운드넘버+장대양봉) 통합 5슬롯 포트폴리오 — "오늘" 진입신호 스캔
 // 기준선(EMA200 파동) 전략은 [[project_trading_plan_3strategy_portfolio]] 결정에 따라 운용에서 제외됨.
+// 장대양봉(2026-09-01 4번째 확정전략 편입, [[project_bigcandle_strategy]])은 project_bigcandle_pullback_reconfirm_backtest.mjs
+// 확정 로직(몸통5%+되돌림20일+재돌파확인5일+STOP0.5%+최대15일+상승국면필터)을 그대로 복제.
 // 각 전략의 정식 스크립트(project_stock_pullback.mjs / project_deviation_tp20_exit_backtest.mjs /
 // project_roundnumber_strategy_backtest.mjs)의 진입조건을 그대로 복제해 "오늘(마지막 봉)" 기준으로만 판정한다.
 // 노션 보유종목DB(9f666aeb-832a-4aa2-9e52-e37515b75e56)에서 현재 보유종목수를 읽어 빈슬롯을 계산하고,
@@ -66,7 +68,7 @@ async function fetchYahooChart(symbol, p1, p2) {
       const result = data?.chart?.result?.[0];
       if (!result) return null;
       const q = result.indicators?.quote?.[0] || {};
-      return { ts: result.timestamp || [], close: q.close || [], high: q.high || [], low: q.low || [] };
+      return { ts: result.timestamp || [], open: q.open || [], close: q.close || [], high: q.high || [], low: q.low || [] };
     } catch { if (attempt < 2) await new Promise(r => setTimeout(r, 500)); }
   }
   return null;
@@ -449,6 +451,98 @@ async function checkRoundnumberEntry(stock, kisMap, todayDate) {
   return null;
 }
 
+// ── 장대양봉: 오늘 진입신호 판정(2026-09-01 4번째 확정전략 편입) ──
+// 몸통5%↑ 장대양봉 → 되돌림20일 내 중간값 저가터치 → 터치일고가 재돌파확인5일창(종가기준) → 상승국면필터(EMA200)
+const BC_BODY_PCT = 5, BC_RETEST_WINDOW = 20, BC_CONFIRM_WINDOW = 5, BC_STOP_BUFFER_PCT = 0.5, BC_MAX_HOLD = 15, BC_EMA_PERIOD = 200;
+async function checkBigcandleEntry(stock, kisMap, todayDate) {
+  const p2 = Math.floor(Date.now() / 1000);
+  const p1 = p2 - 2555 * 24 * 3600;
+  const symbol = `${stock.code}.KS`;
+  const chart = await fetchYahooChart(symbol, p1, p2);
+  if (!chart || !chart.ts.length) return null;
+  const dates = chart.ts.map(tsToKstDate);
+  const closes = fillForward(chart.close), highs = fillForward(chart.high), lows = fillForward(chart.low), opens = fillForward(chart.open);
+  const ema200s = buildEma(closes, BC_EMA_PERIOD);
+  const n = dates.length;
+  const lastIdx = n - 1;
+  if (lastIdx < BC_EMA_PERIOD + BC_RETEST_WINDOW + BC_CONFIRM_WINDOW) return null;
+  if (dates[lastIdx] === todayDate && kisMap?.has(stock.code)) closes[lastIdx] = kisMap.get(stock.code);
+
+  // 오늘(lastIdx)이 confirmIdx(재돌파확인 성립일)인 원본 장대양봉 이벤트를 역탐색
+  const searchFrom = Math.max(0, lastIdx - (BC_RETEST_WINDOW + BC_CONFIRM_WINDOW + 5));
+  for (let i = searchFrom; i < lastIdx; i++) {
+    const o = opens[i], c = closes[i], h = highs[i], l = lows[i];
+    if (o == null || c == null || c <= o) continue;
+    const bodyPct = (c - o) / o * 100;
+    if (bodyPct < BC_BODY_PCT) continue;
+    const mid = (o + c) / 2, candleLow = l, candleHigh = h;
+
+    let touchIdx = null;
+    for (let f = i + 1; f < Math.min(n, i + 1 + BC_RETEST_WINDOW); f++) {
+      if (closes[f] < candleLow) break;
+      if (lows[f] <= mid) { touchIdx = f; break; }
+    }
+    if (touchIdx == null || touchIdx > lastIdx) continue;
+
+    const touchHigh = highs[touchIdx];
+    let confirmIdx = null;
+    for (let c2 = touchIdx; c2 < Math.min(n, touchIdx + BC_CONFIRM_WINDOW + 1); c2++) {
+      if (closes[c2] < candleLow) break;
+      if (closes[c2] > touchHigh) { confirmIdx = c2; break; }
+    }
+    if (confirmIdx !== lastIdx) continue; // 오늘 확정된 신호만 채택
+
+    const e200 = ema200s[lastIdx];
+    if (e200 == null || closes[lastIdx] < e200) continue;
+    const stop = candleLow * (1 - BC_STOP_BUFFER_PCT / 100);
+    return { code: stock.code, name: stock.name, market: stock.market, price: closes[lastIdx], bodyPct, candleHigh, candleLow, stop, candleDate: dates[i], touchDate: dates[touchIdx], reason: `${dates[i]} 장대양봉(몸통+${bodyPct.toFixed(1)}%) 중간값눌림 후 오늘 캔들고가(${Math.round(touchHigh).toLocaleString()}) 재돌파, TP ${Math.round(candleHigh).toLocaleString()}/STOP ${Math.round(stop).toLocaleString()}` };
+  }
+  return null;
+}
+async function backtestBigcandleStock(stock) {
+  const p2 = Math.floor(Date.now() / 1000), p1 = p2 - 2555 * 24 * 3600;
+  const chart = await fetchYahooChart(`${stock.code}.KS`, p1, p2);
+  if (!chart || !chart.ts.length) return null;
+  const dates = chart.ts.map(tsToKstDate);
+  const closes = fillForward(chart.close), highs = fillForward(chart.high), lows = fillForward(chart.low), opens = fillForward(chart.open);
+  const ema200s = buildEma(closes, BC_EMA_PERIOD);
+  const n = dates.length;
+  const trades = [];
+  for (let i = 0; i < n; i++) {
+    const o = opens[i], c = closes[i], h = highs[i], l = lows[i];
+    if (o == null || c == null || c <= o) continue;
+    const bodyPct = (c - o) / o * 100;
+    if (bodyPct < BC_BODY_PCT) continue;
+    const mid = (o + c) / 2, candleLow = l, candleHigh = h;
+    let touchIdx = null;
+    for (let f = i + 1; f < Math.min(n, i + 1 + BC_RETEST_WINDOW); f++) {
+      if (closes[f] < candleLow) break;
+      if (lows[f] <= mid) { touchIdx = f; break; }
+    }
+    if (touchIdx == null) continue;
+    const touchHigh = highs[touchIdx];
+    let confirmIdx = null;
+    for (let c2 = touchIdx; c2 < Math.min(n, touchIdx + BC_CONFIRM_WINDOW + 1); c2++) {
+      if (closes[c2] < candleLow) break;
+      if (closes[c2] > touchHigh) { confirmIdx = c2; break; }
+    }
+    if (confirmIdx == null) continue;
+    const e200 = ema200s[confirmIdx];
+    if (e200 == null || closes[confirmIdx] < e200) continue;
+    const stop = candleLow * (1 - BC_STOP_BUFFER_PCT / 100);
+    const entryPrice = closes[confirmIdx];
+    for (let d = 1; d <= BC_MAX_HOLD; d++) {
+      const j = confirmIdx + d;
+      if (j >= n) break; // 미확정 표본 제외
+      const close = closes[j];
+      if (close <= stop) { trades.push({ date: dates[confirmIdx], reason: 'STOP', ret: (close - entryPrice) / entryPrice * 100 }); break; }
+      if (close >= candleHigh) { trades.push({ date: dates[confirmIdx], reason: 'TP', ret: (close - entryPrice) / entryPrice * 100 }); break; }
+      if (d === BC_MAX_HOLD) { trades.push({ date: dates[confirmIdx], reason: 'TIME', ret: (close - entryPrice) / entryPrice * 100 }); break; }
+    }
+  }
+  return summarizeBtTrades(trades);
+}
+
 // ── 추천 후보 전용: 개별종목 과거 매매성과 백테스트(2026-08-27 추가) ──
 // 전체 유니버스가 아닌 "오늘 추천된 소수 후보"에 대해서만 각 전략의 확정 파라미터로 전체기간 재현,
 // 진입신호체크 결과에 승률·평균수익률·최근 트레이드 이력을 덧붙여 매수 판단 근거를 함께 보여준다.
@@ -596,7 +690,8 @@ async function backtestCandidate(r, regimeByMarket) {
   const stock = { code: r.code, name: r.name };
   const bt = r.strategy === '눌림목' ? await backtestPullbackStock(stock, regimeByMarket)
     : r.strategy === '괴리율' ? await backtestDeviationStock(stock)
-    : await backtestRoundnumberStock(stock);
+    : r.strategy === '라운드넘버' ? await backtestRoundnumberStock(stock)
+    : await backtestBigcandleStock(stock);
   return { ...r, bt };
 }
 function judgeBt(bt) {
@@ -641,7 +736,7 @@ async function fetchBetaMap(codes, p1, p2) {
 }
 
 async function main() {
-  console.error('[3전략 진입신호 체크] 시작');
+  console.error('[4전략 진입신호 체크] 시작');
   const heldCodes = await fetchHeldCodes();
   const openSlots = Math.max(0, MAX_SLOTS - heldCodes.size);
   console.error(`[슬롯] 보유 ${heldCodes.size}종목 / 5슬롯 → 빈슬롯 ${openSlots}개`);
@@ -659,30 +754,35 @@ async function main() {
   const [regimeKospi, regimeKosdaq] = await Promise.all([fetchMarketRegime(p1, p2, KOSPI_SYMBOL), fetchMarketRegime(p1, p2, KOSDAQ_SYMBOL)]);
   const regimeByMarket = { KOSPI: regimeKospi, KOSDAQ: regimeKosdaq };
 
-  console.error(`[스캔] 눌림목·괴리율 ${pdUniverse.length}종목, 라운드넘버 ${rnUniverse.length}종목 진입조건 확인 중...`);
+  console.error(`[스캔] 눌림목·괴리율·장대양봉 ${pdUniverse.length}종목, 라운드넘버 ${rnUniverse.length}종목 진입조건 확인 중...`);
   const pbRaw = (await batchAll(pdUniverse, s => checkPullbackEntry(s, regimeByMarket, kisMap, todayDate))).filter(Boolean);
   const dvRaw = (await batchAll(pdUniverse, s => checkDeviationEntry(s, kisMap, todayDate))).filter(Boolean);
   const rnRaw = (await batchAll(rnUniverse, s => checkRoundnumberEntry(s, kisMap, todayDate))).filter(Boolean);
+  const bcRaw = (await batchAll(pdUniverse, s => checkBigcandleEntry(s, kisMap, todayDate))).filter(Boolean);
 
   // 같은 날 같은 전략 내 후보 1~3순위 캡(project_3strategy_combined_portfolio_backtest.mjs와 동일 기준)
   const SAME_DAY_CAP = 3;
   pbRaw.sort((a, b) => (b.trendStrength - a.trendStrength) || (a.pullbackNorm - b.pullbackNorm));
   const dvSorted = [...dvRaw].sort((a, b) => (a.zSum - b.zSum) || (a.pctSum - b.pctSum));
   rnRaw.sort((a, b) => (b.touchCount - a.touchCount) || (b.aboveCount - a.aboveCount));
+  bcRaw.sort((a, b) => b.bodyPct - a.bodyPct); // 장대양봉: 몸통크기 큰 순(더 강한 캔들 우선, project_4strategy_combined_portfolio_backtest.mjs와 동일 기준)
   const pbCapExcess = Math.max(0, pbRaw.length - SAME_DAY_CAP);
   const dvCapExcess = Math.max(0, dvSorted.length - SAME_DAY_CAP);
   const rnCapExcess = Math.max(0, rnRaw.length - SAME_DAY_CAP);
+  const bcCapExcess = Math.max(0, bcRaw.length - SAME_DAY_CAP);
   const pbResults = pbRaw.slice(0, SAME_DAY_CAP);
   const dvResults = dvSorted.slice(0, SAME_DAY_CAP);
   const rnResults = rnRaw.slice(0, SAME_DAY_CAP);
-  if (pbCapExcess || dvCapExcess || rnCapExcess) {
-    console.error(`[동시신호 캡] 눌림목 ${pbCapExcess}건·괴리율 ${dvCapExcess}건·라운드넘버 ${rnCapExcess}건이 1~3순위 밖으로 제외됨`);
+  const bcResults = bcRaw.slice(0, SAME_DAY_CAP);
+  if (pbCapExcess || dvCapExcess || rnCapExcess || bcCapExcess) {
+    console.error(`[동시신호 캡] 눌림목 ${pbCapExcess}건·괴리율 ${dvCapExcess}건·라운드넘버 ${rnCapExcess}건·장대양봉 ${bcCapExcess}건이 1~3순위 밖으로 제외됨`);
   }
 
   const combined = [
     ...pbResults.map(r => ({ ...r, strategy: '눌림목' })),
     ...dvResults.map(r => ({ ...r, strategy: '괴리율' })),
     ...rnResults.map(r => ({ ...r, strategy: '라운드넘버' })),
+    ...bcResults.map(r => ({ ...r, strategy: '장대양봉' })),
   ];
 
   let betaReordered = false;
@@ -693,10 +793,10 @@ async function main() {
     betaReordered = true;
   }
 
-  console.log(`\n━━━ 3전략 진입신호 체크 (${todayDate} 기준) ━━━`);
+  console.log(`\n━━━ 4전략 진입신호 체크 (${todayDate} 기준) ━━━`);
   if (openSlots === 0) console.log('⚠ 빈슬롯 없음 — 신규 진입 보류(아래는 참고용 전체 후보)');
   else if (betaReordered) console.log(`빈슬롯 ${openSlots}개 — 후보(${combined.length}건)가 슬롯보다 많아 전략우선순위 대신 베타(KOSPI상관) 상위 ${openSlots}개 추천`);
-  else console.log(`빈슬롯 ${openSlots}개 — 아래 우선순위(눌림목>괴리율>라운드넘버) 상위 ${openSlots}개 추천`);
+  else console.log(`빈슬롯 ${openSlots}개 — 아래 우선순위(눌림목>괴리율>라운드넘버>장대양봉) 상위 ${openSlots}개 추천`);
 
   if (!combined.length) {
     console.log('\n오늘 발생한 진입신호 없음.');
@@ -718,7 +818,7 @@ async function main() {
     }
 
     console.log(`\n[전체 후보 ${combined.length}건]`);
-    for (const strat of ['눌림목', '괴리율', '라운드넘버']) {
+    for (const strat of ['눌림목', '괴리율', '라운드넘버', '장대양봉']) {
       const rows = combined.filter(r => r.strategy === strat);
       if (!rows.length) continue;
       console.log(`\n· ${strat} (${rows.length}건)`);
