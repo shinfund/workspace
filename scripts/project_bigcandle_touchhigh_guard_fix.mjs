@@ -1,15 +1,9 @@
-// 장대양봉 눌림+재돌파 확인 진입 백테스트 (2026-09-01)
-// 배경: 기존 되돌림형(project_bigcandle_retest_backtest.mjs)은 중간값(mid) 터치 즉시 그 가격에
-// 매수(지정가 체결 가정). 사용자 제안: "눌림 후 바로 사지 말고, 반등(재돌파) 확인 후 진입하면
-// 어떨까" — 터치일 저가가 무너지는 채로 계속 하락하는 트레이드(현재 STOP 42%)를 걸러낼 수 있는지 검증.
-//
-// 진입 로직 변경: ①장대양봉 탐지(몸통 bodyPct%↑) → ②retestWindow 내 첫 저가<=mid인 날(터치일 f)
-//   → ③터치일 f부터 confirmWindow거래일 이내, 종가가 "터치일 고가(seq[f].high)"를 재돌파(상회)하는
-//   첫 날 c의 종가에 매수(반등 확인). confirmWindow=0이면 터치일 당일 종가가 이미 터치일 고가를
-//   넘어야 하므로 사실상 "터치+반전 양봉 마감"만 채택.
-//   단, i+1~c 사이 종가가 캔들 저가 아래로 무너지면(붕괴) 셋업 폐기(기존과 동일).
-// 청산: 기존과 동일(TP=캔들고가 도달/STOP=캔들저가×(1-stopBufferPct%)/TIME=maxHold거래일).
-// 사용법: node scripts/project_bigcandle_pullback_reconfirm_backtest.mjs
+// 장대양봉 로직결함 수정 검증 — touchHigh가 candleHigh(TP목표)를 넘는 무효셋업 배제 (2026-09-01)
+// 배경: 재돌파확인(터치일고가 종가재돌파) 매수 로직에서, 터치일 반등폭이 커서 touchHigh가 원래
+// 장대양봉의 고가(candleHigh=TP목표가)를 이미 넘어버리는 경우가 있음 — 이러면 진입시점에 TP가 이미
+// 초과된 상태로 매수하게 되는 논리결함(실사례: SK이노베이션 2026-08-14 캔들, STOP -14.53%).
+// 수정: touchHigh >= candleHigh인 셋업은 무효로 배제(재돌파 목표 자체가 TP를 넘지 않아야 정상 셋업).
+// 확정조합(bodyPct5/retestWindow20/confirmWindow5/stopBufferPct0.5/maxHold15)으로 수정前後 비교.
 import https from 'https';
 
 const YF_HEADERS = {
@@ -22,7 +16,8 @@ const FALLBACK_KOSPI = [
 ];
 const DEFAULT_STOCKS = FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' }));
 const BASE_PERIOD = 200;
-const BASE_OPTS = { calendarDays: 2555, bodyPct: 4, retestWindow: 20, stopBufferPct: 0.5, maxHold: 15, requireUptrend: true };
+const CALENDAR_DAYS = 2555;
+const OPTS = { bodyPct: 5, retestWindow: 20, stopBufferPct: 0.5, maxHold: 15, confirmWindow: 5, requireUptrend: true };
 
 function httpGetJson(url) {
   return new Promise((res, rej) => {
@@ -38,7 +33,6 @@ function httpGetJson(url) {
     req.setTimeout(20000, () => { req.destroy(); rej(new Error('timeout')); });
   });
 }
-
 async function fetchYahooChart(symbol, p1, p2) {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&period1=${p1}&period2=${p2}&includePrePost=false`;
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -52,69 +46,48 @@ async function fetchYahooChart(symbol, p1, p2) {
   }
   return null;
 }
-
 function tsToKstDate(ts) {
   const d = new Date((ts + 9 * 3600) * 1000);
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
 }
-
 function buildEma(closes, period) {
   const k = 2 / (period + 1);
   const emas = new Array(closes.length).fill(null);
-  let ema = null;
-  const seedBuf = [];
+  let ema = null; const seedBuf = [];
   for (let i = 0; i < closes.length; i++) {
-    const price = closes[i];
-    if (price == null) continue;
-    if (ema === null) {
-      seedBuf.push(price);
-      if (seedBuf.length < period) continue;
-      ema = seedBuf.reduce((a, b) => a + b, 0) / seedBuf.length;
-    } else {
-      ema = price * k + ema * (1 - k);
-    }
+    const price = closes[i]; if (price == null) continue;
+    if (ema === null) { seedBuf.push(price); if (seedBuf.length < period) continue; ema = seedBuf.reduce((a, b) => a + b, 0) / seedBuf.length; }
+    else ema = price * k + ema * (1 - k);
     emas[i] = ema;
   }
   return emas;
 }
-
 function mean(arr) { return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null; }
 function median(arr) {
   if (!arr.length) return null;
-  const s = [...arr].sort((a, b) => a - b);
-  const n = s.length;
+  const s = [...arr].sort((a, b) => a - b); const n = s.length;
   return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
 }
-
 async function batchAll(items, fn, concurrency = 5, delay = 150) {
-  const results = new Array(items.length).fill(null);
-  let idx = 0;
-  async function worker() {
-    while (idx < items.length) {
-      const i = idx++;
-      results[i] = await fn(items[i], i);
-      if (delay) await new Promise(r => setTimeout(r, delay));
-    }
-  }
+  const results = new Array(items.length).fill(null); let idx = 0;
+  async function worker() { while (idx < items.length) { const i = idx++; results[i] = await fn(items[i], i); if (delay) await new Promise(r => setTimeout(r, delay)); } }
   await Promise.all(Array.from({ length: concurrency }, worker));
   return results;
 }
 
-// mode: 'baseline'(터치 즉시 mid가 매수) | 'reconfirm'(터치 후 터치일 고가 재돌파 종가매수)
-function detectAndSimulate(seq, opts) {
+function detectAndSimulate(seq, opts, guardFix) {
   const n = seq.length;
   const trades = [];
+  let rejectedByGuard = 0;
   for (let i = 0; i < n; i++) {
     const o = seq[i].open, c = seq[i].close, h = seq[i].high, l = seq[i].low;
     if (o == null || c == null || c <= o) continue;
     const bodyPct = (c - o) / o * 100;
     if (bodyPct < opts.bodyPct) continue;
 
-    const mid = (o + c) / 2;
-    const candleLow = l, candleHigh = h;
+    const mid = (o + c) / 2, candleLow = l, candleHigh = h;
     const stop = candleLow * (1 - opts.stopBufferPct / 100);
 
-    // 터치일 탐색
     let touchIdx = null;
     for (let f = i + 1; f < Math.min(n, i + 1 + opts.retestWindow); f++) {
       if (seq[f].close < candleLow) break;
@@ -122,25 +95,16 @@ function detectAndSimulate(seq, opts) {
     }
     if (touchIdx == null) continue;
 
-    let entryIdx, entryPrice;
-    if (opts.mode === 'baseline') {
-      entryIdx = touchIdx;
-      entryPrice = mid;
-    } else {
-      // 재돌파 확인: 터치일 고가를 종가기준 재돌파하는 첫 날(confirmWindow 이내), 붕괴시 폐기
-      const touchHigh = seq[touchIdx].high;
-      // 2026-09-01 결함수정: 터치일 고가가 이미 캔들고가(TP목표)를 넘으면 무효셋업(진입이 TP 초과 상태로
-      // 체결되는 논리결함 방지, 실사례로 SK이노베이션 2026-08-14 캔들 STOP-14.53% 확인)
-      if (touchHigh >= candleHigh) continue;
-      let confirmIdx = null;
-      for (let c2 = touchIdx; c2 < Math.min(n, touchIdx + opts.confirmWindow + 1); c2++) {
-        if (seq[c2].close < candleLow) break; // 붕괴
-        if (seq[c2].close > touchHigh) { confirmIdx = c2; break; }
-      }
-      if (confirmIdx == null) continue;
-      entryIdx = confirmIdx;
-      entryPrice = seq[confirmIdx].close;
+    const touchHigh = seq[touchIdx].high;
+    if (guardFix && touchHigh >= candleHigh) { rejectedByGuard++; continue; } // 수정: 터치일 고가가 이미 TP목표를 넘으면 무효셋업
+
+    let confirmIdx = null;
+    for (let c2 = touchIdx; c2 < Math.min(n, touchIdx + opts.confirmWindow + 1); c2++) {
+      if (seq[c2].close < candleLow) break;
+      if (seq[c2].close > touchHigh) { confirmIdx = c2; break; }
     }
+    if (confirmIdx == null) continue;
+    const entryIdx = confirmIdx, entryPrice = seq[confirmIdx].close;
 
     const entryEma200 = seq[entryIdx].ema200;
     const uptrend = entryEma200 != null ? seq[entryIdx].close >= entryEma200 : null;
@@ -156,32 +120,33 @@ function detectAndSimulate(seq, opts) {
       if (d === opts.maxHold) { result = { ret: (close - entryPrice) / entryPrice * 100, day: d, reason: 'TIME', date: seq[j].date }; break; }
     }
     if (!result) continue;
-    trades.push({ name: seq[0].name, entryDate: seq[entryIdx].date, ...result });
+    trades.push({ name: seq[0].name, entryDate: seq[entryIdx].date, entryPrice, candleHigh, ...result });
   }
-  return trades;
+  return { trades, rejectedByGuard };
 }
 
-async function loadStock(stock) {
-  const p2 = Math.floor(Date.now() / 1000);
-  const p1 = p2 - BASE_OPTS.calendarDays * 24 * 3600;
-  const symbol = stock.market === 'KOSDAQ' ? `${stock.code}.KQ` : `${stock.code}.KS`;
-  const chart = await fetchYahooChart(symbol, p1, p2);
-  if (!chart || !chart.ts.length) return null;
-  const dates = chart.ts.map(tsToKstDate);
-  const closes = chart.close;
-  const ema200s = buildEma(closes, BASE_PERIOD);
-  const seq = [];
-  for (let i = 0; i < dates.length; i++) {
-    if (closes[i] == null || chart.open[i] == null) continue;
-    seq.push({
-      date: dates[i], open: chart.open[i], close: closes[i],
-      high: chart.high[i] ?? closes[i], low: chart.low[i] ?? closes[i],
-      ema200: ema200s[i] ?? null, name: stock.name,
-    });
-  }
-  const minLen = BASE_PERIOD + BASE_OPTS.maxHold + 10;
-  if (seq.length < minLen) return null;
-  return seq;
+async function loadAllSeqs() {
+  const results = await batchAll(DEFAULT_STOCKS, async (stock) => {
+    const p2 = Math.floor(Date.now() / 1000);
+    const p1 = p2 - CALENDAR_DAYS * 24 * 3600;
+    const symbol = `${stock.code}.KS`;
+    const chart = await fetchYahooChart(symbol, p1, p2);
+    if (!chart || !chart.ts.length) return null;
+    const dates = chart.ts.map(tsToKstDate);
+    const closes = chart.close;
+    const ema200s = buildEma(closes, BASE_PERIOD);
+    const seq = [];
+    for (let i = 0; i < dates.length; i++) {
+      if (closes[i] == null || chart.open[i] == null) continue;
+      seq.push({
+        date: dates[i], open: chart.open[i], close: closes[i],
+        high: chart.high[i] ?? closes[i], low: chart.low[i] ?? closes[i],
+        ema200: ema200s[i] ?? null, name: stock.name,
+      });
+    }
+    return seq.length >= BASE_PERIOD + 40 ? seq : null;
+  });
+  return results.filter(Boolean);
 }
 
 function statOf(trades) {
@@ -191,27 +156,41 @@ function statOf(trades) {
   const win = rets.filter(r => r > 0).length / rets.length * 100;
   return { n: rets.length, avg, med, win, avgDays, perDay: avg / avgDays };
 }
-
 function fmtRow(label, s) {
   if (!s || s.n === 0) return `${label}\tn=0`;
   return `${label}\tn=${s.n}\t${s.avg >= 0 ? '+' : ''}${s.avg.toFixed(2)}%\t${s.med >= 0 ? '+' : ''}${s.med.toFixed(2)}%\t${s.win.toFixed(0)}%\t${s.avgDays.toFixed(1)}일\t${s.perDay >= 0 ? '+' : ''}${s.perDay.toFixed(3)}%`;
 }
 
 async function main() {
-  console.error(`[장대양봉 눌림+재돌파 확인 진입 검증] ${DEFAULT_STOCKS.length}종목 로딩 중...`);
-  const seqs = await batchAll(DEFAULT_STOCKS, loadStock);
-  const validSeqs = seqs.filter(Boolean);
-  console.error(`로드 완료: ${validSeqs.length}/${DEFAULT_STOCKS.length}종목`);
+  console.error(`[touchHigh≥candleHigh 무효셋업 배제 — 수정전후 비교] 50종목 로딩 중...`);
+  const seqs = await loadAllSeqs();
+  console.error(`로드 완료: ${seqs.length}/50종목`);
+
+  const before = seqs.flatMap(seq => detectAndSimulate(seq, OPTS, false).trades);
+  const afterRuns = seqs.map(seq => detectAndSimulate(seq, OPTS, true));
+  const after = afterRuns.flatMap(r => r.trades);
+  const totalRejected = afterRuns.reduce((a, r) => a + r.rejectedByGuard, 0);
 
   console.log('구분\tn\t평균\t중앙값\t승률\t평균보유\tperDay');
-  const baselineTrades = validSeqs.flatMap(seq => detectAndSimulate(seq, { ...BASE_OPTS, mode: 'baseline' }));
-  console.log(fmtRow('기존(터치즉시매수)', statOf(baselineTrades)));
+  console.log(fmtRow('수정전(현재확정)', statOf(before)));
+  console.log(fmtRow('수정후(touchHigh<candleHigh 강제)', statOf(after)));
+  console.log(`\n무효셋업(touchHigh≥candleHigh)으로 배제된 건수: ${totalRejected}건`);
 
-  const CONFIRM_WINDOWS = [0, 1, 3, 5, 10, 20];
-  for (const cw of CONFIRM_WINDOWS) {
-    const trades = validSeqs.flatMap(seq => detectAndSimulate(seq, { ...BASE_OPTS, mode: 'reconfirm', confirmWindow: cw }));
-    console.log(fmtRow(`재돌파확인(확인창${cw}일)`, statOf(trades)));
-  }
+  // 배제된 트레이드만 따로 분석(수정전 trades 중 entryPrice>=candleHigh인 것들)
+  const affected = before.filter(t => t.entryPrice >= t.candleHigh);
+  console.log(`\n━━━ entryPrice≥candleHigh(TP이미초과) 상태로 진입했던 트레이드 상세 ━━━`);
+  console.log(`해당 건수: ${affected.length}건, ${fmtRow('통계', statOf(affected))}`);
+  const sorted = [...affected].sort((a, b) => a.ret - b.ret);
+  console.log('최악 10건:');
+  for (const t of sorted.slice(0, 10)) console.log(`  ${t.name}\t${t.entryDate}\t진입${Math.round(t.entryPrice).toLocaleString()}\tTP목표${Math.round(t.candleHigh).toLocaleString()}\t${t.ret >= 0 ? '+' : ''}${t.ret.toFixed(2)}%\t${t.reason}`);
+
+  // OOS 재확인
+  const dates = after.map(t => t.entryDate).sort();
+  const midDate = dates[Math.floor(dates.length / 2)];
+  const fh = after.filter(t => t.entryDate < midDate), sh = after.filter(t => t.entryDate >= midDate);
+  console.log(`\n━━━ 수정후 OOS(분기점${midDate}) ━━━`);
+  console.log(fmtRow('전반부', statOf(fh)));
+  console.log(fmtRow('후반부', statOf(sh)));
 }
 
 main().catch(e => { console.error('오류:', e.message); process.exit(1); });

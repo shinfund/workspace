@@ -100,6 +100,7 @@ function detectSignals(seq, opts) {
     if (touchIdx == null) continue;
 
     const touchHigh = seq[touchIdx].high;
+    if (touchHigh >= candleHigh) continue; // 2026-09-01 결함수정: 무효셋업 배제
     let confirmIdx = null;
     for (let c2 = touchIdx; c2 < Math.min(n, touchIdx + opts.confirmWindow + 1); c2++) {
       if (seq[c2].close < candleLow) break;

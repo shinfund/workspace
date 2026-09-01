@@ -212,6 +212,7 @@ function precomputeBigcandle(st) {
     }
     if (touchIdx == null) continue;
     const touchHigh = highs[touchIdx];
+    if (touchHigh >= candleHigh) continue; // 2026-09-01 결함수정: 무효셋업 배제
     let confirmIdx = null;
     for (let c2 = touchIdx; c2 < Math.min(n, touchIdx + BC.confirmWindow + 1); c2++) {
       if (closes[c2] < candleLow) break;

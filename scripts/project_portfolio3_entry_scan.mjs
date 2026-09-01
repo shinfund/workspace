@@ -485,6 +485,7 @@ async function checkBigcandleEntry(stock, kisMap, todayDate) {
     if (touchIdx == null || touchIdx > lastIdx) continue;
 
     const touchHigh = highs[touchIdx];
+    if (touchHigh >= candleHigh) continue; // 2026-09-01 결함수정: 터치일 고가가 이미 TP목표를 넘으면 무효셋업
     let confirmIdx = null;
     for (let c2 = touchIdx; c2 < Math.min(n, touchIdx + BC_CONFIRM_WINDOW + 1); c2++) {
       if (closes[c2] < candleLow) break;
@@ -521,6 +522,7 @@ async function backtestBigcandleStock(stock) {
     }
     if (touchIdx == null) continue;
     const touchHigh = highs[touchIdx];
+    if (touchHigh >= candleHigh) continue; // 2026-09-01 결함수정
     let confirmIdx = null;
     for (let c2 = touchIdx; c2 < Math.min(n, touchIdx + BC_CONFIRM_WINDOW + 1); c2++) {
       if (closes[c2] < candleLow) break;

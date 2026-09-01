@@ -123,6 +123,8 @@ function detectAndSimulate(seq, opts) {
     if (touchIdx == null) continue; // 아직 눌림(중간값 터치) 미발생 또는 붕괴 — 대기중 셋업은 생략
 
     const touchHigh = seq[touchIdx].high;
+    // 2026-09-01 결함수정: 터치일 고가가 이미 캔들고가(TP목표)를 넘으면 무효셋업
+    if (touchHigh >= candleHigh) continue;
     let entryIdx = null;
     for (let c2 = touchIdx; c2 < Math.min(n, touchIdx + opts.confirmWindow + 1); c2++) {
       if (seq[c2].close < candleLow) break;
