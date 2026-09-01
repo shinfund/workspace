@@ -1,5 +1,6 @@
-// 장대양봉 중간값 되돌림 전략 — 최근 진입/청산 신호 조회 (2026-09-01)
-// project_bigcandle_retest_backtest.mjs의 확정 파라미터·로직을 그대로 사용해, 계산된 전체 이벤트 중
+// 장대양봉(bigcandle) 전략 — 최근 진입/청산 신호 조회 (2026-09-01, 4번째 확정전략 편입 반영)
+// project_bigcandle_pullback_reconfirm_backtest.mjs의 최종 확정 파라미터·로직(몸통5%↑+되돌림20일+
+// 재돌파확인5일창+STOP0.5%+최대15일+상승국면필터)을 그대로 사용해, 계산된 전체 이벤트 중
 // 최근(--days 거래일 기준, 기본20거래일) 진입분만 개별 트레이드 단위로 표시. OPEN(진행중)/TP/STOP/TIME 상태 표시.
 // 사용법: node scripts/project_bigcandle_recent_signals.mjs [--days 20] [--stocks 코드:이름:시장,...]
 import https from 'https';
@@ -14,7 +15,7 @@ const FALLBACK_KOSPI = [
 ];
 const DEFAULT_STOCKS = FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' }));
 const BASE_PERIOD = 200;
-const OPTS = { calendarDays: 2555, bodyPct: 4, retestWindow: 20, stopBufferPct: 0.5, maxHold: 15, requireUptrend: true };
+const OPTS = { calendarDays: 2555, bodyPct: 5, retestWindow: 20, confirmWindow: 5, stopBufferPct: 0.5, maxHold: 15, requireUptrend: true };
 
 function parseArgs() {
   const argv = process.argv.slice(2);
@@ -99,7 +100,8 @@ async function batchAll(items, fn, concurrency = 5, delay = 150) {
   return results;
 }
 
-// 장대양봉 탐지 + 중간값 되돌림 진입 + TP/STOP/TIME/OPEN 청산 시뮬레이션 (OPEN 상태 포함)
+// 장대양봉 탐지 + 중간값눌림 + 재돌파확인(터치일고가 종가재돌파, confirmWindow일 이내) 진입 +
+// TP/STOP/TIME/OPEN 청산 시뮬레이션 (OPEN 상태 포함) — 확정 로직(2026-09-01)
 function detectAndSimulate(seq, opts) {
   const n = seq.length;
   const trades = [];
@@ -113,29 +115,37 @@ function detectAndSimulate(seq, opts) {
     const candleLow = l, candleHigh = h;
     const stop = candleLow * (1 - opts.stopBufferPct / 100);
 
-    let entryIdx = null;
-    let setupBroken = false;
+    let touchIdx = null;
     for (let f = i + 1; f < Math.min(n, i + 1 + opts.retestWindow); f++) {
-      if (seq[f].close < candleLow) { setupBroken = true; break; }
-      if (seq[f].low <= mid) { entryIdx = f; break; }
+      if (seq[f].close < candleLow) break;
+      if (seq[f].low <= mid) { touchIdx = f; break; }
     }
-    if (entryIdx == null) continue; // 아직 미체결(대기중) 또는 붕괴 — 대기중 셋업은 이 스크립트에서는 생략(체결된 것만 추적)
+    if (touchIdx == null) continue; // 아직 눌림(중간값 터치) 미발생 또는 붕괴 — 대기중 셋업은 생략
+
+    const touchHigh = seq[touchIdx].high;
+    let entryIdx = null;
+    for (let c2 = touchIdx; c2 < Math.min(n, touchIdx + opts.confirmWindow + 1); c2++) {
+      if (seq[c2].close < candleLow) break;
+      if (seq[c2].close > touchHigh) { entryIdx = c2; break; }
+    }
+    if (entryIdx == null) continue; // 재돌파 미확인(대기중) 또는 확인창 경과 — 체결된 것만 추적
 
     const entryEma200 = seq[entryIdx].ema200;
     const uptrend = entryEma200 != null ? seq[entryIdx].close >= entryEma200 : null;
     if (opts.requireUptrend && uptrend !== true) continue;
 
+    const entryPrice = seq[entryIdx].close;
     let result = null;
     for (let d = 1; d <= opts.maxHold; d++) {
       const j = entryIdx + d;
       if (j >= n) { result = { status: 'OPEN', day: d - 1, curClose: seq[n - 1].close }; break; }
       const close = seq[j].close;
-      if (close <= stop) { result = { status: 'STOP', ret: (close - mid) / mid * 100, day: d, date: seq[j].date }; break; }
-      if (close >= candleHigh) { result = { status: 'TP', ret: (close - mid) / mid * 100, day: d, date: seq[j].date }; break; }
-      if (d === opts.maxHold) { result = { status: 'TIME', ret: (close - mid) / mid * 100, day: d, date: seq[j].date }; break; }
+      if (close <= stop) { result = { status: 'STOP', ret: (close - entryPrice) / entryPrice * 100, day: d, date: seq[j].date }; break; }
+      if (close >= candleHigh) { result = { status: 'TP', ret: (close - entryPrice) / entryPrice * 100, day: d, date: seq[j].date }; break; }
+      if (d === opts.maxHold) { result = { status: 'TIME', ret: (close - entryPrice) / entryPrice * 100, day: d, date: seq[j].date }; break; }
     }
     if (!result) continue;
-    trades.push({ name: seq[0].name, candleDate: seq[i].date, entryDate: seq[entryIdx].date, entryIdx, mid, candleHigh, stop, ...result });
+    trades.push({ name: seq[0].name, candleDate: seq[i].date, touchDate: seq[touchIdx].date, entryDate: seq[entryIdx].date, entryIdx, mid: entryPrice, candleHigh, stop, ...result });
   }
   return trades;
 }
@@ -170,7 +180,7 @@ async function backtestStock(stock, opts) {
 
 async function main() {
   const opts = { ...OPTS, ...parseArgs() };
-  console.error(`[장대양봉 중간값 되돌림 — 최근 신호] ${opts.stocks.length}종목, 최근 ${opts.days}거래일 이내 진입건만 표시(확정파라미터: 몸통4%↑/되돌림20일/STOP99.5%/최대15일/상승국면필터)`);
+  console.error(`[장대양봉(bigcandle) — 최근 신호] ${opts.stocks.length}종목, 최근 ${opts.days}거래일 이내 진입건만 표시(확정파라미터: 몸통5%↑/되돌림20일/재돌파확인5일/STOP99.5%/최대15일/상승국면필터)`);
 
   const results = await batchAll(opts.stocks, s => backtestStock(s, opts));
   const rows = [];
@@ -184,20 +194,20 @@ async function main() {
   rows.sort((a, b) => b.entryDate.localeCompare(a.entryDate));
 
   console.log(`\n최근 ${opts.days}일 이내 진입 신호: ${rows.length}건\n`);
-  console.log('종목명\t장대양봉일\t진입일\t진입가(중간값)\tTP가(캔들고가)\tSTOP가\t상태\t수익률/경과일');
+  console.log('종목명\t장대양봉일\t눌림터치일\t진입일(재돌파확정)\t진입가\tTP가(캔들고가)\tSTOP가\t상태\t수익률/경과일');
   for (const t of rows) {
     const statusStr = t.status === 'OPEN' ? `OPEN(${t.day}일경과)` : `${t.status}(${t.day}일)`;
     const retStr = t.status === 'OPEN'
       ? `${((t.curClose - t.mid) / t.mid * 100).toFixed(2)}%(현재가기준)`
       : `${t.ret >= 0 ? '+' : ''}${t.ret.toFixed(2)}%`;
-    console.log(`${t.name}\t${t.candleDate}\t${t.entryDate}\t${t.mid.toLocaleString()}\t${t.candleHigh.toLocaleString()}\t${Math.round(t.stop).toLocaleString()}\t${statusStr}\t${retStr}`);
+    console.log(`${t.name}\t${t.candleDate}\t${t.touchDate}\t${t.entryDate}\t${Math.round(t.mid).toLocaleString()}\t${t.candleHigh.toLocaleString()}\t${Math.round(t.stop).toLocaleString()}\t${statusStr}\t${retStr}`);
   }
 
   const openCount = rows.filter(t => t.status === 'OPEN').length;
   const closedCount = rows.length - openCount;
   const closedWin = rows.filter(t => t.status !== 'OPEN' && t.ret > 0).length;
   console.log(`\n※ OPEN(진행중) ${openCount}건, 청산완료 ${closedCount}건(승률 ${closedCount ? (closedWin / closedCount * 100).toFixed(0) : '-'}%)`);
-  console.log('※ 아직 되돌림(중간값 터치)이 발생하지 않아 대기중인 장대양봉 셋업은 이 표에 포함되지 않음(체결된 진입만 표시)');
+  console.log('※ 아직 눌림(중간값 터치) 또는 재돌파확인이 발생하지 않아 대기중인 셋업은 이 표에 포함되지 않음(체결된 진입만 표시)');
 }
 
 main().catch(e => { console.error('오류:', e.message); process.exit(1); });
