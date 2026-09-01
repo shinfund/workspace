@@ -1,6 +1,11 @@
-// 라운드넘버(피겨라운드) 전략 — 지금 시점 유니버스 워치 스캔 (2026-08-21)
-// project_roundnumber_strategy_backtest.mjs와 동일한 진입 규칙(이탈→트랙레코드+밀집도 검증→재돌파)을
-// "오늘" 기준으로 적용해, 종목별로 지금 감시해야 할 라운드 레벨(가장 가까운 "검증된" 레벨)을 산출한다.
+// 라운드넘버(피겨라운드) 전략 — 지금 시점 "진행 중인 이탈→재돌파" 상태 스캔 (2026-09-01 재설계)
+// project_roundnumber_strategy_backtest.mjs / project_portfolio3_entry_scan.mjs의 진입조건(이탈→트랙레코드+밀집도
+// 검증→5거래일 내 재돌파, 진입위치>=20%)을 그대로 따라가되, "오늘 신규진입(조건 충족 완료)"이 아니라
+// 아직 조건 미충족인 두 단계를 예비신호로 보여준다.
+//   1) 이탈 후 재돌파 대기 중 — 레벨 아래로 이미 이탈했고, 재돌파 윈도우(5거래일) 내에서 아직 레벨을 못 넘음
+//   2) 재돌파했지만 진입위치 20% 미만 — 레벨을 다시 넘었지만 (종가-L)/step 위치가 20%에 못 미쳐 신호 미성립
+// (2026-08-21 최초버전은 "이탈 전, 레벨과의 거리"만 보여줬는데 실제 신호 발생 여부와 무관해 예비신호로 부적절
+//  하다는 피드백으로 폐기 — feedback_roundnumber_watch_state_redesign 참고)
 // 사용법: node scripts/project_roundnumber_recent_signals.mjs [--stocks 코드:이름:시장,...]
 import https from 'https';
 
@@ -9,19 +14,15 @@ const YF_HEADERS = {
   'Accept': 'application/json', 'Accept-Language': 'ko-KR,ko;q=0.9',
 };
 
-// 코스피 TOP50 + 코스닥 TOP20 (project_roundnumber_strategy_backtest.mjs와 동일 유니버스 — 백테스트와 비교 가능하도록 고정)
+// 코스피 TOP50 (project_roundnumber_strategy_backtest.mjs와 동일 유니버스 — 백테스트와 비교 가능하도록 고정)
 const FALLBACK_KOSPI = [
   { code: '005930', name: '삼성전자' }, { code: '000660', name: 'SK하이닉스' }, { code: '402340', name: 'SK스퀘어' }, { code: '009150', name: '삼성전기' }, { code: '005380', name: '현대차' }, { code: '373220', name: 'LG에너지솔루션' }, { code: '207940', name: '삼성바이오로직스' }, { code: '032830', name: '삼성생명' }, { code: '028260', name: '삼성물산' }, { code: '012450', name: '한화에어로스페이스' }, { code: '105560', name: 'KB금융' }, { code: '000270', name: '기아' }, { code: '034020', name: '두산에너빌리티' }, { code: '329180', name: 'HD현대중공업' }, { code: '055550', name: '신한지주' }, { code: '012330', name: '현대모비스' }, { code: '068270', name: '셀트리온' }, { code: '034730', name: 'SK' }, { code: '006400', name: '삼성SDI' }, { code: '086790', name: '하나금융지주' }, { code: '035420', name: 'NAVER' }, { code: '066570', name: 'LG전자' }, { code: '010120', name: 'LS ELECTRIC' }, { code: '042660', name: '한화오션' }, { code: '267260', name: 'HD현대일렉트릭' }, { code: '000810', name: '삼성화재' }, { code: '298040', name: '효성중공업' }, { code: '009540', name: 'HD한국조선해양' }, { code: '005490', name: 'POSCO홀딩스' }, { code: '010130', name: '고려아연' }, { code: '316140', name: '우리금융지주' }, { code: '096770', name: 'SK이노베이션' }, { code: '042700', name: '한미반도체' }, { code: '017670', name: 'SK텔레콤' }, { code: '011200', name: 'HMM' }, { code: '015760', name: '한국전력' }, { code: '006800', name: '미래에셋증권' }, { code: '000150', name: '두산' }, { code: '051910', name: 'LG화학' }, { code: '010140', name: '삼성중공업' }, { code: '018260', name: '삼성에스디에스' }, { code: '267250', name: 'HD현대' }, { code: '033780', name: 'KT&G' }, { code: '003550', name: 'LG' }, { code: '079550', name: 'LIG디펜스앤에어로스페이스' }, { code: '035720', name: '카카오' }, { code: '010950', name: 'S-Oil' }, { code: '024110', name: '기업은행' }, { code: '064350', name: '현대로템' }, { code: '086280', name: '현대글로비스' },
 ];
-// 2026-08-24 코스피 전용 확정(project_roundnumber_strategy_backtest.mjs 상단 주석 참고 — 코스닥
-// 승률56% vs 코스피63%, STOP버퍼 스윕으로도 해소 안 됨) — 코스닥 목록은 참조용으로만 보존.
-const FALLBACK_KOSDAQ = [
-  { code: '196170', name: '알테오젠', market: 'KOSDAQ' }, { code: '086520', name: '에코프로', market: 'KOSDAQ' }, { code: '247540', name: '에코프로비엠', market: 'KOSDAQ' }, { code: '277810', name: '레인보우로보틱스', market: 'KOSDAQ' }, { code: '036930', name: '주성엔지니어링', market: 'KOSDAQ' }, { code: '028300', name: 'HLB', market: 'KOSDAQ' }, { code: '240810', name: '원익IPS', market: 'KOSDAQ' }, { code: '058470', name: '리노공업', market: 'KOSDAQ' }, { code: '039030', name: '이오테크닉스', market: 'KOSDAQ' }, { code: '087010', name: '펩트론', market: 'KOSDAQ' }, { code: '298380', name: '에이비엘바이오', market: 'KOSDAQ' }, { code: '000250', name: '삼천당제약', market: 'KOSDAQ' }, { code: '141080', name: '리가켐바이오', market: 'KOSDAQ' }, { code: '222800', name: '심텍', market: 'KOSDAQ' }, { code: '214450', name: '파마리서치', market: 'KOSDAQ' }, { code: '108490', name: '로보티즈', market: 'KOSDAQ' }, { code: '319660', name: '피에스케이', market: 'KOSDAQ' }, { code: '095340', name: 'ISC', market: 'KOSDAQ' }, { code: '403870', name: 'HPSP', market: 'KOSDAQ' }, { code: '440110', name: '파두', market: 'KOSDAQ' },
-];
 const DEFAULT_STOCKS = FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' }));
 
-// project_roundnumber_strategy_backtest.mjs 확정값과 동일(2026-08-21 스윕 결론)
-const WINDOW_DAYS = 150, TARGET_TICKS = 30, RECENT_LOOKBACK = 20, PRIOR_ABOVE_DAYS = 5, MIN_TOUCHES = 3, STOP_BUFFER_PCT = 3; // v15(2026-08-26): 청산 그리드서치 재확정(2→3)
+// project_portfolio3_entry_scan.mjs의 checkRoundnumberEntry(RN_*)와 100% 동일한 확정값
+const WINDOW_DAYS = 150, TARGET_TICKS = 30, RECENT_LOOKBACK = 20, PRIOR_ABOVE_DAYS = 5, MIN_TOUCHES = 3;
+const RECLAIM_WINDOW = 5, STOP_BUFFER_PCT = 3, MIN_ENTRY_POSITION_PCT = 20, MIN_BAND_WIDTH_PCT = 2.5; // v15(2026-08-26): STOP 2→3
 
 function parseArgs() {
   const argv = process.argv.slice(2);
@@ -113,6 +114,44 @@ function touchCountBefore(highs, lows, idx, level, windowDays) {
   return count;
 }
 
+// 가장 최근(오늘 기준 RECLAIM_WINDOW 거래일 이내) 유효 이탈 이벤트를 찾아 오늘 상태를 판정한다.
+// entry_scan의 checkRoundnumberEntry와 동일한 검증(트랙레코드/밀집도/밴드폭)을 통과한 레벨만 대상으로 한다.
+function computeLiveState(seq, highs, lows) {
+  const i = seq.length - 1;
+  for (let bIdx = i; bIdx >= Math.max(1, i - RECLAIM_WINDOW + 1); bIdx--) {
+    const prev = seq[bIdx - 1].close, cur = seq[bIdx].close;
+    const step = computeStepAt(highs, lows, bIdx, WINDOW_DAYS, TARGET_TICKS);
+    if (!step) continue;
+    const L = Math.floor(prev / step) * step;
+    if (!(prev >= L && cur < L) || L <= 0) continue;
+    if (step / L * 100 < MIN_BAND_WIDTH_PCT) continue;
+    const lo = Math.max(0, bIdx - 1 - RECENT_LOOKBACK);
+    let aboveCount = 0;
+    for (let k = lo; k < bIdx - 1; k++) if (seq[k].close >= L) aboveCount++;
+    if (aboveCount < PRIOR_ABOVE_DAYS) continue;
+    const touch = touchCountBefore(highs, lows, bIdx, L, WINDOW_DAYS);
+    if (touch < MIN_TOUCHES) continue;
+
+    // 유효한 최근 이탈 발견 — bIdx부터 오늘까지 하루씩 진행 상황을 확인
+    for (let f = bIdx; f <= i; f++) {
+      const c = seq[f].close;
+      if (c < L - step) return null; // STOP 구간까지 밀려 무효화
+      if (c >= L) {
+        const pos = (c - L) / step * 100;
+        if (pos >= MIN_ENTRY_POSITION_PCT) return null; // 이미 조건 충족(과거든 오늘이든) — 신규진입 스캔에서 다룸
+        if (f === i) {
+          return { state: 'weak_reclaim', level: L, step, entryPosition: pos, price: c, aboveCount, touch, breachDate: seq[bIdx].date };
+        }
+        // 과거 어느 날 약하게 재돌파했지만 20% 미달 — 계속 지켜봄(다음날 이후 흐름 계속 확인)
+      }
+    }
+    // 오늘까지 재돌파 못 함 — 이탈 후 대기 중
+    const distPct = (L - seq[i].close) / seq[i].close * 100;
+    return { state: 'pending', level: L, step, distPct, price: seq[i].close, aboveCount, touch, breachDate: seq[bIdx].date, daysSinceBreach: i - bIdx };
+  }
+  return null;
+}
+
 async function scanStock(stock) {
   const p2 = Math.floor(Date.now() / 1000);
   const p1 = p2 - Math.round((WINDOW_DAYS + RECENT_LOOKBACK + 30) * 1.6) * 24 * 3600; // 거래일→달력일 여유 환산(주말·공휴일 포함)
@@ -121,71 +160,59 @@ async function scanStock(stock) {
   if (!chart || !chart.ts.length) return { ...stock, error: '데이터 조회 실패' };
 
   const dates = chart.ts.map(tsToKstDate);
-  const closes = [], highs = [], lows = [];
+  const seq = [], highs = [], lows = [];
   for (let i = 0; i < dates.length; i++) {
     if (chart.close[i] == null) continue;
-    closes.push(chart.close[i]);
+    seq.push({ date: dates[i], close: chart.close[i] });
     highs.push(chart.high[i] ?? chart.close[i]);
     lows.push(chart.low[i] ?? chart.close[i]);
   }
-  const n = closes.length;
+  const n = seq.length;
   if (n < WINDOW_DAYS + RECENT_LOOKBACK + 10) return { ...stock, error: '데이터 부족' };
 
-  const i = n - 1;
-  const price = closes[i];
-  const step = computeStepAt(highs, lows, i, WINDOW_DAYS, TARGET_TICKS);
-  if (!step) return { ...stock, error: 'step 계산 실패' };
-
-  // 현재가 아래로 라운드를 하나씩 내려가며 "트랙레코드+밀집도 조건을 충족하는" 가장 가까운 레벨을 탐색
-  const lo0 = Math.max(0, i - RECENT_LOOKBACK);
-  let watchLevel = null;
-  for (let L = Math.floor(price / step) * step; L > 0 && (price - L) / price < 0.3; L -= step) {
-    let aboveCount = 0;
-    for (let k = lo0; k < i; k++) if (closes[k] >= L) aboveCount++;
-    const touch = touchCountBefore(highs, lows, i, L, WINDOW_DAYS);
-    if (aboveCount >= PRIOR_ABOVE_DAYS && touch >= MIN_TOUCHES) { watchLevel = { level: L, aboveCount, touch }; break; }
-  }
-  if (!watchLevel) return { ...stock, price, step, watchLevel: null };
-
-  const distPct = (price - watchLevel.level) / price * 100;
-  const tp = watchLevel.level + step;
-  const stop = watchLevel.level * (1 - STOP_BUFFER_PCT / 100);
-  return { ...stock, price, step, watchLevel: watchLevel.level, distPct, aboveCount: watchLevel.aboveCount, touch: watchLevel.touch, tp, stop };
+  const live = computeLiveState(seq, highs, lows);
+  if (!live) return { ...stock, live: null };
+  return { ...stock, live };
 }
 
 function fmtWon(n) { return n != null ? Math.round(n).toLocaleString('ko-KR') : '─'; }
 
 async function main() {
   const opts = parseArgs();
-  console.error(`[라운드넘버 유니버스 워치 스캔] ${opts.stocks.length}종목, 기준: 윈도우${WINDOW_DAYS}일×눈금${TARGET_TICKS}개, 트랙레코드 최근${RECENT_LOOKBACK}일중${PRIOR_ABOVE_DAYS}일↑, 밀집도>=${MIN_TOUCHES}봉`);
+  console.error(`[라운드넘버 진행상태 스캔] ${opts.stocks.length}종목, 기준: 재돌파윈도우${RECLAIM_WINDOW}거래일, 진입위치컷${MIN_ENTRY_POSITION_PCT}%, 트랙레코드 최근${RECENT_LOOKBACK}일중${PRIOR_ABOVE_DAYS}일↑, 밀집도>=${MIN_TOUCHES}봉`);
   const results = await batchAll(opts.stocks, scanStock);
 
-  const ok = results.filter(r => !r.error && r.watchLevel != null).sort((a, b) => a.distPct - b.distPct);
-  const noLevel = results.filter(r => !r.error && r.watchLevel == null);
   const errors = results.filter(r => r.error);
+  const withLive = results.filter(r => !r.error && r.live);
 
-  // 앱 표시 기준(2026-08-24 재조정): 거리 0.5%이내만 "예상종목"으로 표시(기존 1%컷도 방대하다는 피드백)
-  const NEAR_THRESHOLD_PCT = 0.5;
-  const near = ok.filter(r => r.distPct <= NEAR_THRESHOLD_PCT);
-  const far = ok.filter(r => r.distPct > NEAR_THRESHOLD_PCT);
+  const pending = withLive.filter(r => r.live.state === 'pending').sort((a, b) => a.live.distPct - b.live.distPct);
+  const weak = withLive.filter(r => r.live.state === 'weak_reclaim').sort((a, b) => b.live.entryPosition - a.live.entryPosition);
 
-  console.log(`\n━━━ 감시 레벨과 가까운 순, 거리${NEAR_THRESHOLD_PCT}%이내(${near.length}/${ok.length}종목, 이탈 시 조건 충족 가능성 높은 순) ━━━`);
-  console.log('종목명\t\t현재가\tstep\t감시레벨(지지)\t거리\t트랙레코드\t밀집도\tTP\tSTOP');
-  for (const r of near) {
-    console.log(`${r.name}\t${fmtWon(r.price)}\t${fmtWon(r.step)}\t${fmtWon(r.watchLevel)}\t${r.distPct.toFixed(1)}%\t${r.aboveCount}/${20}일\t${r.touch}봉\t${fmtWon(r.tp)}\t${fmtWon(r.stop)}`);
-  }
-  if (far.length) {
-    console.log(`\n(거리 ${NEAR_THRESHOLD_PCT}% 초과 ${far.length}종목은 표시 생략)`);
+  console.log(`\n━━━ ① 이탈 후 재돌파 대기 중 (${pending.length}종목, 레벨 재근접순) ━━━`);
+  if (!pending.length) {
+    console.log('해당 종목 없음');
+  } else {
+    console.log('종목명\t\t현재가\t레벨(L)\t이격(레벨위)\t경과\t트랙레코드\t밀집도\tTP\tSTOP');
+    for (const r of pending) {
+      const l = r.live;
+      const tp = l.level + l.step, stop = l.level * (1 - STOP_BUFFER_PCT / 100);
+      console.log(`${r.name}\t${fmtWon(l.price)}\t${fmtWon(l.level)}\t${l.distPct.toFixed(1)}%\t${l.daysSinceBreach + 1}/${RECLAIM_WINDOW}일\t${l.aboveCount}/${RECENT_LOOKBACK}일\t${l.touch}봉\t${fmtWon(tp)}\t${fmtWon(stop)}`);
+    }
   }
 
-  if (noLevel.length) {
-    console.log(`\n━━━ 아직 유효 감시레벨 없음(최근 급등락으로 트랙레코드 미충족, ${noLevel.length}종목) ━━━`);
-    console.log(noLevel.map(r => r.name).join(', '));
+  console.log(`\n━━━ ② 재돌파했지만 진입위치 ${MIN_ENTRY_POSITION_PCT}% 미만 (${weak.length}종목, 위치 높은순) ━━━`);
+  if (!weak.length) {
+    console.log('해당 종목 없음');
+  } else {
+    console.log('종목명\t\t현재가\t레벨(L)\t진입위치\t트랙레코드\t밀집도\tTP\tSTOP');
+    for (const r of weak) {
+      const l = r.live;
+      const tp = l.level + l.step, stop = l.level * (1 - STOP_BUFFER_PCT / 100);
+      console.log(`${r.name}\t${fmtWon(l.price)}\t${fmtWon(l.level)}\t${l.entryPosition.toFixed(0)}%\t${l.aboveCount}/${RECENT_LOOKBACK}일\t${l.touch}봉\t${fmtWon(tp)}\t${fmtWon(stop)}`);
+    }
   }
-  if (errors.length) {
-    console.log(`\n━━━ 조회 실패(${errors.length}종목) ━━━`);
-    console.log(errors.map(r => `${r.name}(${r.error})`).join(', '));
-  }
+
+  if (errors.length) console.error(`\n[조회실패] ${errors.map(r => r.name).join(', ')}`);
 }
 
-main().catch(e => { console.error('오류:', e.message); process.exit(1); });
+main().catch(e => { console.error('오류:', e.message, e.stack); process.exit(1); });

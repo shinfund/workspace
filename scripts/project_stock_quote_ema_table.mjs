@@ -174,6 +174,10 @@ function fillForward(closes) {
   return closes.map(c => { if (c != null) last = c; return c == null ? last : c; });
 }
 
+function kstTimeStr() {
+  const d = new Date(Date.now() + 9 * 3600 * 1000);
+  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+}
 function fmtWon(n) { return n != null ? Number(Math.round(n)).toLocaleString('ko-KR') : '─'; }
 function fmtPct(n) {
   if (n == null) return '─';
@@ -215,6 +219,8 @@ async function main() {
     const emaCols = EMA_PERIODS.map(p => fmtDev(r.dev[p], r.cross[p])).join('\t');
     console.log(`${r.종목명}\t${fmtWon(r.현재가)}\t${fmtPct(r.등락률)}\t${emaCols}`);
   }
+
+  console.log(`\n[데이터 소스] 현재가·등락률: KIS API 실시간(${kstTimeStr()} 기준) / EMA5~200: Yahoo Finance 일봉 종가 + 오늘 종가는 KIS 실시간가로 대체해 계산`);
 }
 
 main().catch(e => { console.error(e); process.exit(1); });

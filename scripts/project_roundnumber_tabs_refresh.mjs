@@ -20,7 +20,7 @@ const DEFAULT_STOCKS = FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' }));
 
 const WINDOW_DAYS = 150, TARGET_TICKS = 30, RECENT_LOOKBACK = 20, PRIOR_ABOVE_DAYS = 5, MIN_TOUCHES = 3;
 const RECLAIM_WINDOW = 5, STOP_BUFFER_PCT = 3, MAX_HOLD = 60, CALENDAR_DAYS = 2555, MIN_ENTRY_POSITION_PCT = 20, MIN_BAND_WIDTH_PCT = 2.5;
-const RECENT_DAYS = 45, TOP_CHART_N = 10, PRE_ENTRY_PADDING = 16, NEAR_THRESHOLD_PCT = 0.5;
+const RECENT_DAYS = 45, TOP_CHART_N = 10, PRE_ENTRY_PADDING = 16;
 
 function httpGetJson(url) {
   return new Promise((res, rej) => {
@@ -123,6 +123,41 @@ function touchCountBefore(highs, lows, idx, level, windowDays) {
   return count;
 }
 
+// 가장 최근(오늘 기준 RECLAIM_WINDOW 거래일 이내) 유효 이탈 이벤트를 찾아 오늘 상태를 판정한다.
+// project_roundnumber_recent_signals.mjs의 computeLiveState와 100% 동일 로직(2026-09-01 "예상종목" 재설계).
+function computeLiveState(seq, highs, lows) {
+  const i = seq.length - 1;
+  for (let bIdx = i; bIdx >= Math.max(1, i - RECLAIM_WINDOW + 1); bIdx--) {
+    const prev = seq[bIdx - 1].close, cur = seq[bIdx].close;
+    const step = computeStepAt(highs, lows, bIdx, WINDOW_DAYS, TARGET_TICKS);
+    if (!step) continue;
+    const L = Math.floor(prev / step) * step;
+    if (!(prev >= L && cur < L) || L <= 0) continue;
+    if (step / L * 100 < MIN_BAND_WIDTH_PCT) continue;
+    const lo = Math.max(0, bIdx - 1 - RECENT_LOOKBACK);
+    let aboveCount = 0;
+    for (let k = lo; k < bIdx - 1; k++) if (seq[k].close >= L) aboveCount++;
+    if (aboveCount < PRIOR_ABOVE_DAYS) continue;
+    const touch = touchCountBefore(highs, lows, bIdx, L, WINDOW_DAYS);
+    if (touch < MIN_TOUCHES) continue;
+
+    for (let f = bIdx; f <= i; f++) {
+      const c = seq[f].close;
+      if (c < L - step) return null;
+      if (c >= L) {
+        const pos = (c - L) / step * 100;
+        if (pos >= MIN_ENTRY_POSITION_PCT) return null;
+        if (f === i) {
+          return { state: 'weak_reclaim', level: L, step, entryPosition: pos, aboveCount, touch, breachDate: seq[bIdx].date };
+        }
+      }
+    }
+    const distPct = (L - seq[i].close) / seq[i].close * 100;
+    return { state: 'pending', level: L, step, distPct, aboveCount, touch, breachDate: seq[bIdx].date, daysSinceBreach: i - bIdx };
+  }
+  return null;
+}
+
 function detectRoundSignals(seq, highs, lows) {
   const n = seq.length;
   const events = [];
@@ -210,36 +245,22 @@ async function scanCandidateStock(stock) {
   if (!chart || !chart.ts.length) return { ...stock, error: '데이터 조회 실패' };
 
   const dates = chart.ts.map(tsToKstDate);
-  const seq = [], closes = [], highs = [], lows = [];
+  const seq = [], highs = [], lows = [];
   for (let i = 0; i < dates.length; i++) {
     if (chart.close[i] == null) continue;
     seq.push({ date: dates[i], close: chart.close[i] });
-    closes.push(chart.close[i]);
     highs.push(chart.high[i] ?? chart.close[i]);
     lows.push(chart.low[i] ?? chart.close[i]);
   }
-  const n = closes.length;
+  const n = seq.length;
   if (n < WINDOW_DAYS + RECENT_LOOKBACK + 10) return { ...stock, error: '데이터 부족' };
 
-  const i = n - 1;
-  const price = closes[i];
-  const step = computeStepAt(highs, lows, i, WINDOW_DAYS, TARGET_TICKS);
-  if (!step) return { ...stock, error: 'step 계산 실패' };
-
-  const lo0 = Math.max(0, i - RECENT_LOOKBACK);
-  let watchLevel = null;
-  for (let L = Math.floor(price / step) * step; L > 0 && (price - L) / price < 0.3; L -= step) {
-    let aboveCount = 0;
-    for (let k = lo0; k < i; k++) if (closes[k] >= L) aboveCount++;
-    const touch = touchCountBefore(highs, lows, i, L, WINDOW_DAYS);
-    if (aboveCount >= PRIOR_ABOVE_DAYS && touch >= MIN_TOUCHES) { watchLevel = { level: L, aboveCount, touch }; break; }
-  }
-  if (!watchLevel) return { ...stock, price, step, watchLevel: null };
-
-  const distPct = (price - watchLevel.level) / price * 100;
-  const tp = watchLevel.level + step;
-  const stop = watchLevel.level * (1 - STOP_BUFFER_PCT / 100);
-  return { ...stock, price, step, watchLevel: watchLevel.level, distPct, aboveCount: watchLevel.aboveCount, touch: watchLevel.touch, tp, stop, seq: seq.slice(Math.max(0, n - WINDOW_DAYS), n) };
+  const live = computeLiveState(seq, highs, lows);
+  if (!live) return { ...stock, live: null };
+  const price = seq[n - 1].close;
+  const tp = live.level + live.step;
+  const stop = live.level * (1 - STOP_BUFFER_PCT / 100);
+  return { ...stock, price, live, tp, stop, seq: seq.slice(Math.max(0, n - WINDOW_DAYS), n) };
 }
 
 function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
@@ -326,28 +347,56 @@ function tradeChartCardHtml(t) {
         <div class="chart-card-legend"><span><i class="dash" style="border-color:var(--amber)"></i>레벨(L)</span><span><i class="dash" style="border-color:var(--sky)"></i>TP</span><span><i class="dash" style="border-color:var(--coral)"></i>STOP</span><span><i style="background:var(--sky600)"></i>진입가</span></div>
       </div>`;
 }
-function watchRowHtml(r) {
-  return `<tr><td class="l">${esc(r.name)}</td><td>${fmtWon(r.price)}</td><td>${fmtWon(r.step)}</td><td>${fmtWon(r.watchLevel)}</td><td class="t-pos">${r.distPct.toFixed(1)}%</td><td class="c">${r.aboveCount}/20일</td><td class="c">${r.touch}봉</td><td>${fmtWon(r.tp)}</td><td>${fmtWon(r.stop)}</td></tr>`;
+function pendingRowHtml(r) {
+  const l = r.live;
+  return `<tr><td class="l">${esc(r.name)}</td><td>${fmtWon(r.price)}</td><td>${fmtWon(l.level)}</td><td class="t-pos">${l.distPct.toFixed(1)}%</td><td class="c">${l.daysSinceBreach + 1}/${RECLAIM_WINDOW}일</td><td class="c">${l.aboveCount}/20일</td><td class="c">${l.touch}봉</td><td>${fmtWon(r.tp)}</td><td>${fmtWon(r.stop)}</td></tr>`;
 }
-function watchChartCardHtml(r) {
+function weakRowHtml(r) {
+  const l = r.live;
+  return `<tr><td class="l">${esc(r.name)}</td><td>${fmtWon(r.price)}</td><td>${fmtWon(l.level)}</td><td class="t-pos">${l.entryPosition.toFixed(0)}%</td><td class="c">${l.aboveCount}/20일</td><td class="c">${l.touch}봉</td><td>${fmtWon(r.tp)}</td><td>${fmtWon(r.stop)}</td></tr>`;
+}
+function pendingChartCardHtml(r) {
+  const l = r.live;
   const svg = buildWatchChartSvg(r.seq, [
-    { value: r.watchLevel, color: 'amber', dash: '6,3', width: 1.8 },
+    { value: l.level, color: 'amber', dash: '6,3', width: 1.8 },
     { value: r.tp, color: 'sky', dash: '6,3', width: 1.8 },
     { value: r.stop, color: 'coral', dash: '2,2', width: 1.3 },
   ]);
   return `      <div class="chart-card">
-        <div class="chart-card-head"><span class="chart-card-name">${esc(r.name)}</span><span class="badge bdg-amber">감시레벨 ${r.distPct.toFixed(1)}%</span></div>
+        <div class="chart-card-head"><span class="chart-card-name">${esc(r.name)}</span><span class="badge bdg-amber">이격 ${l.distPct.toFixed(1)}%</span></div>
         ${svg}
         <div class="chart-card-stats">
-          <span>현재가 <span>${fmtWon(r.price)}</span> <span class="sep">|</span> 감시레벨(지지) <span>${fmtWon(r.watchLevel)}</span> <span class="sep">|</span> 거리 <span class="t-pos">${r.distPct.toFixed(1)}%</span></span>
+          <span>현재가 <span>${fmtWon(r.price)}</span> <span class="sep">|</span> 레벨(L) <span>${fmtWon(l.level)}</span> <span class="sep">|</span> 이격(레벨위) <span class="t-pos">${l.distPct.toFixed(1)}%</span></span>
+        </div>
+        <div class="chart-card-stats">
+          <span>이탈경과 <span>${l.daysSinceBreach + 1}/${RECLAIM_WINDOW}일</span> <span class="sep">|</span> TP(저항) <span>${fmtWon(r.tp)}</span> <span class="sep">|</span> STOP(예상) <span>${fmtWon(r.stop)}</span></span>
+        </div>
+        <div class="chart-card-stats">
+          <span>트랙레코드 <span>${l.aboveCount}/20일</span> <span class="sep">|</span> 밀집도 <span>${l.touch}봉</span></span>
+        </div>
+        <div class="chart-card-legend"><span><i class="dash" style="border-color:var(--amber)"></i>레벨(L)</span><span><i class="dash" style="border-color:var(--sky)"></i>TP(저항)</span><span><i class="dash" style="border-color:var(--coral)"></i>STOP(예상)</span></div>
+      </div>`;
+}
+function weakChartCardHtml(r) {
+  const l = r.live;
+  const svg = buildWatchChartSvg(r.seq, [
+    { value: l.level, color: 'amber', dash: '6,3', width: 1.8 },
+    { value: r.tp, color: 'sky', dash: '6,3', width: 1.8 },
+    { value: r.stop, color: 'coral', dash: '2,2', width: 1.3 },
+  ]);
+  return `      <div class="chart-card">
+        <div class="chart-card-head"><span class="chart-card-name">${esc(r.name)}</span><span class="badge bdg-amber">진입위치 ${l.entryPosition.toFixed(0)}%</span></div>
+        ${svg}
+        <div class="chart-card-stats">
+          <span>현재가 <span>${fmtWon(r.price)}</span> <span class="sep">|</span> 레벨(L) <span>${fmtWon(l.level)}</span> <span class="sep">|</span> 진입위치 <span class="t-pos">${l.entryPosition.toFixed(0)}%</span> (컷${MIN_ENTRY_POSITION_PCT}%)</span>
         </div>
         <div class="chart-card-stats">
           <span>TP(저항) <span>${fmtWon(r.tp)}</span> <span class="sep">|</span> STOP(예상) <span>${fmtWon(r.stop)}</span></span>
         </div>
         <div class="chart-card-stats">
-          <span>트랙레코드 <span>${r.aboveCount}/20일</span> <span class="sep">|</span> 밀집도 <span>${r.touch}봉</span></span>
+          <span>트랙레코드 <span>${l.aboveCount}/20일</span> <span class="sep">|</span> 밀집도 <span>${l.touch}봉</span></span>
         </div>
-        <div class="chart-card-legend"><span><i class="dash" style="border-color:var(--amber)"></i>감시레벨(지지)</span><span><i class="dash" style="border-color:var(--sky)"></i>TP(저항)</span><span><i class="dash" style="border-color:var(--coral)"></i>STOP(예상)</span></div>
+        <div class="chart-card-legend"><span><i class="dash" style="border-color:var(--amber)"></i>레벨(L)</span><span><i class="dash" style="border-color:var(--sky)"></i>TP(저항)</span><span><i class="dash" style="border-color:var(--coral)"></i>STOP(예상)</span></div>
       </div>`;
 }
 
@@ -391,14 +440,18 @@ async function main() {
   const tradeTableRows = order.map(i => tradeRowHtml(all[i])).join('\n          ');
   const tradeChartCards = order.slice(0, TOP_CHART_N).map(i => tradeChartCardHtml(all[i])).join('\n');
 
-  // ── 예상종목(감시레벨 근접) 스캔 ──
+  // ── 예상종목(이탈→재돌파 진행상태) 스캔 — 2026-09-01 재설계 ──
   const candResults = await batchAll(DEFAULT_STOCKS, scanCandidateStock);
-  const ok = candResults.filter(r => !r.error && r.watchLevel != null).sort((a, b) => a.distPct - b.distPct);
-  const near = ok.filter(r => r.distPct <= NEAR_THRESHOLD_PCT);
-  console.error(`[예상종목] 분석 ${DEFAULT_STOCKS.length}종목 중 ${near.length}종목 근접(${NEAR_THRESHOLD_PCT}%이내)`);
+  const withLive = candResults.filter(r => !r.error && r.live);
+  const pending = withLive.filter(r => r.live.state === 'pending').sort((a, b) => a.live.distPct - b.live.distPct);
+  const weak = withLive.filter(r => r.live.state === 'weak_reclaim').sort((a, b) => b.live.entryPosition - a.live.entryPosition);
+  console.error(`[예상종목] 분석 ${DEFAULT_STOCKS.length}종목 중 ①대기중 ${pending.length}종목, ②위치미달 ${weak.length}종목`);
 
-  const watchTableRows = near.map(watchRowHtml).join('\n          ');
-  const watchChartCards = near.map(watchChartCardHtml).join('\n');
+  const emptyRow = colspan => `<tr><td class="l" colspan="${colspan}">해당 종목 없음</td></tr>`;
+  const pendingTableRows = pending.length ? pending.map(pendingRowHtml).join('\n          ') : emptyRow(9);
+  const weakTableRows = weak.length ? weak.map(weakRowHtml).join('\n          ') : emptyRow(8);
+  const pendingChartCards = pending.map(pendingChartCardHtml).join('\n');
+  const weakChartCards = weak.map(weakChartCardHtml).join('\n');
 
   // ── HTML 스플라이스 ──
   let html = fs.readFileSync(HTML_PATH, 'utf8');
@@ -435,36 +488,51 @@ async function main() {
     nl(tradeChartCards) + eol
   );
 
-  // p1 KPI
+  // p1 KPI (3장: 분석유니버스 / ①대기중 / ②위치미달)
   html = spliceMiddle(html,
     `<div class="panel" id="p1-ks">${eol}  <div class="kpi-row">${eol}    <div class="kpi-card kpi-sky"><div class="num">`, `</div><div class="lbl">분석 유니버스`,
     `${DEFAULT_STOCKS.length}`);
   html = spliceMiddle(html,
-    `분석 유니버스(코스피TOP50)</div></div>${eol}    <div class="kpi-card kpi-teal"><div class="num">`, `</div><div class="lbl">감시레벨`,
-    `${near.length}`);
+    `분석 유니버스(코스피TOP50)</div></div>${eol}    <div class="kpi-card kpi-teal"><div class="num">`, `</div><div class="lbl">① 재돌파 대기중`,
+    `${pending.length}`);
+  html = spliceMiddle(html,
+    `① 재돌파 대기중</div></div>${eol}    <div class="kpi-card kpi-amber"><div class="num">`, `</div><div class="lbl">② 진입위치 20%미만`,
+    `${weak.length}`);
 
-  // p1 sc-note 날짜/개수 갱신
-  html = html.replace(
-    /\(2026-08-\d{2} 장마감 기준 \d+종목만 근접[^)]*\)/,
-    `(${todayStr} 장마감 기준 ${near.length}종목만 근접 — 장중 다수 종목이 랠리로 레벨을 통과해 감시대상에서 이탈함)`
-  );
-
-  // p1 테이블 tbody(문서상 두 번째 <tbody>)
+  // p1 ① 테이블(세 번째 <tbody> — p0에 1개, p1 ①에 1개)
   {
     const firstTbodyEnd = html.indexOf('</tbody>') + '</tbody>'.length;
     const secondTbodyStart = html.indexOf('<tbody>', firstTbodyEnd);
     const secondTbodyContentStart = secondTbodyStart + '<tbody>'.length + eol.length;
     const secondTbodyEnd = html.indexOf(`${eol}        </tbody>`, secondTbodyContentStart);
-    html = html.slice(0, secondTbodyContentStart) + nl(watchTableRows) + html.slice(secondTbodyEnd);
+    html = html.slice(0, secondTbodyContentStart) + nl(pendingTableRows) + html.slice(secondTbodyEnd);
   }
 
-  // p1 차트카드 부제(전체 N건) + 카드그리드
-  html = html.replace(/<div class="sc-title">예상종목 차트 <span class="sub">감시레벨 0\.5%이내 전체 \d+건\(근접순\)<\/span><\/div>/,
-    `<div class="sc-title">예상종목 차트 <span class="sub">감시레벨 0.5%이내 전체 ${near.length}건(근접순)</span></div>`);
+  // p1 ① 차트카드 부제 + 카드그리드
+  html = html.replace(/<div class="sc-title">① 대기 중 차트 <span class="sub">전체 \d+건\(이격순\)<\/span><\/div>/,
+    `<div class="sc-title">① 대기 중 차트 <span class="sub">전체 ${pending.length}건(이격순)</span></div>`);
   html = spliceMiddle(html,
-    `<div class="sc-title">예상종목 차트 <span class="sub">감시레벨 0.5%이내 전체 ${near.length}건(근접순)</span></div>${eol}    <div class="chart-grid">${eol}`,
+    `<div class="sc-title">① 대기 중 차트 <span class="sub">전체 ${pending.length}건(이격순)</span></div>${eol}    <div class="chart-grid">${eol}`,
+    `    </div>${eol}  </div>${eol}  <div class="sc">${eol}    <div class="sc-title">② 재돌파했지만`,
+    nl(pendingChartCards) + eol
+  );
+
+  // p1 ② 테이블
+  {
+    const thirdTbodyStart = html.indexOf('<tbody>', html.indexOf('id="p1-ks"'));
+    const fourthTbodyStart = html.indexOf('<tbody>', thirdTbodyStart + 1);
+    const fourthTbodyContentStart = fourthTbodyStart + '<tbody>'.length + eol.length;
+    const fourthTbodyEnd = html.indexOf(`${eol}        </tbody>`, fourthTbodyContentStart);
+    html = html.slice(0, fourthTbodyContentStart) + nl(weakTableRows) + html.slice(fourthTbodyEnd);
+  }
+
+  // p1 ② 차트카드 부제 + 카드그리드
+  html = html.replace(/<div class="sc-title">② 위치미달 차트 <span class="sub">전체 \d+건\(위치 높은순\)<\/span><\/div>/,
+    `<div class="sc-title">② 위치미달 차트 <span class="sub">전체 ${weak.length}건(위치 높은순)</span></div>`);
+  html = spliceMiddle(html,
+    `<div class="sc-title">② 위치미달 차트 <span class="sub">전체 ${weak.length}건(위치 높은순)</span></div>${eol}    <div class="chart-grid">${eol}`,
     `    </div>${eol}  </div>${eol}</div>${eol}${eol}<div class="panel" id="p2">`,
-    nl(watchChartCards) + eol
+    nl(weakChartCards) + eol
   );
 
   fs.writeFileSync(HTML_PATH, html, 'utf8');

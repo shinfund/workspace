@@ -30,15 +30,35 @@ async function buildKospiUniverse() {
   }
 }
 
-const MA_SHORT = 50, MA_LONG = 100, SLOPE_LOOKBACK = 10;
+const MA_SHORT = 50, MA_LONG = 100, SLOPE_LOOKBACK = 10, BREAKOUT_LOOKBACK = 6;
 const ATR_PERIOD = 14, BAND_K = 0.4;
-const SL = 8, TP_PCT = 20; // v15(2026-08-26): 청산 그리드서치 재확정(TP 10→20, perDay 기준)
+const SL = 8, TRAIL = 8, TP_PCT = 20, TP_FRAC = 0.4, MAX_HOLD = 40, COOLDOWN_DAYS = 5; // v15(2026-08-26): 청산 그리드서치 재확정(TP 10→20, perDay 기준)
 // v14(2026-08-26): 코스닥 종목을 유니버스에서 완전 제외 — 코스닥 전용 SL18(v11) 분기 제거
 function slFor() { return SL; }
 const CHART_DAYS = 70, CALENDAR_DAYS = 400;
 // v12(2026-08-20): project_stock_pullback.mjs와 동일한 시장국면·개별변동성 필터를 예상종목 판정에도 반영
 const KOSPI_SYMBOL = '%5EKS11', KOSDAQ_SYMBOL = '%5EKQ11';
 const REGIME_STREAK_MIN = 10, KOSPI_ATR_PERIOD = 14, VOL_CAP = 4, STOCK_ATR_CAP = 6;
+// 2026-09-01: 예상종목 필터가 실제 진입조건(project_portfolio3_entry_scan.mjs checkPullbackEntry)의
+// breakout lookback·손절후쿨다운 2개 필터를 빠뜨려 "조건상 진입 불가능한 종목"이 섞여 보일 수 있던 정밀도
+// 이슈를 보정 — pbSimulate/fetchMarketRegimeHistory로 두 필터를 동일하게 재현한다.
+function pbSimulate(seq, i0, entryClose, sl, trail, maxHold, tpPct, tpFrac) {
+  let peak = entryClose; let tpTaken = false, tpReturn = null;
+  for (let d = 1; d <= maxHold; d++) {
+    const j = i0 + d; if (j >= seq.length) return null;
+    const close = seq[j].close, maShort = seq[j].ema50;
+    const ret = (close - entryClose) / entryClose * 100;
+    if (!tpTaken && ret >= tpPct) { tpTaken = true; tpReturn = ret; if (close > peak) peak = close; continue; }
+    const finish = (reason) => ({ reason, day: d, ret: tpTaken ? tpFrac * tpReturn + (1 - tpFrac) * ret : ret, date: seq[j].date });
+    if (ret <= -sl) return finish('SL');
+    if (close < maShort) return finish('TREND_BREAK');
+    if (close > peak) peak = close;
+    const trailRet = (close - peak) / peak * 100;
+    if (trailRet <= -trail) return finish('TRAIL');
+    if (d === maxHold) return finish('TIME');
+  }
+  return null;
+}
 
 function httpGetJson(url) {
   return new Promise((res, rej) => {
@@ -160,6 +180,27 @@ async function fetchIndexRegimeToday(symbol) {
   return { up, streak: curStreak, volPct };
 }
 
+async function fetchMarketRegimeHistory(symbol) {
+  const p2 = Math.floor(Date.now() / 1000);
+  const p1 = p2 - CALENDAR_DAYS * 24 * 3600;
+  const chart = await fetchYahooChart(symbol, p1, p2);
+  if (!chart || !chart.ts.length) throw new Error(`${symbol} 지수 조회 실패`);
+  const dates = chart.ts.map(tsToKst);
+  const closes = fillForward(chart.close);
+  const maLong = buildEma(closes, MA_LONG);
+  const atr = buildAtr(chart.high, chart.low, closes, KOSPI_ATR_PERIOD);
+  const regime = {}, streak = {}, volPct = {};
+  let curStreak = 0;
+  for (let i = 0; i < dates.length; i++) {
+    if (maLong[i] == null || i < MA_LONG + SLOPE_LOOKBACK || closes[i] == null) continue;
+    const up = closes[i] > maLong[i] && maLong[i] > maLong[i - SLOPE_LOOKBACK];
+    curStreak = up ? curStreak + 1 : 0;
+    regime[dates[i]] = up; streak[dates[i]] = curStreak;
+    volPct[dates[i]] = atr[i] != null ? atr[i] / closes[i] * 100 : null;
+  }
+  return { regime, streak, volPct };
+}
+
 async function batchAll(items, fn, concurrency = 6, delay = 120) {
   const results = new Array(items.length).fill(null); let idx = 0;
   async function worker() { while (idx < items.length) { const i = idx++; results[i] = await fn(items[i], i); if (delay) await new Promise(r => setTimeout(r, delay)); } }
@@ -167,7 +208,7 @@ async function batchAll(items, fn, concurrency = 6, delay = 120) {
   return results;
 }
 
-async function analyzeStock(code, marketHint, kisMap, todayDate) {
+async function analyzeStock(code, marketHint, kisMap, todayDate, regimeByMarket) {
   const p2 = Math.floor(Date.now() / 1000);
   const p1 = p2 - CALENDAR_DAYS * 24 * 3600;
   const got = marketHint ? { chart: await fetchYahooChart(`${code}.${marketHint === 'KOSDAQ' ? 'KQ' : 'KS'}`, p1, p2), market: marketHint } : await fetchChartAutoMarket(code, p1, p2);
@@ -196,13 +237,38 @@ async function analyzeStock(code, marketHint, kisMap, todayDate) {
   const cur = rows[n - 1], prev = rows[n - 2];
   const trendUp = cur.ema50 > cur.ema100 && cur.ema50 > rows[n - 1 - SLOPE_LOOKBACK].ema50;
 
-  let highS = -Infinity;
-  for (let k = n - MA_SHORT; k <= n - 1; k++) { if (k >= 0 && rows[k].close > highS) highS = rows[k].close; }
+  let highS = -Infinity, highSIdx = -1;
+  for (let k = n - MA_SHORT; k <= n - 1; k++) { if (k >= 0 && rows[k].close > highS) { highS = rows[k].close; highSIdx = k; } }
   const pullbackPct = highS > 0 ? (highS - cur.close) / highS * 100 : null;
   const normDepth = (pullbackPct != null && cur.atrPct) ? pullbackPct / cur.atrPct : null;
+  const recentBreakout = highSIdx >= 0 && highSIdx >= (n - 1) - BREAKOUT_LOOKBACK;
+
+  // checkPullbackEntry와 동일하게 과거 구간을 재생하며 손절후 재진입쿨다운 상태를 계산(휩소 재진입 배제)
+  let inCooldown = false;
+  if (regimeByMarket) {
+    const marketRegime = regimeByMarket.KOSPI, otherRegime = regimeByMarket.KOSDAQ;
+    let blockedUntilIdx = -1;
+    for (let k = MA_LONG + SLOPE_LOOKBACK; k < n - 1; k++) {
+      const sk = rows[k], priorK = rows[k - SLOPE_LOOKBACK];
+      const trendUpK = sk.close > sk.ema100 && sk.ema50 > sk.ema100 && sk.ema50 > priorK.ema50;
+      if (!trendUpK || marketRegime.regime[sk.date] !== true || otherRegime.regime[sk.date] !== true) continue;
+      if ((marketRegime.streak[sk.date] ?? 0) < REGIME_STREAK_MIN) continue;
+      const volK = marketRegime.volPct[sk.date];
+      if (volK == null || volK > VOL_CAP) continue;
+      if (k < MA_SHORT || sk.atrPct == null || sk.atrPct <= 0 || sk.atrPct > STOCK_ATR_CAP) continue;
+      let highK = -Infinity, highKIdx = -1;
+      for (let m = k - (MA_SHORT - 1); m <= k - 1; m++) if (rows[m].close > highK) { highK = rows[m].close; highKIdx = m; }
+      if (!(highKIdx >= k - BREAKOUT_LOOKBACK) || sk.close > highK || sk.close <= sk.ema50) continue;
+      if (((highK - sk.close) / highK * 100) / sk.atrPct > BAND_K) continue;
+      if (k <= blockedUntilIdx) continue;
+      const trade = pbSimulate(rows, k, sk.close, SL, TRAIL, MAX_HOLD, TP_PCT, TP_FRAC);
+      if (trade && trade.reason === 'SL') blockedUntilIdx = k + trade.day + COOLDOWN_DAYS;
+    }
+    inCooldown = (n - 1) <= blockedUntilIdx;
+  }
 
   const chartRows = rows.slice(-CHART_DAYS);
-  return { market, cur, prev, trendUp, highS, pullbackPct, normDepth, chartRows, rows };
+  return { market, cur, prev, trendUp, highS, pullbackPct, normDepth, recentBreakout, inCooldown, chartRows, rows };
 }
 
 function fmtV(n) { return Math.round(n).toLocaleString('ko-KR'); }
@@ -347,8 +413,12 @@ async function main() {
   const allCodes = [...new Set([...allUniverse, ...holdingsRaw].map(s => s.code))];
   const kisMap = await fetchKisPriceMap(allCodes);
 
+  console.error('[조회] 시장국면 히스토리(코스피·코스닥) 조회 중... (breakout lookback·쿨다운 필터용)');
+  const [kospiRegimeHist, kosdaqRegimeHist] = await Promise.all([fetchMarketRegimeHistory(KOSPI_SYMBOL), fetchMarketRegimeHistory(KOSDAQ_SYMBOL)]);
+  const regimeByMarket = { KOSPI: kospiRegimeHist, KOSDAQ: kosdaqRegimeHist };
+
   const universeResults = await batchAll(allUniverse, async s => {
-    const a = await analyzeStock(s.code, s.market, kisMap, todayDate);
+    const a = await analyzeStock(s.code, s.market, kisMap, todayDate, regimeByMarket);
     return a.error ? { ...s, error: a.error } : { ...s, ...a };
   });
 
@@ -358,7 +428,7 @@ async function main() {
   const holdingAnalysis = new Map();
   for (const s of universeResults) if (holdCodes.has(s.code)) holdingAnalysis.set(s.code, s);
   const extraResults = await batchAll(missingHoldCodes, async h => {
-    const a = await analyzeStock(h.code, null, kisMap, todayDate);
+    const a = await analyzeStock(h.code, null, kisMap, todayDate, regimeByMarket);
     return { code: h.code, ...a };
   });
   for (const r of extraResults) if (!r.error) holdingAnalysis.set(r.code, r);
@@ -387,7 +457,7 @@ async function main() {
   function buildCandidates(pool) {
     if (!dualIndexOk) return [];
     return pool
-      .filter(r => r.trendUp && r.normDepth != null && r.normDepth >= 0 && r.normDepth <= BAND_K && r.cur.atrPct != null && r.cur.atrPct <= STOCK_ATR_CAP)
+      .filter(r => r.trendUp && r.normDepth != null && r.normDepth >= 0 && r.normDepth <= BAND_K && r.cur.atrPct != null && r.cur.atrPct <= STOCK_ATR_CAP && r.recentBreakout && !r.inCooldown)
       .sort((a, b) => a.normDepth - b.normDepth)
       .map(r => ({ ...r, held: holdCodes.has(r.code) }));
   }

@@ -17,6 +17,8 @@ const CATALOG = [
       { script: 'project_index_quote_table.mjs', desc: '지수 시세표 — 코스피·코스닥·S&P500·나스닥·다우·필라델피아반도체·VIX·원달러, EMA5/20/50/100/200' },
       { script: 'project_stock_quote_ema_table.mjs', desc: '개별종목 시세표 — EMA5/20/50/100/200 괴리율, 돌파▲▼' },
       { script: 'kis_api.mjs', desc: '거래대금·시총·등락률 등 순위표 (일반 프롬프트 기본 실행 스크립트)' },
+      { script: 'project_kospi_mktcap_top50_quote_table.mjs', desc: '코스피 시가총액 TOP50 시세표 — 현재가·등락률·시총+EMA5/20/50/100/200 (--top N으로 순위 조절)' },
+      { script: 'project_kosdaq_mktcap_top20_quote_table.mjs', desc: '코스닥 시가총액 TOP20 시세표 — 현재가·등락률·시총+EMA5/20/50/100/200 (--top N으로 순위 조절)' },
     ],
   },
   {

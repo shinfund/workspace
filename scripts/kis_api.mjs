@@ -292,6 +292,8 @@ async function main() {
     }));
   }
 
+  console.error(`\n[데이터 소스] 현재가·거래량·거래대금·회전율: KIS API 실시간(${date} ${timeStr} 기준) / 시가총액: 전일(${basDtLabel}) KRX 확정 기준`);
+
   console.log(JSON.stringify(opts.all ? jsonOut : jsonOut[opts.sort], null, 2));
 }
 

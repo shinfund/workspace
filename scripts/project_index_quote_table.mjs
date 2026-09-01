@@ -288,6 +288,8 @@ async function main() {
   for (const s of buildMarketSummary(rows)) {
     console.log(`${s.구분}\t${s.현황}\t${s.판단}`);
   }
+
+  console.log(`\n[데이터 소스] Yahoo Finance 기준 — 현재가는 최신 스냅샷(장중 지연 가능)으로 종가 히스토리를 덮어써 계산, EMA·ATR14·5일누적등락률은 일봉 종가 기준`);
 }
 
 main().catch(e => { console.error(e); process.exit(1); });

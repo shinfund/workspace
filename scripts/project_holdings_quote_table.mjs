@@ -72,6 +72,10 @@ function fetchKisPrice(token, code) {
   });
 }
 
+function kstTimeStr() {
+  const d = new Date(Date.now() + 9 * 3600 * 1000);
+  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+}
 function fmtWon(n) { return n != null ? Number(Math.round(n)).toLocaleString('ko-KR') : '─'; }
 function fmtWonSigned(n) { return n != null ? `${n >= 0 ? '+' : ''}${Number(Math.round(n)).toLocaleString('ko-KR')}` : '─'; }
 function fmtPct(n) { return n != null ? `${n >= 0 ? '+' : ''}${n.toFixed(2)}%` : '─'; }
@@ -112,6 +116,8 @@ async function main() {
   const 총손익 = 총평가 - 총매입;
   const 총손익률 = (총손익 / 총매입) * 100;
   console.log(`\n합계\t\t\t${fmtWonSigned(총손익)}\t${fmtPct(총손익률)}\t${fmtWon(총매입)}\t\t\t${fmtPctPlain(총평가 > 0 ? 100 : null)}`);
+
+  console.log(`\n[데이터 소스] 현재가·등락률: KIS API 실시간(${kstTimeStr()} 기준) / 평가손익·수익률·보유비중은 현재가 기준 즉시 계산, 매입가·보유수량은 holdings.json 스냅샷`);
 }
 
 main().catch(e => { console.error(e); process.exit(1); });
