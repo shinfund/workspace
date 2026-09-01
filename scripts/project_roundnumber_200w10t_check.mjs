@@ -1,7 +1,8 @@
 // 라운드넘버 전략 — 오늘 진입신호 종목의 "200일창/10틱"(HTS 축표시용 그리드) 지지/저항 참고용 표 (2026-08-24)
 // 매매 확정 그리드(150일/30틱, project_roundnumber_strategy_backtest.mjs)와는 별개로,
 // 실제 HTS 차트 축 간격과 더 가까운 200일/10틱 그리드로 지지/저항을 참고 확인하기 위한 스크립트.
-// 사용법: node scripts/project_roundnumber_200w10t_check.mjs [--stocks 코드:이름:시장,...] [--days 1]
+// 2026-09-01: "분석해줘" 요청 표준 포맷으로 2단계 확장(지지2/지지1/저항1/저항2, 지지 먼저)+터치 날짜 이력 추가.
+// 사용법: node scripts/project_roundnumber_200w10t_check.mjs --stocks 코드:이름:시장,...
 import https from 'https';
 
 const YF_HEADERS = {
@@ -82,15 +83,19 @@ function computeStep(highs, lows) {
   if (hi === -Infinity || low === Infinity) return null;
   return niceStep((hi - low) / TARGET_TICKS);
 }
-function touchCount(highs, lows, step, level) {
+function touches(ts, highs, lows, step, level) {
   const n = highs.length;
   const lo = Math.max(0, n - WINDOW_DAYS);
-  let count = 0;
+  const hits = [];
   for (let k = lo; k < n; k++) {
     if (highs[k] == null || lows[k] == null) continue;
-    if (lows[k] <= level && level <= highs[k]) count++;
+    if (lows[k] <= level && level <= highs[k]) {
+      const d = new Date((ts[k] + 9 * 3600) * 1000);
+      const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+      hits.push({ date: dateStr, high: highs[k], low: lows[k] });
+    }
   }
-  return count;
+  return hits;
 }
 
 function fmtWon(n) { return n != null ? Math.round(n).toLocaleString('ko-KR') : '─'; }
@@ -105,27 +110,43 @@ async function main() {
   const p2 = Math.floor(Date.now() / 1000);
   const p1 = p2 - (WINDOW_DAYS * 3) * 24 * 3600; // 주말/휴장 감안 여유
 
-  console.log('\n[200일창/10틱 참고 그리드] — 매매확정(150일/30틱)과 별개 참고용\n');
-  console.log('종목명\t\t현재가\t지지\t\t저항\t\tstep');
+  console.log('\n[200일창/10틱 참고 그리드 — 지지2/지지1/저항1/저항2 2단계] — 매매확정(150일/30틱)과 별개 참고용');
   for (const s of opts.stocks) {
     const symbol = s.market === 'KOSDAQ' ? `${s.code}.KQ` : `${s.code}.KS`;
     const chart = await fetchYahooChart(symbol, p1, p2);
-    if (!chart) { console.log(`${s.name}\t조회 실패`); continue; }
+    if (!chart) { console.log(`\n===== ${s.name}(${s.code}) — 조회 실패 =====`); continue; }
+    const ts = chart.ts;
     const highs = fillForward(chart.high);
     const lows = fillForward(chart.low);
     const closes = fillForward(chart.close);
     const price = closes[closes.length - 1];
     const step = computeStep(highs, lows);
-    if (!step || price == null) { console.log(`${s.name}\t데이터 부족`); continue; }
-    const support = Math.floor(price / step) * step;
-    const resistance = support + step;
-    const supDist = (price - support) / price * 100;
-    const resDist = (resistance - price) / price * 100;
-    const supTouch = touchCount(highs, lows, step, support);
-    const resTouch = touchCount(highs, lows, step, resistance);
-    console.log(`${s.name}\t${fmtWon(price)}\t${fmtWon(support)}(${fmtPct(-supDist)},${supTouch}봉)\t${fmtWon(resistance)}(${fmtPct(resDist)},${resTouch}봉)\t${fmtWon(step)}`);
+    if (!step || price == null) { console.log(`\n===== ${s.name}(${s.code}) — 데이터 부족 =====`); continue; }
+
+    const support1 = Math.floor(price / step) * step;
+    const resistance1 = support1 + step;
+    const support2 = support1 - step;
+    const resistance2 = resistance1 + step;
+
+    console.log(`\n===== ${s.name}(${s.code}) — 현재가 ${fmtWon(price)}원 / step ${fmtWon(step)}원 =====`);
+    const levels = [
+      { label: '지지2', price: support2, dist: (price - support2) / price * 100 * -1 },
+      { label: '지지1', price: support1, dist: (price - support1) / price * 100 * -1 },
+      { label: '저항1', price: resistance1, dist: (resistance1 - price) / price * 100 },
+      { label: '저항2', price: resistance2, dist: (resistance2 - price) / price * 100 },
+    ];
+    for (const lv of levels) {
+      const hits = touches(ts, highs, lows, step, lv.price);
+      const recent = hits.slice(-8).reverse();
+      const lastDate = recent.length ? recent[0].date : '없음';
+      console.log(`  ${lv.label}: ${fmtWon(lv.price)}원 (${fmtPct(lv.dist)}, 200일내 ${hits.length}봉 터치, 최근터치 ${lastDate})`);
+      if (recent.length) {
+        console.log('    ' + recent.map(h => `${h.date}(고${fmtWon(h.high)}/저${fmtWon(h.low)})`).join(', '));
+      }
+    }
     await new Promise(r => setTimeout(r, 200));
   }
+  console.log(`\n[데이터 소스] Yahoo Finance 일봉(고가/저가), 기준 그리드: 200일창/10틱(매매확정 150일/30틱과 별개 참고용)`);
 }
 
 main().catch(e => { console.error('오류:', e.message); process.exit(1); });
