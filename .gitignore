@@ -42,6 +42,9 @@ data/전압분석/*_raw.json
 # 자동 아카이브(Archive_DailyCleanup 예약작업이 관리하는 롤링 버퍼, 수동 추적 불필요)
 data/analysis/archive/
 
+# 종목 이슈·공시 PDF 리포트(project_stock_issue_pdf.mjs 산출물, 바이너리·매번 재생성 가능)
+data/analysis/stock-issue-pdf/*.pdf
+
 # 브라우저 중복다운로드 사본 ("파일명 (1).html" 등)
 * (*).html
 * (*).xlsx
