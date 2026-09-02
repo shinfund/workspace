@@ -14,7 +14,7 @@
  *     "stocks": [
  *       {
  *         "name": "한화에어로스페이스", "code": "012450", "market": "KOSPI",
- *         "priceLine": "9/2 장중 1,040,000원, 전일 대비 <span class=\"down\">-1.70%</span> ...",  (선택, HTML 허용)
+ *         "priceNote": "시총 53.7조 (코스피 12위) | PER 25.94배 (업종 32.63배)",  (선택, 가격 외 보조 지표만 — HTML 허용)
  *         "blocks": [
  *           { "type": "issue", "label": "호재", "text": "..." },
  *           { "type": "risk",  "label": "리스크", "text": "..." },
@@ -25,8 +25,12 @@
  *     "sourceNote": "[데이터 소스] 웹 검색(뉴스·시황 기사) 기반 정리, ... 기준. 실시간 확정 공시 정보가 아니며 오차·지연 가능"
  *   }
  *
- * "이슈"(뉴스·시황) 데이터는 매번 WebSearch로 직접 조사해 이 JSON에 채워 넣는 방식(공식 결정, 2026-09-02).
- * "공시"도 별도 API 연동 없이 뉴스 검색 기반으로 함께 정리한다.
+ * "이슈"(뉴스·시황)·"공시" 데이터는 매번 WebSearch로 직접 조사해 이 JSON에 채워 넣는 방식(공식 결정, 2026-09-02).
+ * **단, 현재가·전일대비 등락률·거래대금(가격 라인)은 WebSearch 금지 — 뉴스 기사 속 가격은 기사
+ * 작성 시점 스냅샷이라 부정확함(사용자 확인, 2026-09-02: NAVER 리포트에서 뉴스 220,500원/-1.34%
+ * vs KIS 실시간 209,000원/-2.79% 오차 실측).** `code`가 있는 종목은 스크립트가 KIS API
+ * (kis_api.mjs의 fetchKisPrice, 기존 표준 시세 소스)로 자동 조회해 가격 라인을 만든다 — JSON에
+ * 가격을 직접 쓰지 말 것. PER·시총순위 등 가격이 아닌 보조 지표만 `priceNote`에 리서치로 채운다.
  *
  * 출력: data/analysis/stock-issue-pdf/<outSlug>_<YYYYMMDDHHmm>.pdf (PDF만 남김, 2026-09-02 확정)
  *       HTML은 변환용으로 os.tmpdir()에 임시 생성 후 즉시 삭제 — data/analysis에 HTML 사본을
@@ -42,6 +46,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { execFileSync } from 'child_process';
+import { getToken, fetchKisPrice } from './kis_api.mjs';
 
 const OUT_DIR = 'C:\\Users\\shinf\\workspace\\data\\analysis\\stock-issue-pdf';
 
@@ -77,9 +82,24 @@ function renderHoldingsTable(rows) {
   return `<table class="holdings">\n  <tr>${head}</tr>\n${body}\n</table>`;
 }
 
+function fmtWon(n) { return Number(n).toLocaleString('ko-KR') + '원'; }
+function fmtEok(n) { return (Number(n) / 1e8).toLocaleString('ko-KR', { maximumFractionDigits: 0 }) + '억원'; }
+
+// KIS API(inquire-price) 실시간 시세로 가격 라인을 만든다 — WebSearch 뉴스 기사 속 가격은
+// 기사 작성 시점 스냅샷이라 부정확할 수 있어 사용 금지(2026-09-02 확정, NAVER 리포트에서 실측
+// 오차 확인: 뉴스 220,500원/-1.34% vs KIS 실시간 209,000원/-2.79%).
+async function fetchAutoPriceLine(token, code) {
+  const p = await fetchKisPrice(token, code);
+  if (!p || !p.현재가) return null;
+  const sign = p.등락률 >= 0 ? 'up' : 'down';
+  const pct = (p.등락률 >= 0 ? '+' : '') + p.등락률.toFixed(2) + '%';
+  return `현재가 ${fmtWon(p.현재가)}, 전일 대비 <span class="${sign}">${pct}</span> &nbsp;|&nbsp; 거래대금 ${fmtEok(p.거래대금)}`;
+}
+
 function renderStock(s) {
   const codeMarket = [s.code, s.market].filter(Boolean).join(' · ');
-  const priceLine = s.priceLine ? `<div class="price-line">${s.priceLine}</div>` : '';
+  const priceParts = [s._autoPriceLine, s.priceNote].filter(Boolean).join(' &nbsp;|&nbsp; ');
+  const priceLine = priceParts ? `<div class="price-line">${priceParts}</div>` : '';
   const blocks = (s.blocks || []).map(b => {
     const cls = LABEL_CLASS[b.type] || 'label-note';
     const label = b.label || LABEL_DEFAULT[b.type] || '참고';
@@ -124,8 +144,8 @@ function buildHtml(data) {
   .stock-title { font-size: 17px; font-weight: 800; color: #0a1830; margin: 0 0 5px 0; display: flex; justify-content: space-between; align-items: baseline; }
   .stock-title .code { font-size: 13px; color: #1c2027; font-weight: 700; }
   .price-line { font-size: 13.5px; color: #0d0d0d; font-weight: 700; margin-bottom: 9px; padding-bottom: 9px; border-bottom: 1px dashed #9aa5b1; }
-  .price-line .down { color: #c81e1e; font-weight: 800; }
-  .price-line .up { color: #0a5c26; font-weight: 800; }
+  .price-line .up { color: #c81e1e; font-weight: 800; }
+  .price-line .down { color: #1450c8; font-weight: 800; }
   .block { margin-bottom: 7px; font-size: 13.5px; }
   .block-label { display: inline-block; font-size: 12px; font-weight: 800; padding: 2px 8px; border-radius: 3px; margin-right: 6px; color: #fff; }
   .label-issue { background: #16305c; }
@@ -163,7 +183,7 @@ ${stocksHtml}
 `;
 }
 
-function main() {
+async function main() {
   const [inputPath, outSlugArg] = process.argv.slice(2);
   if (!inputPath) {
     console.error('Usage: node project_stock_issue_pdf.mjs <input.json> [outSlug]');
@@ -172,6 +192,16 @@ function main() {
   const data = JSON.parse(fs.readFileSync(inputPath, 'utf8'));
   const outSlug = outSlugArg || data.slug || 'stock_issue';
   const ts = timestamp();
+
+  if ((data.stocks || []).some(s => s.code)) {
+    const token = await getToken();
+    for (const s of data.stocks) {
+      if (!s.code) continue;
+      s._autoPriceLine = await fetchAutoPriceLine(token, s.code);
+      if (!s._autoPriceLine) console.error(`[경고] ${s.name}(${s.code}) KIS 시세 조회 실패 — 가격 라인 생략`);
+      await new Promise(r => setTimeout(r, 120));
+    }
+  }
 
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const htmlPath = path.join(os.tmpdir(), `${outSlug}_${ts}.html`); // 변환용 임시 파일 — PDF만 산출물로 남김
@@ -197,4 +227,4 @@ function main() {
   console.log(`[생성완료] ${pdfPath}`);
 }
 
-main();
+main().catch(e => { console.error('[오류]', e.message); process.exit(1); });

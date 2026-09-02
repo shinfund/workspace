@@ -12,7 +12,7 @@
       "name": "삼성전자",
       "code": "005930",
       "market": "KOSPI",
-      "priceLine": "9/2 장중 71,000원, 전일 대비 <span class=\"up\">+1.20%</span>",
+      "priceNote": "시총 420조 (코스피 1위) | PER 15배 (예시)",
       "blocks": [
         { "type": "issue", "label": "호재", "text": "예시 호재 텍스트입니다." },
         { "type": "risk", "label": "리스크", "text": "예시 리스크 텍스트입니다." },
