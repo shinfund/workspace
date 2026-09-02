@@ -295,9 +295,16 @@ async function loadStockSignals(stock, regimeByMarket, opts, kisMap, todayDate, 
     const normDepth = pullbackPct / s.atrPct;
     if (normDepth > BAND_K) continue;
 
-    if (i <= blockedUntilIdx) continue; // v13: 쿨다운 중이면 스킵
+    if (i <= blockedUntilIdx) continue; // 이전 진입 포지션이 아직 보유중(또는 SL쿨다운 중)이면 스킵
     const trade = simulateLiveStatus(seq, i, s.close, sl, trail, MAX_HOLD, TP_PCT, TP_FRAC);
-    if (trade && trade.reason === 'SL') blockedUntilIdx = i + trade.day + COOLDOWN_DAYS;
+    // v16(2026-09-02): 동일종목 중복신호 버그 수정 — 실거래(entry_scan)·5슬롯 백테스트는 이미 보유중이면
+    // 청산사유 무관하게 재진입을 원천 차단(`held.has(code)`)하는데, 이 "최근신호" 표시 스크립트만
+    // SL 후에만 쿨다운을 걸어 익절/트레일링청산으로 끝나는 동안 매일 새 진입으로 중복 표시되던 결함.
+    // 포지션이 열려있는 동안(day가 정해진 CLOSED든 아직 OPEN이든)은 항상 재진입을 막고, SL만 추가 COOLDOWN_DAYS를 더한다.
+    if (trade) {
+      const heldDays = trade.status === 'OPEN' ? (seq.length - 1 - i) : trade.day;
+      blockedUntilIdx = i + heldDays + (trade.reason === 'SL' ? COOLDOWN_DAYS : 0);
+    }
 
     const trendStrength = (s.maLong - prior.maLong) / prior.maLong * 100;
     entries.push({ i, date: s.date, trendStrength, pullbackNorm: normDepth });
