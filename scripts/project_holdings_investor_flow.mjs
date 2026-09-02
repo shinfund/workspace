@@ -9,46 +9,19 @@
  *   ※ 당일(장중) 데이터는 장마감 후 정산되어 익일 확정 — 오늘자는 항상 공란으로 반환됨.
  *      따라서 최근 확정된 3거래일만 표시.
  *   ※ 종목명으로 지정 시 holdings.json에 없으면 KRX 전종목 유니버스(kis_api.mjs)에서 이름→코드 조회.
+ *   ※ 인증(토큰·앱키)은 kis_api.mjs에서 공유(중복 하드코딩 방지, 2026-09-02)
  *
  * 입력: data/holdings.json (인자 없을 때만)
  * 출력: 터미널 표(종목별 최근 3거래일 개인/외국인/기관 순매수 금액, 백만원) + 자동 특이사항
  */
 import https from 'https';
 import fs    from 'fs';
-import { fetchKrxUniverse } from './kis_api.mjs';
+import { getToken, fetchKrxUniverse, APP_KEY, APP_SECRET } from './kis_api.mjs';
 
-const KIS_APP_KEY    = 'PSO0pNJJEdcjc5qizFifXHn0yXG42TRA0hUz';
-const KIS_APP_SECRET = 'ag3QEJW9rPfVvvhuiJCZftESl2a0GSSXsbuLzZxVq008hTbqKrBScdZxz/NbVW9UBbdwF+Yd16eFrGB2Q6HLEKADkUCpTvUjXmdorsxF5KmNvVI/Q/fR/2uv9UjTYmzCusALcmkSOaeLQ1pByw8oVPE++lnBZg6aKxh33Tbfd/aNbGNKl2Y=';
-const KIS_TOKEN_CACHE = 'C:\\Users\\shinf\\workspace\\scripts\\kis_token.json';
 const KIS_HOST = 'openapi.koreainvestment.com';
 const KIS_PORT = 9443;
 
 const DISPLAY_DAYS = 3;
-
-async function getKisToken() {
-  try {
-    const c = JSON.parse(fs.readFileSync(KIS_TOKEN_CACHE, 'utf8'));
-    if (new Date(c.access_token_token_expired) > new Date(Date.now() + 60000)) return c.access_token;
-  } catch { /* cache miss */ }
-  const body = JSON.stringify({ grant_type: 'client_credentials', appkey: KIS_APP_KEY, appsecret: KIS_APP_SECRET });
-  return new Promise((resolve, reject) => {
-    const req = https.request({
-      hostname: KIS_HOST, port: KIS_PORT, path: '/oauth2/tokenP', method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
-    }, resp => {
-      let d = ''; resp.on('data', c => d += c);
-      resp.on('end', () => {
-        try {
-          const res = JSON.parse(d);
-          if (!res.access_token) return reject(new Error('KIS 토큰 실패'));
-          fs.writeFileSync(KIS_TOKEN_CACHE, JSON.stringify(res));
-          resolve(res.access_token);
-        } catch(e) { reject(e); }
-      });
-    });
-    req.on('error', reject); req.write(body); req.end();
-  });
-}
 
 function fetchInvestor(token, code) {
   const qs = new URLSearchParams({ FID_COND_MRKT_DIV_CODE: 'J', FID_INPUT_ISCD: code });
@@ -59,7 +32,7 @@ function fetchInvestor(token, code) {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json', authorization: `Bearer ${token}`,
-        appkey: KIS_APP_KEY, appsecret: KIS_APP_SECRET, tr_id: 'FHKST01010900', custtype: 'P',
+        appkey: APP_KEY, appsecret: APP_SECRET, tr_id: 'FHKST01010900', custtype: 'P',
       },
     }, resp => {
       let d = ''; resp.on('data', c => d += c);
@@ -155,7 +128,7 @@ async function main() {
 
   if (!targets.length) { console.error('[오류] 조회할 종목이 없습니다.'); process.exit(1); }
 
-  const token = await getKisToken();
+  const token = await getToken();
 
   const results = [];
   for (const t of targets) {
