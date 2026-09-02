@@ -107,6 +107,7 @@ function detectSignals(seq, opts) {
       if (seq[c2].close > touchHigh) { confirmIdx = c2; break; }
     }
     if (confirmIdx == null) continue;
+    if (seq[confirmIdx].close >= candleHigh) continue; // 2026-09-02 결함수정: 진입가가 이미 TP가 초과인 무효셋업 배제
 
     const entryEma200 = seq[confirmIdx].ema200;
     const uptrend = entryEma200 != null ? seq[confirmIdx].close >= entryEma200 : null;

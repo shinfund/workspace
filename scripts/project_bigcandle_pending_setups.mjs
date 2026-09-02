@@ -1,15 +1,7 @@
-// 장대양봉 눌림+재돌파 확인 진입 백테스트 (2026-09-01)
-// 배경: 기존 되돌림형(project_bigcandle_retest_backtest.mjs)은 중간값(mid) 터치 즉시 그 가격에
-// 매수(지정가 체결 가정). 사용자 제안: "눌림 후 바로 사지 말고, 반등(재돌파) 확인 후 진입하면
-// 어떨까" — 터치일 저가가 무너지는 채로 계속 하락하는 트레이드(현재 STOP 42%)를 걸러낼 수 있는지 검증.
-//
-// 진입 로직 변경: ①장대양봉 탐지(몸통 bodyPct%↑) → ②retestWindow 내 첫 저가<=mid인 날(터치일 f)
-//   → ③터치일 f부터 confirmWindow거래일 이내, 종가가 "터치일 고가(seq[f].high)"를 재돌파(상회)하는
-//   첫 날 c의 종가에 매수(반등 확인). confirmWindow=0이면 터치일 당일 종가가 이미 터치일 고가를
-//   넘어야 하므로 사실상 "터치+반전 양봉 마감"만 채택.
-//   단, i+1~c 사이 종가가 캔들 저가 아래로 무너지면(붕괴) 셋업 폐기(기존과 동일).
-// 청산: 기존과 동일(TP=캔들고가 도달/STOP=캔들저가×(1-stopBufferPct%)/TIME=maxHold거래일).
-// 사용법: node scripts/project_bigcandle_pullback_reconfirm_backtest.mjs
+// 장대양봉(bigcandle) 전략 — 진행중(대기) 셋업 조회
+// project_bigcandle_recent_signals.mjs와 동일 확정 로직(몸통5%↑/되돌림20일/재돌파확인5일/touchHigh<candleHigh가드/상승국면필터)을 사용하되,
+// 그 스크립트가 생략하는 "아직 체결 안 된" 셋업(눌림대기/재돌파대기)만 종목당 최신 1건씩 추출해 진행상태와 함께 표시.
+// 사용법: node scripts/project_bigcandle_pending_setups.mjs
 import https from 'https';
 
 const YF_HEADERS = {
@@ -22,7 +14,7 @@ const FALLBACK_KOSPI = [
 ];
 const DEFAULT_STOCKS = FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' }));
 const BASE_PERIOD = 200;
-const BASE_OPTS = { calendarDays: 2555, bodyPct: 4, retestWindow: 20, stopBufferPct: 0.5, maxHold: 15, requireUptrend: true };
+const OPTS = { calendarDays: 2555, bodyPct: 5, retestWindow: 20, confirmWindow: 5, stopBufferPct: 0.5, maxHold: 15, requireUptrend: true };
 
 function httpGetJson(url) {
   return new Promise((res, rej) => {
@@ -78,14 +70,6 @@ function buildEma(closes, period) {
   return emas;
 }
 
-function mean(arr) { return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null; }
-function median(arr) {
-  if (!arr.length) return null;
-  const s = [...arr].sort((a, b) => a - b);
-  const n = s.length;
-  return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
-}
-
 async function batchAll(items, fn, concurrency = 5, delay = 150) {
   const results = new Array(items.length).fill(null);
   let idx = 0;
@@ -100,11 +84,11 @@ async function batchAll(items, fn, concurrency = 5, delay = 150) {
   return results;
 }
 
-// mode: 'baseline'(터치 즉시 mid가 매수) | 'reconfirm'(터치 후 터치일 고가 재돌파 종가매수)
-function detectAndSimulate(seq, opts) {
+// 종목당 가장 최근 "아직 살아있는" 미체결 셋업 1건만 반환 (눌림대기 또는 재돌파대기)
+function findPendingSetup(seq, opts) {
   const n = seq.length;
-  const trades = [];
-  for (let i = 0; i < n; i++) {
+  let pending = null;
+  for (let i = n - 1; i >= 0; i--) {
     const o = seq[i].open, c = seq[i].close, h = seq[i].high, l = seq[i].low;
     if (o == null || c == null || c <= o) continue;
     const bodyPct = (c - o) / o * 100;
@@ -112,67 +96,53 @@ function detectAndSimulate(seq, opts) {
 
     const mid = (o + c) / 2;
     const candleLow = l, candleHigh = h;
-    const stop = candleLow * (1 - opts.stopBufferPct / 100);
 
-    // 터치일 탐색
-    let touchIdx = null;
+    let touchIdx = null, brokenLow = false;
     for (let f = i + 1; f < Math.min(n, i + 1 + opts.retestWindow); f++) {
-      if (seq[f].close < candleLow) break;
+      if (seq[f].close < candleLow) { brokenLow = true; break; }
       if (seq[f].low <= mid) { touchIdx = f; break; }
     }
-    if (touchIdx == null) continue;
+    const daysSinceCandle = n - 1 - i;
 
-    let entryIdx, entryPrice;
-    if (opts.mode === 'baseline') {
-      entryIdx = touchIdx;
-      entryPrice = mid;
-    } else {
-      // 재돌파 확인: 터치일 고가를 종가기준 재돌파하는 첫 날(confirmWindow 이내), 붕괴시 폐기
-      const touchHigh = seq[touchIdx].high;
-      // 2026-09-01 결함수정: 터치일 고가가 이미 캔들고가(TP목표)를 넘으면 무효셋업(진입이 TP 초과 상태로
-      // 체결되는 논리결함 방지, 실사례로 SK이노베이션 2026-08-14 캔들 STOP-14.53% 확인)
-      if (touchHigh >= candleHigh) continue;
-      let confirmIdx = null;
-      for (let c2 = touchIdx; c2 < Math.min(n, touchIdx + opts.confirmWindow + 1); c2++) {
-        if (seq[c2].close < candleLow) break; // 붕괴
-        if (seq[c2].close > touchHigh) { confirmIdx = c2; break; }
-      }
-      if (confirmIdx == null) continue;
-      // 2026-09-02 결함수정: 확인창(최대5일) 동안 급등해 진입가 자체가 이미 TP가(candleHigh)를
-      // 넘거나 같으면 무효셋업(진입 즉시/익일 TP판정되며 승률·perDay가 부풀려지는 동일 성격의 결함)
-      if (seq[confirmIdx].close >= candleHigh) continue;
-      entryIdx = confirmIdx;
-      entryPrice = seq[confirmIdx].close;
+    if (touchIdx == null) {
+      if (brokenLow) continue; // 붕괴, 무효
+      if (daysSinceCandle > opts.retestWindow) continue; // 눌림 대기창 만료
+      pending = { stage: 'AWAIT_TOUCH', candleDate: seq[i].date, candleHigh, candleLow, mid, daysWaiting: daysSinceCandle, windowLeft: opts.retestWindow - daysSinceCandle };
+      break;
     }
 
-    const entryEma200 = seq[entryIdx].ema200;
-    const uptrend = entryEma200 != null ? seq[entryIdx].close >= entryEma200 : null;
-    if (opts.requireUptrend && uptrend !== true) continue;
+    const touchHigh = seq[touchIdx].high;
+    if (touchHigh >= candleHigh) continue; // 무효셋업(가드)
 
-    let result = null;
-    for (let d = 1; d <= opts.maxHold; d++) {
-      const j = entryIdx + d;
-      if (j >= n) { result = null; break; }
-      const close = seq[j].close;
-      if (close <= stop) { result = { ret: (close - entryPrice) / entryPrice * 100, day: d, reason: 'STOP', date: seq[j].date }; break; }
-      if (close >= candleHigh) { result = { ret: (close - entryPrice) / entryPrice * 100, day: d, reason: 'TP', date: seq[j].date }; break; }
-      if (d === opts.maxHold) { result = { ret: (close - entryPrice) / entryPrice * 100, day: d, reason: 'TIME', date: seq[j].date }; break; }
+    let entryIdx = null, brokenLow2 = false;
+    for (let c2 = touchIdx; c2 < Math.min(n, touchIdx + opts.confirmWindow + 1); c2++) {
+      if (seq[c2].close < candleLow) { brokenLow2 = true; break; }
+      if (seq[c2].close > touchHigh) { entryIdx = c2; break; }
     }
-    if (!result) continue;
-    trades.push({ name: seq[0].name, entryDate: seq[entryIdx].date, ...result });
+    if (entryIdx != null) continue; // 이미 체결됨 — recent_signals가 담당, 여기선 생략
+    if (brokenLow2) continue; // 붕괴, 무효
+
+    const daysSinceTouch = n - 1 - touchIdx;
+    if (daysSinceTouch > opts.confirmWindow) continue; // 재돌파 확인창 만료
+
+    pending = { stage: 'AWAIT_BREAKOUT', candleDate: seq[i].date, candleHigh, candleLow, touchDate: seq[touchIdx].date, touchHigh, daysWaiting: daysSinceTouch, windowLeft: opts.confirmWindow - daysSinceTouch };
+    break;
   }
-  return trades;
+  return pending;
 }
 
-async function loadStock(stock) {
+async function backtestStock(stock, opts) {
   const p2 = Math.floor(Date.now() / 1000);
-  const p1 = p2 - BASE_OPTS.calendarDays * 24 * 3600;
+  const p1 = p2 - opts.calendarDays * 24 * 3600;
   const symbol = stock.market === 'KOSDAQ' ? `${stock.code}.KQ` : `${stock.code}.KS`;
+
   const chart = await fetchYahooChart(symbol, p1, p2);
-  if (!chart || !chart.ts.length) return null;
+  if (!chart || !chart.ts.length) return { ...stock, error: '데이터 조회 실패' };
+
   const dates = chart.ts.map(tsToKstDate);
   const closes = chart.close;
   const ema200s = buildEma(closes, BASE_PERIOD);
+
   const seq = [];
   for (let i = 0; i < dates.length; i++) {
     if (closes[i] == null || chart.open[i] == null) continue;
@@ -182,38 +152,40 @@ async function loadStock(stock) {
       ema200: ema200s[i] ?? null, name: stock.name,
     });
   }
-  const minLen = BASE_PERIOD + BASE_OPTS.maxHold + 10;
-  if (seq.length < minLen) return null;
-  return seq;
-}
+  const minLen = BASE_PERIOD + 10;
+  if (seq.length < minLen) return { ...stock, error: '데이터 부족' };
 
-function statOf(trades) {
-  if (!trades.length) return { n: 0 };
-  const rets = trades.map(t => t.ret);
-  const avg = mean(rets), med = median(rets), avgDays = mean(trades.map(t => t.day));
-  const win = rets.filter(r => r > 0).length / rets.length * 100;
-  return { n: rets.length, avg, med, win, avgDays, perDay: avg / avgDays };
-}
+  const curClose = seq[seq.length - 1].close;
+  const curEma200 = seq[seq.length - 1].ema200;
+  const uptrend = curEma200 != null ? curClose >= curEma200 : null;
 
-function fmtRow(label, s) {
-  if (!s || s.n === 0) return `${label}\tn=0`;
-  return `${label}\tn=${s.n}\t${s.avg >= 0 ? '+' : ''}${s.avg.toFixed(2)}%\t${s.med >= 0 ? '+' : ''}${s.med.toFixed(2)}%\t${s.win.toFixed(0)}%\t${s.avgDays.toFixed(1)}일\t${s.perDay >= 0 ? '+' : ''}${s.perDay.toFixed(3)}%`;
+  const pending = findPendingSetup(seq, opts);
+  return { ...stock, pending, curClose, uptrend };
 }
 
 async function main() {
-  console.error(`[장대양봉 눌림+재돌파 확인 진입 검증] ${DEFAULT_STOCKS.length}종목 로딩 중...`);
-  const seqs = await batchAll(DEFAULT_STOCKS, loadStock);
-  const validSeqs = seqs.filter(Boolean);
-  console.error(`로드 완료: ${validSeqs.length}/${DEFAULT_STOCKS.length}종목`);
+  console.error(`[장대양봉(bigcandle) — 진행중 셋업] ${DEFAULT_STOCKS.length}종목 스캔 중(확정파라미터: 몸통5%↑/되돌림20일/재돌파확인5일/상승국면필터)`);
 
-  console.log('구분\tn\t평균\t중앙값\t승률\t평균보유\tperDay');
-  const baselineTrades = validSeqs.flatMap(seq => detectAndSimulate(seq, { ...BASE_OPTS, mode: 'baseline' }));
-  console.log(fmtRow('기존(터치즉시매수)', statOf(baselineTrades)));
+  const results = await batchAll(DEFAULT_STOCKS, s => backtestStock(s, OPTS));
+  const rows = results.filter(r => !r.error && r.pending);
 
-  const CONFIRM_WINDOWS = [0, 1, 3, 5, 10, 20];
-  for (const cw of CONFIRM_WINDOWS) {
-    const trades = validSeqs.flatMap(seq => detectAndSimulate(seq, { ...BASE_OPTS, mode: 'reconfirm', confirmWindow: cw }));
-    console.log(fmtRow(`재돌파확인(확인창${cw}일)`, statOf(trades)));
+  const awaitBreakout = rows.filter(r => r.pending.stage === 'AWAIT_BREAKOUT');
+  const awaitTouch = rows.filter(r => r.pending.stage === 'AWAIT_TOUCH');
+
+  console.log(`\n진행중 셋업: 재돌파대기 ${awaitBreakout.length}건, 눌림대기 ${awaitTouch.length}건\n`);
+
+  console.log('■ 재돌파대기 (눌림 터치 완료, 터치일 고가 종가돌파 시 즉시 매수)');
+  console.log('종목명\t장대양봉일\t눌림터치일\t터치일고가(돌파기준)\tTP가(캔들고가)\t현재가\t상승국면\t확인창 잔여');
+  for (const r of awaitBreakout.sort((a, b) => b.pending.touchDate.localeCompare(a.pending.touchDate))) {
+    const p = r.pending;
+    console.log(`${r.name}\t${p.candleDate}\t${p.touchDate}\t${Math.round(p.touchHigh).toLocaleString()}\t${Math.round(p.candleHigh).toLocaleString()}\t${Math.round(r.curClose).toLocaleString()}\t${r.uptrend ? 'O' : 'X'}\t${p.windowLeft}일`);
+  }
+
+  console.log('\n■ 눌림대기 (장대양봉 발생, 중간값 눌림 아직 미발생)');
+  console.log('종목명\t장대양봉일\t중간값(눌림목표)\tTP가(캔들고가)\t현재가\t상승국면\t대기창 잔여');
+  for (const r of awaitTouch.sort((a, b) => b.pending.candleDate.localeCompare(a.pending.candleDate))) {
+    const p = r.pending;
+    console.log(`${r.name}\t${p.candleDate}\t${Math.round(p.mid).toLocaleString()}\t${Math.round(p.candleHigh).toLocaleString()}\t${Math.round(r.curClose).toLocaleString()}\t${r.uptrend ? 'O' : 'X'}\t${p.windowLeft}일`);
   }
 }
 

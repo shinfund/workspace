@@ -219,6 +219,7 @@ function precomputeBigcandle(st) {
       if (closes[c2] > touchHigh) { confirmIdx = c2; break; }
     }
     if (confirmIdx == null) continue;
+    if (closes[confirmIdx] >= candleHigh) continue; // 2026-09-02 결함수정: 진입가가 이미 TP가 초과인 무효셋업 배제
     const e200 = ema200[confirmIdx];
     if (BC.requireUptrend && (e200 == null || closes[confirmIdx] < e200)) continue;
     const stop = candleLow * (1 - BC.stopBufferPct / 100);

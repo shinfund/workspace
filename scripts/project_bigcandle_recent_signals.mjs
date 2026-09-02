@@ -131,6 +131,8 @@ function detectAndSimulate(seq, opts) {
       if (seq[c2].close > touchHigh) { entryIdx = c2; break; }
     }
     if (entryIdx == null) continue; // 재돌파 미확인(대기중) 또는 확인창 경과 — 체결된 것만 추적
+    // 2026-09-02 결함수정: 진입가 자체가 이미 TP가(candleHigh)를 넘거나 같으면 무효셋업
+    if (seq[entryIdx].close >= candleHigh) continue;
 
     const entryEma200 = seq[entryIdx].ema200;
     const uptrend = entryEma200 != null ? seq[entryIdx].close >= entryEma200 : null;

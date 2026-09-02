@@ -492,6 +492,7 @@ async function checkBigcandleEntry(stock, kisMap, todayDate) {
       if (closes[c2] > touchHigh) { confirmIdx = c2; break; }
     }
     if (confirmIdx !== lastIdx) continue; // 오늘 확정된 신호만 채택
+    if (closes[lastIdx] >= candleHigh) continue; // 2026-09-02 결함수정: 진입가가 이미 TP가 초과인 무효셋업 배제
 
     const e200 = ema200s[lastIdx];
     if (e200 == null || closes[lastIdx] < e200) continue;
@@ -529,6 +530,7 @@ async function backtestBigcandleStock(stock) {
       if (closes[c2] > touchHigh) { confirmIdx = c2; break; }
     }
     if (confirmIdx == null) continue;
+    if (closes[confirmIdx] >= candleHigh) continue; // 2026-09-02 결함수정: 진입가가 이미 TP가 초과인 무효셋업 배제
     const e200 = ema200s[confirmIdx];
     if (e200 == null || closes[confirmIdx] < e200) continue;
     const stop = candleLow * (1 - BC_STOP_BUFFER_PCT / 100);

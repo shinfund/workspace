@@ -114,12 +114,14 @@ function detectAndSimulate(seq, opts) {
     if (touchIdx == null) continue;
 
     const touchHigh = seq[touchIdx].high;
+    if (touchHigh >= candleHigh) continue; // 2026-09-01 결함수정: 무효셋업 배제
     let confirmIdx = null;
     for (let c2 = touchIdx; c2 < Math.min(n, touchIdx + opts.confirmWindow + 1); c2++) {
       if (seq[c2].close < candleLow) break;
       if (seq[c2].close > touchHigh) { confirmIdx = c2; break; }
     }
     if (confirmIdx == null) continue;
+    if (seq[confirmIdx].close >= candleHigh) continue; // 2026-09-02 결함수정: 진입가가 이미 TP가 초과인 무효셋업 배제
     const entryIdx = confirmIdx, entryPrice = seq[confirmIdx].close;
 
     const entryEma200 = seq[entryIdx].ema200;
