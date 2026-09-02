@@ -16,6 +16,28 @@ import { getToken, fetchKrxUniverse, fetchKisPrice } from './kis_api.mjs';
 const EMA_PERIODS = [5, 20, 50, 100, 200];
 const BATCH = 5, DELAY = 200;
 
+// 섹터 분류(수동 매핑, 2026-09-02 도입) — KRX/KIS API에 업종 데이터가 없어 종목코드 기준 하드코딩
+const SECTOR_MAP = {
+  '005930': '반도체/IT부품', '000660': '반도체/IT부품', '009150': '반도체/IT부품', '042700': '반도체/IT부품',
+  '402340': '지주회사', '028260': '지주회사', '034730': '지주회사', '000150': '지주회사', '003550': '지주회사', '267250': '지주회사',
+  '105560': '금융(은행/지주)', '055550': '금융(은행/지주)', '086790': '금융(은행/지주)', '316140': '금융(은행/지주)', '024110': '금융(은행/지주)',
+  '005380': '자동차/부품', '000270': '자동차/부품', '012330': '자동차/부품',
+  '373220': '2차전지', '006400': '2차전지', '003670': '2차전지',
+  '329180': '조선', '042660': '조선', '009540': '조선', '010140': '조선',
+  '207940': '바이오/제약', '068270': '바이오/제약',
+  '034020': '에너지/화학', '096770': '에너지/화학', '051910': '에너지/화학', '010950': '에너지/화학',
+  '032830': '금융(보험/증권)', '000810': '금융(보험/증권)', '006800': '금융(보험/증권)',
+  '010120': '전력기기/유틸리티', '267260': '전력기기/유틸리티', '298040': '전력기기/유틸리티', '015760': '전력기기/유틸리티',
+  '012450': '방산/항공우주', '079550': '방산/항공우주',
+  '035420': 'IT/인터넷/서비스', '035720': 'IT/인터넷/서비스', '018260': 'IT/인터넷/서비스',
+  '010130': '철강/비철금속', '005490': '철강/비철금속',
+  '033780': '소비재/화장품', '278470': '소비재/화장품',
+  '066570': '전자/가전',
+  '017670': '통신',
+  '011200': '해운',
+  '086280': '물류',
+};
+
 const YF_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
   'Accept': 'application/json',
@@ -160,6 +182,20 @@ function fmtEmaDev(price, ema) {
 }
 function mktcapStr(v) { return (v / 1e12).toFixed(1) + '조'; }
 
+function buildSectorSummary(rows, sectorMap) {
+  const bySector = {};
+  for (const r of rows) {
+    const name = sectorMap[r.종목코드] || '기타';
+    if (!bySector[name]) bySector[name] = { name, stocks: [], mktcap: 0, chgSum: 0 };
+    bySector[name].stocks.push(r);
+    bySector[name].mktcap += r.시가총액전일;
+    bySector[name].chgSum += r.등락률;
+  }
+  const sectors = Object.values(bySector).map(s => ({ ...s, avgChg: s.chgSum / s.stocks.length }));
+  sectors.sort((a, b) => b.avgChg - a.avgChg);
+  return sectors;
+}
+
 async function main() {
   const opts = parseArgs();
   const { date, timeStr } = kstNow();
@@ -207,6 +243,35 @@ async function main() {
   }
 
   console.log(`\n[데이터 소스] 현재가·등락률: KIS API 실시간(${date} ${timeStr} 기준) / 시가총액: 전일(${basDtLabel}) KRX 확정 기준 / EMA5~200괴리: Yahoo Finance 일봉 종가 기준 EMA 대비 현재가 괴리율(오늘 종가는 KIS 실시간가로 대체해 계산)`);
+
+  const sectors = buildSectorSummary(loaded, SECTOR_MAP);
+  const secHdr = '섹터'.padEnd(14) + '종목명'.padEnd(16) + '현재가'.padStart(10) + '등락률'.padStart(8) + 'EMA200'.padStart(9) + '시총'.padStart(9);
+  console.log(`\n━━━ 섹터별 시세표 (섹터 평균등락률 내림차순) ━━━`);
+  console.log(secHdr);
+  console.log('─'.repeat(secHdr.length));
+  for (const sec of sectors) {
+    sec.stocks.forEach((r, i) => {
+      const chgStr = (r.등락률 >= 0 ? '+' : '') + r.등락률.toFixed(2) + '%';
+      console.log(
+        (i === 0 ? sec.name : '﹡').padEnd(14) +
+        r.종목명.padEnd(16) +
+        r.현재가.toLocaleString().padStart(10) +
+        chgStr.padStart(8) +
+        fmtEmaDev(r.현재가, r.ema200).padStart(9) +
+        mktcapStr(r.시가총액전일).padStart(9)
+      );
+    });
+  }
+
+  const sumHdr = '섹터'.padEnd(14) + '종목수'.padStart(6) + '시총합계'.padStart(10) + '평균등락률'.padStart(10);
+  console.log(`\n━━━ 섹터별 요약 (평균등락률 내림차순) ━━━`);
+  console.log(sumHdr);
+  console.log('─'.repeat(sumHdr.length));
+  for (const sec of sectors) {
+    const avgStr = (sec.avgChg >= 0 ? '+' : '') + sec.avgChg.toFixed(2) + '%';
+    console.log(sec.name.padEnd(14) + String(sec.stocks.length).padStart(6) + mktcapStr(sec.mktcap).padStart(10) + avgStr.padStart(10));
+  }
+  console.log(`\n[섹터 분류] 스크립트 데이터가 아닌 일반 업종 기준 수동 매핑(SECTOR_MAP) / ﹡ = 위와 동일 섹터`);
 
   console.log('\n' + JSON.stringify(loaded.map(r => ({
     순위: r.순위, 종목코드: r.종목코드, 종목명: r.종목명, 현재가: r.현재가, 등락률: r.등락률,

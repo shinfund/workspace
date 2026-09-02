@@ -17,6 +17,17 @@ import { getToken, fetchKrxUniverse, fetchKisPrice } from './kis_api.mjs';
 const EMA_PERIODS = [5, 20, 50, 100, 200];
 const BATCH = 5, DELAY = 200;
 
+// 섹터 분류(수동 매핑, 2026-09-02 도입) — KRX/KIS API에 업종 데이터가 없어 종목코드 기준 하드코딩
+const SECTOR_MAP = {
+  '196170': '바이오/제약', '028300': '바이오/제약', '214450': '바이오/제약', '087010': '바이오/제약',
+  '298380': '바이오/제약', '000250': '바이오/제약', '141080': '바이오/제약',
+  '036930': '반도체장비/부품', '240810': '반도체장비/부품', '058470': '반도체장비/부품', '039030': '반도체장비/부품',
+  '222800': '반도체장비/부품', '403870': '반도체장비/부품', '319660': '반도체장비/부품', '095340': '반도체장비/부품',
+  '086520': '2차전지소재', '247540': '2차전지소재',
+  '277810': '로봇', '108490': '로봇',
+  '257720': '화장품/뷰티유통',
+};
+
 const YF_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
   'Accept': 'application/json',
@@ -161,6 +172,20 @@ function fmtEmaDev(price, ema) {
 }
 function mktcapStr(v) { return (v / 1e12).toFixed(1) + '조'; }
 
+function buildSectorSummary(rows, sectorMap) {
+  const bySector = {};
+  for (const r of rows) {
+    const name = sectorMap[r.종목코드] || '기타';
+    if (!bySector[name]) bySector[name] = { name, stocks: [], mktcap: 0, chgSum: 0 };
+    bySector[name].stocks.push(r);
+    bySector[name].mktcap += r.시가총액전일;
+    bySector[name].chgSum += r.등락률;
+  }
+  const sectors = Object.values(bySector).map(s => ({ ...s, avgChg: s.chgSum / s.stocks.length }));
+  sectors.sort((a, b) => b.avgChg - a.avgChg);
+  return sectors;
+}
+
 async function main() {
   const opts = parseArgs();
   const { date, timeStr } = kstNow();
@@ -208,6 +233,35 @@ async function main() {
   }
 
   console.log(`\n[데이터 소스] 현재가·등락률: KIS API 실시간(${date} ${timeStr} 기준) / 시가총액: 전일(${basDtLabel}) KRX 확정 기준 / EMA5~200괴리: Yahoo Finance 일봉 종가(.KQ) 기준 EMA 대비 현재가 괴리율(오늘 종가는 KIS 실시간가로 대체해 계산)`);
+
+  const sectors = buildSectorSummary(loaded, SECTOR_MAP);
+  const secHdr = '섹터'.padEnd(14) + '종목명'.padEnd(16) + '현재가'.padStart(10) + '등락률'.padStart(8) + 'EMA200'.padStart(9) + '시총'.padStart(9);
+  console.log(`\n━━━ 섹터별 시세표 (섹터 평균등락률 내림차순) ━━━`);
+  console.log(secHdr);
+  console.log('─'.repeat(secHdr.length));
+  for (const sec of sectors) {
+    sec.stocks.forEach((r, i) => {
+      const chgStr = (r.등락률 >= 0 ? '+' : '') + r.등락률.toFixed(2) + '%';
+      console.log(
+        (i === 0 ? sec.name : '﹡').padEnd(14) +
+        r.종목명.padEnd(16) +
+        r.현재가.toLocaleString().padStart(10) +
+        chgStr.padStart(8) +
+        fmtEmaDev(r.현재가, r.ema200).padStart(9) +
+        mktcapStr(r.시가총액전일).padStart(9)
+      );
+    });
+  }
+
+  const sumHdr = '섹터'.padEnd(14) + '종목수'.padStart(6) + '시총합계'.padStart(10) + '평균등락률'.padStart(10);
+  console.log(`\n━━━ 섹터별 요약 (평균등락률 내림차순) ━━━`);
+  console.log(sumHdr);
+  console.log('─'.repeat(sumHdr.length));
+  for (const sec of sectors) {
+    const avgStr = (sec.avgChg >= 0 ? '+' : '') + sec.avgChg.toFixed(2) + '%';
+    console.log(sec.name.padEnd(14) + String(sec.stocks.length).padStart(6) + mktcapStr(sec.mktcap).padStart(10) + avgStr.padStart(10));
+  }
+  console.log(`\n[섹터 분류] 스크립트 데이터가 아닌 일반 업종 기준 수동 매핑(SECTOR_MAP) / ﹡ = 위와 동일 섹터`);
 
   console.log('\n' + JSON.stringify(loaded.map(r => ({
     순위: r.순위, 종목코드: r.종목코드, 종목명: r.종목명, 현재가: r.현재가, 등락률: r.등락률,
