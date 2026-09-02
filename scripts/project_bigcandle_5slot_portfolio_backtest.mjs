@@ -19,7 +19,7 @@ const FALLBACK_KOSPI = [
 const UNIVERSE = FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' }));
 const BASE_PERIOD = 200;
 const CALENDAR_DAYS = 2555;
-const OPTS = { bodyPct: 5, bodyPctMax: 25, retestWindow: 20, stopBufferPct: 0.5, maxHold: 15, confirmWindow: 5, requireUptrend: true };
+const OPTS = { bodyPct: 5, bodyPctMax: 25, minHeadroomPct: 1, retestWindow: 20, stopBufferPct: 0.5, maxHold: 15, confirmWindow: 5, requireUptrend: true };
 const SLOTS = 5;
 const START_CAPITAL = 10_000_000;
 
@@ -109,6 +109,8 @@ function detectSignals(seq, opts) {
     }
     if (confirmIdx == null) continue;
     if (seq[confirmIdx].close >= candleHigh) continue; // 2026-09-02 결함수정: 진입가가 이미 TP가 초과인 무효셋업 배제
+    const headroomPct = (candleHigh - seq[confirmIdx].close) / seq[confirmIdx].close * 100;
+    if (headroomPct < opts.minHeadroomPct) continue; // 2026-09-02 4차 필터: headroom 하한(4전략 통합레벨 검증)
 
     const entryEma200 = seq[confirmIdx].ema200;
     const uptrend = entryEma200 != null ? seq[confirmIdx].close >= entryEma200 : null;

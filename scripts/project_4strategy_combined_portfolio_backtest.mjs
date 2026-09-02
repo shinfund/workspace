@@ -22,7 +22,7 @@ const UNIVERSE = FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' }));
 const PB = { MA_SHORT: 50, MA_LONG: 100, SLOPE_LOOKBACK: 10, BREAKOUT_LOOKBACK: 6, ATR_PERIOD: 14, BAND_K: 0.4, SL: 8, TRAIL: 8, TP_PCT: 20, TP_FRAC: 0.4, REGIME_STREAK_MIN: 10, KOSPI_ATR_PERIOD: 14, VOL_CAP: 4, STOCK_ATR_CAP: 6, MAX_HOLD: 40, CAP: 3, COOLDOWN_DAYS: 5 };
 const DV = { ROLL: 250, Z_THRESHOLD: -2, ENTRY_PCT_THRESHOLD: 3, FAST: 5, SLOW: 20, MID: 50, MID2: 100, LONG: 200, SL: 18, TP: 20, MAX_HOLD: 20, CAP: 3 };
 const RN = { WINDOW_DAYS: 150, TARGET_TICKS: 30, RECENT_LOOKBACK: 20, PRIOR_ABOVE_DAYS: 5, MIN_TOUCHES: 3, RECLAIM_WINDOW: 5, STOP_BUFFER_PCT: 3, MAX_HOLD: 60, MIN_ENTRY_POSITION_PCT: 20, MIN_BAND_WIDTH_PCT: 2.5, CAP: 3 };
-const BC = { bodyPct: 5, bodyPctMax: 25, retestWindow: 20, stopBufferPct: 0.5, maxHold: 15, confirmWindow: 5, requireUptrend: true, CAP: 3, BASE_PERIOD: 200 };
+const BC = { bodyPct: 5, bodyPctMax: 25, minHeadroomPct: 1, retestWindow: 20, stopBufferPct: 0.5, maxHold: 15, confirmWindow: 5, requireUptrend: true, CAP: 3, BASE_PERIOD: 200 };
 
 const SLOTS = 5;
 const START_CAPITAL = 10_000_000;
@@ -221,6 +221,8 @@ function precomputeBigcandle(st) {
     }
     if (confirmIdx == null) continue;
     if (closes[confirmIdx] >= candleHigh) continue; // 2026-09-02 결함수정: 진입가가 이미 TP가 초과인 무효셋업 배제
+    const headroomPct = (candleHigh - closes[confirmIdx]) / closes[confirmIdx] * 100;
+    if (headroomPct < BC.minHeadroomPct) continue; // 2026-09-02 4차 필터: 4전략 통합레벨에서 검증된 headroom 하한(단독레벨과 반대효과)
     const e200 = ema200[confirmIdx];
     if (BC.requireUptrend && (e200 == null || closes[confirmIdx] < e200)) continue;
     const stop = candleLow * (1 - BC.stopBufferPct / 100);

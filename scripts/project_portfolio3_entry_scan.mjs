@@ -453,7 +453,7 @@ async function checkRoundnumberEntry(stock, kisMap, todayDate) {
 
 // ── 장대양봉: 오늘 진입신호 판정(2026-09-01 4번째 확정전략 편입) ──
 // 몸통5%↑ 장대양봉 → 되돌림20일 내 중간값 저가터치 → 터치일고가 재돌파확인5일창(종가기준) → 상승국면필터(EMA200)
-const BC_BODY_PCT = 5, BC_BODY_PCT_MAX = 25, BC_RETEST_WINDOW = 20, BC_CONFIRM_WINDOW = 5, BC_STOP_BUFFER_PCT = 0.5, BC_MAX_HOLD = 15, BC_EMA_PERIOD = 200;
+const BC_BODY_PCT = 5, BC_BODY_PCT_MAX = 25, BC_MIN_HEADROOM_PCT = 1, BC_RETEST_WINDOW = 20, BC_CONFIRM_WINDOW = 5, BC_STOP_BUFFER_PCT = 0.5, BC_MAX_HOLD = 15, BC_EMA_PERIOD = 200;
 async function checkBigcandleEntry(stock, kisMap, todayDate) {
   const p2 = Math.floor(Date.now() / 1000);
   const p1 = p2 - 2555 * 24 * 3600;
@@ -494,6 +494,8 @@ async function checkBigcandleEntry(stock, kisMap, todayDate) {
     }
     if (confirmIdx !== lastIdx) continue; // 오늘 확정된 신호만 채택
     if (closes[lastIdx] >= candleHigh) continue; // 2026-09-02 결함수정: 진입가가 이미 TP가 초과인 무효셋업 배제
+    const headroomPct = (candleHigh - closes[lastIdx]) / closes[lastIdx] * 100;
+    if (headroomPct < BC_MIN_HEADROOM_PCT) continue; // 2026-09-02 4차 필터: headroom 하한(4전략 통합레벨 검증)
 
     const e200 = ema200s[lastIdx];
     if (e200 == null || closes[lastIdx] < e200) continue;
@@ -533,6 +535,8 @@ async function backtestBigcandleStock(stock) {
     }
     if (confirmIdx == null) continue;
     if (closes[confirmIdx] >= candleHigh) continue; // 2026-09-02 결함수정: 진입가가 이미 TP가 초과인 무효셋업 배제
+    const headroomPctBt = (candleHigh - closes[confirmIdx]) / closes[confirmIdx] * 100;
+    if (headroomPctBt < BC_MIN_HEADROOM_PCT) continue; // 2026-09-02 4차 필터: headroom 하한
     const e200 = ema200s[confirmIdx];
     if (e200 == null || closes[confirmIdx] < e200) continue;
     const stop = candleLow * (1 - BC_STOP_BUFFER_PCT / 100);

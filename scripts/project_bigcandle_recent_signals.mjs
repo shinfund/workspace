@@ -15,7 +15,7 @@ const FALLBACK_KOSPI = [
 ];
 const DEFAULT_STOCKS = FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' }));
 const BASE_PERIOD = 200;
-const OPTS = { calendarDays: 2555, bodyPct: 5, bodyPctMax: 25, retestWindow: 20, confirmWindow: 5, stopBufferPct: 0.5, maxHold: 15, requireUptrend: true };
+const OPTS = { calendarDays: 2555, bodyPct: 5, bodyPctMax: 25, minHeadroomPct: 1, retestWindow: 20, confirmWindow: 5, stopBufferPct: 0.5, maxHold: 15, requireUptrend: true };
 
 function parseArgs() {
   const argv = process.argv.slice(2);
@@ -134,6 +134,8 @@ function detectAndSimulate(seq, opts) {
     if (entryIdx == null) continue; // 재돌파 미확인(대기중) 또는 확인창 경과 — 체결된 것만 추적
     // 2026-09-02 결함수정: 진입가 자체가 이미 TP가(candleHigh)를 넘거나 같으면 무효셋업
     if (seq[entryIdx].close >= candleHigh) continue;
+    const headroomPct = (candleHigh - seq[entryIdx].close) / seq[entryIdx].close * 100;
+    if (headroomPct < opts.minHeadroomPct) continue; // 2026-09-02 4차 필터: headroom 하한
 
     const entryEma200 = seq[entryIdx].ema200;
     const uptrend = entryEma200 != null ? seq[entryIdx].close >= entryEma200 : null;

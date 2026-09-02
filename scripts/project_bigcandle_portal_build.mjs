@@ -16,7 +16,7 @@ const FALLBACK_KOSPI = [
 ];
 const DEFAULT_STOCKS = FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' }));
 const BASE_PERIOD = 200;
-const OPTS = { calendarDays: 2555, bodyPct: 5, bodyPctMax: 25, retestWindow: 20, confirmWindow: 5, stopBufferPct: 0.5, maxHold: 15, requireUptrend: true };
+const OPTS = { calendarDays: 2555, bodyPct: 5, bodyPctMax: 25, minHeadroomPct: 1, retestWindow: 20, confirmWindow: 5, stopBufferPct: 0.5, maxHold: 15, requireUptrend: true };
 const OUT_PATH = 'C:\\Users\\shinf\\Workspace\\apps\\stock-portal\\stock-bigcandle.html';
 
 function httpGetJson(url) {
@@ -110,6 +110,8 @@ function detectRecentSignals(seq, opts) {
     for (let c2 = touchIdx; c2 < Math.min(n, touchIdx + opts.confirmWindow + 1); c2++) { if (seq[c2].close < candleLow) break; if (seq[c2].close > touchHigh) { entryIdx = c2; break; } }
     if (entryIdx == null) continue;
     if (seq[entryIdx].close >= candleHigh) continue; // 2026-09-02 2차 가드
+    const headroomPct = (candleHigh - seq[entryIdx].close) / seq[entryIdx].close * 100;
+    if (headroomPct < opts.minHeadroomPct) continue; // 2026-09-02 4차 필터: headroom 하한
     const entryEma200 = seq[entryIdx].ema200;
     const uptrend = entryEma200 != null ? seq[entryIdx].close >= entryEma200 : null;
     if (opts.requireUptrend && uptrend !== true) continue;
@@ -149,6 +151,8 @@ function findPendingSetup(seq, opts) {
     }
     const touchHigh = seq[touchIdx].high;
     if (touchHigh >= candleHigh) continue;
+    const maxPossibleHeadroom = (candleHigh - touchHigh) / touchHigh * 100;
+    if (maxPossibleHeadroom < opts.minHeadroomPct) continue; // 2026-09-02 4차 필터: 재돌파해도 headroom 하한 충족 불가능
     let entryIdx = null, brokenLow2 = false;
     for (let c2 = touchIdx; c2 < Math.min(n, touchIdx + opts.confirmWindow + 1); c2++) { if (seq[c2].close < candleLow) { brokenLow2 = true; break; } if (seq[c2].close > touchHigh) { entryIdx = c2; break; } }
     if (entryIdx != null) continue;

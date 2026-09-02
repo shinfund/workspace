@@ -14,7 +14,7 @@ const FALLBACK_KOSPI = [
 ];
 const DEFAULT_STOCKS = FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' }));
 const BASE_PERIOD = 200;
-const OPTS = { calendarDays: 2555, bodyPct: 5, bodyPctMax: 25, retestWindow: 20, confirmWindow: 5, stopBufferPct: 0.5, maxHold: 15, requireUptrend: true };
+const OPTS = { calendarDays: 2555, bodyPct: 5, bodyPctMax: 25, minHeadroomPct: 1, retestWindow: 20, confirmWindow: 5, stopBufferPct: 0.5, maxHold: 15, requireUptrend: true };
 
 function httpGetJson(url) {
   return new Promise((res, rej) => {
@@ -114,6 +114,8 @@ function findPendingSetup(seq, opts) {
 
     const touchHigh = seq[touchIdx].high;
     if (touchHigh >= candleHigh) continue; // 무효셋업(가드)
+    const maxPossibleHeadroom = (candleHigh - touchHigh) / touchHigh * 100;
+    if (maxPossibleHeadroom < opts.minHeadroomPct) continue; // 2026-09-02 4차 필터: 재돌파해도 headroom 하한 충족 불가능한 셋업 배제
 
     let entryIdx = null, brokenLow2 = false;
     for (let c2 = touchIdx; c2 < Math.min(n, touchIdx + opts.confirmWindow + 1); c2++) {

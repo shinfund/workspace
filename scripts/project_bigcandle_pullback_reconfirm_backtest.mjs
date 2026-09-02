@@ -22,7 +22,7 @@ const FALLBACK_KOSPI = [
 ];
 const DEFAULT_STOCKS = FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' }));
 const BASE_PERIOD = 200;
-const BASE_OPTS = { calendarDays: 2555, bodyPct: 4, bodyPctMax: 25, retestWindow: 20, stopBufferPct: 0.5, maxHold: 15, requireUptrend: true };
+const BASE_OPTS = { calendarDays: 2555, bodyPct: 4, bodyPctMax: 25, minHeadroomPct: 1, retestWindow: 20, stopBufferPct: 0.5, maxHold: 15, requireUptrend: true };
 
 function httpGetJson(url) {
   return new Promise((res, rej) => {
@@ -144,6 +144,10 @@ function detectAndSimulate(seq, opts) {
       if (seq[confirmIdx].close >= candleHigh) continue;
       entryIdx = confirmIdx;
       entryPrice = seq[confirmIdx].close;
+    }
+    if (opts.minHeadroomPct != null) {
+      const headroomPct = (candleHigh - entryPrice) / entryPrice * 100;
+      if (headroomPct < opts.minHeadroomPct) continue; // 2026-09-02 4차 필터: headroom 하한(일관성 반영)
     }
 
     const entryEma200 = seq[entryIdx].ema200;

@@ -124,6 +124,10 @@ function detectAndSimulate(seq, opts) {
     if (confirmIdx == null) continue;
     if (seq[confirmIdx].close >= candleHigh) continue; // 2026-09-02 결함수정: 진입가가 이미 TP가 초과인 무효셋업 배제
     const entryIdx = confirmIdx, entryPrice = seq[confirmIdx].close;
+    if (opts.minHeadroomPct != null) {
+      const headroomPct = (candleHigh - entryPrice) / entryPrice * 100;
+      if (headroomPct < opts.minHeadroomPct) continue; // 2026-09-02 4차 필터: headroom 하한(4전략 통합레벨 검증)
+    }
 
     const entryEma200 = seq[entryIdx].ema200;
     const uptrend = entryEma200 != null ? seq[entryIdx].close >= entryEma200 : null;
@@ -211,8 +215,8 @@ async function main() {
   const seqs = await loadAllSeqs();
   console.error(`로드 완료: ${seqs.length}/50종목`);
 
-  await evaluate('B. 확정조합(몸통상한캡 25% 반영, 2026-09-02)', { bodyPct: 5, bodyPctMax: 25, retestWindow: 20, stopBufferPct: 0.5, maxHold: 15, confirmWindow: 5, requireUptrend: true }, seqs);
-  await evaluate('B-구. 확정조합(캡 없음, 비교기준)', { bodyPct: 5, retestWindow: 20, stopBufferPct: 0.5, maxHold: 15, confirmWindow: 5, requireUptrend: true }, seqs);
+  await evaluate('C. 확정조합(headroom≥1% 4차필터 반영, 2026-09-02)', { bodyPct: 5, bodyPctMax: 25, minHeadroomPct: 1, retestWindow: 20, stopBufferPct: 0.5, maxHold: 15, confirmWindow: 5, requireUptrend: true }, seqs);
+  await evaluate('B-구. 3차(몸통상한캡 25%만, headroom 필터 이전)', { bodyPct: 5, bodyPctMax: 25, retestWindow: 20, stopBufferPct: 0.5, maxHold: 15, confirmWindow: 5, requireUptrend: true }, seqs);
 }
 
 main().catch(e => { console.error('오류:', e.message); process.exit(1); });
