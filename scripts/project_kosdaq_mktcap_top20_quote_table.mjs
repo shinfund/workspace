@@ -154,7 +154,11 @@ async function loadEma(stock, today) {
   return out;
 }
 
-function fmtEma(n) { return n == null ? '-' : Math.round(n).toLocaleString(); }
+function fmtEmaDev(price, ema) {
+  if (ema == null || !price) return '-';
+  const dev = (price - ema) / ema * 100;
+  return `${dev >= 0 ? '+' : ''}${dev.toFixed(2)}%`;
+}
 function mktcapStr(v) { return (v / 1e12).toFixed(1) + '조'; }
 
 async function main() {
@@ -195,15 +199,15 @@ async function main() {
       r.현재가.toLocaleString().padStart(10) +
       chgStr.padStart(8) +
       mktcapStr(r.시가총액전일).padStart(9) +
-      fmtEma(r.ema5).padStart(10) +
-      fmtEma(r.ema20).padStart(10) +
-      fmtEma(r.ema50).padStart(10) +
-      fmtEma(r.ema100).padStart(10) +
-      fmtEma(r.ema200).padStart(10)
+      fmtEmaDev(r.현재가, r.ema5).padStart(10) +
+      fmtEmaDev(r.현재가, r.ema20).padStart(10) +
+      fmtEmaDev(r.현재가, r.ema50).padStart(10) +
+      fmtEmaDev(r.현재가, r.ema100).padStart(10) +
+      fmtEmaDev(r.현재가, r.ema200).padStart(10)
     );
   }
 
-  console.log(`\n[데이터 소스] 현재가·등락률: KIS API 실시간(${date} ${timeStr} 기준) / 시가총액: 전일(${basDtLabel}) KRX 확정 기준 / EMA5~200: Yahoo Finance 일봉 종가(.KQ) + 오늘 종가는 KIS 실시간가로 대체해 계산`);
+  console.log(`\n[데이터 소스] 현재가·등락률: KIS API 실시간(${date} ${timeStr} 기준) / 시가총액: 전일(${basDtLabel}) KRX 확정 기준 / EMA5~200괴리: Yahoo Finance 일봉 종가(.KQ) 기준 EMA 대비 현재가 괴리율(오늘 종가는 KIS 실시간가로 대체해 계산)`);
 
   console.log('\n' + JSON.stringify(loaded.map(r => ({
     순위: r.순위, 종목코드: r.종목코드, 종목명: r.종목명, 현재가: r.현재가, 등락률: r.등락률,

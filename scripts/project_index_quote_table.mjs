@@ -276,7 +276,7 @@ async function main() {
   }
 
   console.log(`\n지수 시세표 (${new Date().toLocaleString('ko-KR')})`);
-  console.log(`지수명\t\t현재가\t\t등락률\t${EMA_PERIODS.map(p => `${p}EMA`).join('\t')}\t변동성(ATR14)\t5일누적`);
+  console.log(`지수명\t\t현재가\t\t등락률\t${EMA_PERIODS.map(p => `${p}EMA`).join('\t')}\tATR14\t5일누적`);
   for (const r of rows) {
     if (r.error) { console.log(`${r.name}\t조회실패`); continue; }
     const emaCols = EMA_PERIODS.map(p => fmtDev(r.dev[p], r.cross[p])).join('\t');
