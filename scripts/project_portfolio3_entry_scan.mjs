@@ -453,7 +453,7 @@ async function checkRoundnumberEntry(stock, kisMap, todayDate) {
 
 // ── 장대양봉: 오늘 진입신호 판정(2026-09-01 4번째 확정전략 편입) ──
 // 몸통5%↑ 장대양봉 → 되돌림20일 내 중간값 저가터치 → 터치일고가 재돌파확인5일창(종가기준) → 상승국면필터(EMA200)
-const BC_BODY_PCT = 5, BC_RETEST_WINDOW = 20, BC_CONFIRM_WINDOW = 5, BC_STOP_BUFFER_PCT = 0.5, BC_MAX_HOLD = 15, BC_EMA_PERIOD = 200;
+const BC_BODY_PCT = 5, BC_BODY_PCT_MAX = 25, BC_RETEST_WINDOW = 20, BC_CONFIRM_WINDOW = 5, BC_STOP_BUFFER_PCT = 0.5, BC_MAX_HOLD = 15, BC_EMA_PERIOD = 200;
 async function checkBigcandleEntry(stock, kisMap, todayDate) {
   const p2 = Math.floor(Date.now() / 1000);
   const p1 = p2 - 2555 * 24 * 3600;
@@ -475,6 +475,7 @@ async function checkBigcandleEntry(stock, kisMap, todayDate) {
     if (o == null || c == null || c <= o) continue;
     const bodyPct = (c - o) / o * 100;
     if (bodyPct < BC_BODY_PCT) continue;
+    if (bodyPct > BC_BODY_PCT_MAX) continue; // 2026-09-02 상한캡: 투기적 초급등봉(꼬리위험) 배제
     const mid = (o + c) / 2, candleLow = l, candleHigh = h;
 
     let touchIdx = null;
@@ -515,6 +516,7 @@ async function backtestBigcandleStock(stock) {
     if (o == null || c == null || c <= o) continue;
     const bodyPct = (c - o) / o * 100;
     if (bodyPct < BC_BODY_PCT) continue;
+    if (bodyPct > BC_BODY_PCT_MAX) continue; // 2026-09-02 상한캡: 투기적 초급등봉(꼬리위험) 배제
     const mid = (o + c) / 2, candleLow = l, candleHigh = h;
     let touchIdx = null;
     for (let f = i + 1; f < Math.min(n, i + 1 + BC_RETEST_WINDOW); f++) {

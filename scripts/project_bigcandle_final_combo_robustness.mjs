@@ -101,6 +101,7 @@ function detectAndSimulate(seq, opts) {
     if (o == null || c == null || c <= o) continue;
     const bodyPct = (c - o) / o * 100;
     if (bodyPct < opts.bodyPct) continue;
+    if (opts.bodyPctMax != null && bodyPct > opts.bodyPctMax) continue; // 2026-09-02 상한캡: 투기적 초급등봉(꼬리위험) 배제
 
     const mid = (o + c) / 2;
     const candleLow = l, candleHigh = h;
@@ -210,9 +211,8 @@ async function main() {
   const seqs = await loadAllSeqs();
   console.error(`로드 완료: ${seqs.length}/50종목`);
 
-  await evaluate('A. 공격적 최종조합(그리드서치 결과)', { bodyPct: 5, retestWindow: 20, stopBufferPct: 0.25, maxHold: 5, confirmWindow: 1, requireUptrend: true }, seqs);
-  await evaluate('B. 보수적 조합(몸통길이만 5%로 조정)', { bodyPct: 5, retestWindow: 20, stopBufferPct: 0.5, maxHold: 15, confirmWindow: 5, requireUptrend: true }, seqs);
-  await evaluate('C. 기존 확정값(비교기준, bodyPct4%)', { bodyPct: 4, retestWindow: 20, stopBufferPct: 0.5, maxHold: 15, confirmWindow: 5, requireUptrend: true }, seqs);
+  await evaluate('B. 확정조합(몸통상한캡 25% 반영, 2026-09-02)', { bodyPct: 5, bodyPctMax: 25, retestWindow: 20, stopBufferPct: 0.5, maxHold: 15, confirmWindow: 5, requireUptrend: true }, seqs);
+  await evaluate('B-구. 확정조합(캡 없음, 비교기준)', { bodyPct: 5, retestWindow: 20, stopBufferPct: 0.5, maxHold: 15, confirmWindow: 5, requireUptrend: true }, seqs);
 }
 
 main().catch(e => { console.error('오류:', e.message); process.exit(1); });

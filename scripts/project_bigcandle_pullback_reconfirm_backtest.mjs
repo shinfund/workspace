@@ -22,7 +22,7 @@ const FALLBACK_KOSPI = [
 ];
 const DEFAULT_STOCKS = FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' }));
 const BASE_PERIOD = 200;
-const BASE_OPTS = { calendarDays: 2555, bodyPct: 4, retestWindow: 20, stopBufferPct: 0.5, maxHold: 15, requireUptrend: true };
+const BASE_OPTS = { calendarDays: 2555, bodyPct: 4, bodyPctMax: 25, retestWindow: 20, stopBufferPct: 0.5, maxHold: 15, requireUptrend: true };
 
 function httpGetJson(url) {
   return new Promise((res, rej) => {
@@ -109,6 +109,7 @@ function detectAndSimulate(seq, opts) {
     if (o == null || c == null || c <= o) continue;
     const bodyPct = (c - o) / o * 100;
     if (bodyPct < opts.bodyPct) continue;
+    if (opts.bodyPctMax != null && bodyPct > opts.bodyPctMax) continue; // 2026-09-02 상한캡: 투기적 초급등봉(꼬리위험) 배제
 
     const mid = (o + c) / 2;
     const candleLow = l, candleHigh = h;

@@ -15,7 +15,7 @@ const FALLBACK_KOSPI = [
 ];
 const DEFAULT_STOCKS = FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' }));
 const BASE_PERIOD = 200;
-const OPTS = { calendarDays: 2555, bodyPct: 5, retestWindow: 20, confirmWindow: 5, stopBufferPct: 0.5, maxHold: 15, requireUptrend: true };
+const OPTS = { calendarDays: 2555, bodyPct: 5, bodyPctMax: 25, retestWindow: 20, confirmWindow: 5, stopBufferPct: 0.5, maxHold: 15, requireUptrend: true };
 
 function parseArgs() {
   const argv = process.argv.slice(2);
@@ -110,6 +110,7 @@ function detectAndSimulate(seq, opts) {
     if (o == null || c == null || c <= o) continue;
     const bodyPct = (c - o) / o * 100;
     if (bodyPct < opts.bodyPct) continue;
+    if (bodyPct > opts.bodyPctMax) continue; // 2026-09-02 상한캡: 투기적 초급등봉(꼬리위험) 배제
 
     const mid = (o + c) / 2;
     const candleLow = l, candleHigh = h;
