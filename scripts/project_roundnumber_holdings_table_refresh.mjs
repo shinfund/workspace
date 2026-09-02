@@ -114,8 +114,10 @@ async function fetchNotionHoldings() {
     name: (p.properties['종목명']?.title?.[0]?.plain_text || '').trim(),
     qty: Number(p.properties['보유수량']?.number || 0),
     avgPrice: Number(p.properties['매 입 가']?.number || 0),
+    strategy: p.properties['전략']?.select?.name || null,
   }));
-  return rows.filter(h => h.code && h.qty > 0);
+  // 이 앱은 라운드넘버 전략으로 실제 매수한 종목만 표시하는 것이 확정 컨벤션(다른 전략 보유종목은 각 전략 앱에서 표시)
+  return rows.filter(h => h.code && h.qty > 0 && h.strategy === '라운드넘버');
 }
 
 async function getKisToken() {
