@@ -14,6 +14,9 @@
 // 헤드라인 하락(+1814.72%→+1445.49%)으로 기각, 이 방식(유니버스 유지)은 헤드라인 개선(+1814.72%→+2200.44%) 확인.
 // 사용법: node scripts/project_portfolio3_entry_scan.mjs
 import https from 'https';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import path from 'path';
 import { fetchKrxUniverse, getToken as getKisToken, fetchKisPrice } from './kis_api.mjs';
 
 const YF_HEADERS = {
@@ -808,16 +811,18 @@ async function main() {
   else if (betaReordered) console.log(`빈슬롯 ${openSlots}개 — 후보(${combined.length}건)가 슬롯보다 많아 전략우선순위 대신 베타(KOSPI상관) 상위 ${openSlots}개 추천`);
   else console.log(`빈슬롯 ${openSlots}개 — 아래 우선순위(눌림목>괴리율>라운드넘버>장대양봉) 상위 ${openSlots}개 추천`);
 
+  const finalists = combined.slice(0, openSlots);
+  let withBt = [];
+
   if (!combined.length) {
     console.log('\n오늘 발생한 진입신호 없음.');
   } else {
     console.log(`\n[추천 ${Math.min(openSlots, combined.length)}건]`);
-    const finalists = combined.slice(0, openSlots);
     finalists.forEach((r, i) => console.log(`${i + 1}. [${r.strategy}] ${r.name}(${r.code}) ${Math.round(r.price).toLocaleString()}원 — ${r.reason}`));
 
     if (finalists.length) {
       console.error('[백테스트] 추천 후보 과거 매매성과 조회 중...');
-      const withBt = await Promise.all(finalists.map(r => backtestCandidate(r, regimeByMarket)));
+      withBt = await Promise.all(finalists.map(r => backtestCandidate(r, regimeByMarket)));
       console.log(`\n[추천 후보 과거 매매성과]`);
       withBt.forEach((r, i) => {
         if (!r.bt) { console.log(`${i + 1}. ${r.name}: 과거 신호 없음/데이터 부족`); return; }
@@ -835,6 +840,19 @@ async function main() {
       rows.forEach(r => console.log(`  - ${r.name}(${r.code}) ${Math.round(r.price).toLocaleString()}원 — ${r.reason}`));
     }
   }
+
+  // 웹(stock-portal "매매신호" 탭) 반영용 JSON 스냅샷 — 콘솔 출력과 별개로 추가 저장(기존 동작 변경 없음, combined.length===0인 날도 항상 기록)
+  const outPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '_portfolio3_entry_scan_output.json');
+  fs.writeFileSync(outPath, JSON.stringify({
+    generatedAt: new Date().toISOString(),
+    todayDate,
+    openSlots,
+    heldCount: heldCodes.size,
+    betaReordered,
+    finalists: withBt,
+    allCandidates: combined,
+  }, null, 2), 'utf8');
+  console.error(`[JSON] 결과 저장: ${outPath}`);
 }
 
 main().catch(e => { console.error('오류:', e.message); process.exit(1); });

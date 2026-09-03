@@ -9,6 +9,9 @@
 // EMA크로스·현재손익률 기준 근사 판정(verdict)을 사용한다.
 // 사용법: node scripts/project_portfolio3_exit_check.mjs
 import https from 'https';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import path from 'path';
 import { fetchKrxUniverse, getToken as getKisToken, fetchKisPrice } from './kis_api.mjs';
 
 const YF_HEADERS = {
@@ -362,10 +365,21 @@ async function buildMarketMap() {
   return map;
 }
 
+// 웹(stock-portal "매매신호" 탭) 반영용 JSON 스냅샷 — 콘솔 출력과 별개로 추가 저장(기존 동작 변경 없음)
+function writeOutputJson(data) {
+  const outPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '_portfolio3_exit_check_output.json');
+  fs.writeFileSync(outPath, JSON.stringify({ generatedAt: new Date().toISOString(), ...data }, null, 2), 'utf8');
+  console.error(`[JSON] 결과 저장: ${outPath}`);
+}
+
 async function main() {
   console.error('[보유종목 청산체크] 시작');
   const holdings = await fetchNotionHoldings();
-  if (!holdings.length) { console.log('보유종목 없음.'); return; }
+  if (!holdings.length) {
+    console.log('보유종목 없음.');
+    writeOutputJson({ todayDate: kstTodayDate(), baseline: [], urgent: [], all: [], unassigned: [] });
+    return;
+  }
   console.error(`[Notion] 보유종목 ${holdings.length}건: ${holdings.map(h => `${h.name}(${h.strategy || '미분류'})`).join(', ')}`);
 
   const marketMap = await buildMarketMap();
@@ -425,6 +439,8 @@ async function main() {
     console.log(`\n⚠ 전략 미지정 ${un.length}건 — 노션 보유종목DB에서 "전략" 필드를 지정해야 청산조건 판정 가능`);
     for (const h of un) console.log(`  - ${h.name}(${h.code}) 보유수량 ${h.qty} / 평단 ${fmtWon(h.avgPrice)}`);
   }
+
+  writeOutputJson({ todayDate, baseline: blResults, urgent: urgentRows, all, unassigned: un });
 }
 
 main().catch(e => { console.error('오류:', e.message); process.exit(1); });
