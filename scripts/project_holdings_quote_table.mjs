@@ -9,15 +9,33 @@
  * 출력: 터미널 표(수익률 내림차순) — 종목명·현재가·등락률·평가손익·수익률·매입금액·매입가·보유수량·보유비중 9컬럼(2026-08-26,
  *   EMA 괴리율 컬럼 전부 삭제, 평가손익을 등락률 바로 뒤로 이동, 손익금→평가손익·매입금→매입금액 컬럼명 변경, 매입가·보유수량·보유비중 신설.
  *   보유비중=평가금액/총평가금액)
+ *   2026-09-03: 섹터별 요약(SECTOR_MAP, 코스피TOP50 스크립트와 동일 방식) 표 추가 — 보유종목 요청 시 항상 표시.
+ *   2026-09-03: 종목별 추세구조(5/20/50/100/200 EMA 정배열·역배열 판정) 섹션, 종목별·섹터별 손익 기여도 섹션 추가.
+ *     (본체 9컬럼 표에는 EMA·기여도 컬럼 추가하지 않음 — 별도 섹션으로만 제공, 기존 표준 포맷 유지)
  */
 import https from 'https';
 import fs    from 'fs';
+
+// 섹터 분류(수동 매핑) — holdings.json 종목만 대상, 코스피TOP50 스크립트 SECTOR_MAP과 별개 관리
+const SECTOR_MAP = {
+  '010140': '조선',
+  '015760': '전력',
+  '454910': '로봇/자동화',
+};
 
 const KIS_APP_KEY    = 'PSO0pNJJEdcjc5qizFifXHn0yXG42TRA0hUz';
 const KIS_APP_SECRET = 'ag3QEJW9rPfVvvhuiJCZftESl2a0GSSXsbuLzZxVq008hTbqKrBScdZxz/NbVW9UBbdwF+Yd16eFrGB2Q6HLEKADkUCpTvUjXmdorsxF5KmNvVI/Q/fR/2uv9UjTYmzCusALcmkSOaeLQ1pByw8oVPE++lnBZg6aKxh33Tbfd/aNbGNKl2Y=';
 const KIS_TOKEN_CACHE = 'C:\\Users\\shinf\\workspace\\scripts\\kis_token.json';
 const KIS_HOST = 'openapi.koreainvestment.com';
 const KIS_PORT = 9443;
+
+const YF_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Accept': 'application/json',
+  'Accept-Language': 'ko-KR,ko;q=0.9',
+};
+const EMA_PERIODS = [5, 20, 50, 100, 200];
+const WARMUP_DAYS = Math.max(...EMA_PERIODS) * 6;
 
 async function getKisToken() {
   try {
@@ -72,6 +90,84 @@ function fetchKisPrice(token, code) {
   });
 }
 
+function httpGetJson(url) {
+  return new Promise((res, rej) => {
+    const req = https.get(url, { headers: YF_HEADERS }, r => {
+      let d = '';
+      r.on('data', c => d += c);
+      r.on('end', () => {
+        if (r.statusCode >= 400) return rej(new Error(`HTTP ${r.statusCode}`));
+        try { res(JSON.parse(d)); } catch (e) { rej(new Error('파싱실패')); }
+      });
+    });
+    req.on('error', rej);
+    req.setTimeout(15000, () => { req.destroy(); rej(new Error('timeout')); });
+  });
+}
+
+async function fetchYahooChart(symbol, p1, p2) {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&period1=${p1}&period2=${p2}&includePrePost=false`;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const data = await httpGetJson(url);
+      const result = data?.chart?.result?.[0];
+      if (!result || !result.timestamp?.length) return null;
+      const q = result.indicators?.quote?.[0] || {};
+      return { ts: result.timestamp || [], close: q.close || [] };
+    } catch { if (attempt < 2) await new Promise(r => setTimeout(r, 500)); }
+  }
+  return null;
+}
+
+async function fetchChartAutoMarket(code, p1, p2) {
+  const [ks, kq] = await Promise.all([
+    fetchYahooChart(`${code}.KS`, p1, p2),
+    fetchYahooChart(`${code}.KQ`, p1, p2),
+  ]);
+  const ksLen = ks?.ts?.length || 0;
+  const kqLen = kq?.ts?.length || 0;
+  if (ksLen === 0 && kqLen === 0) return null;
+  return ksLen >= kqLen ? ks : kq;
+}
+
+function buildEmaSeries(closes, period) {
+  const k = 2 / (period + 1);
+  const series = new Array(closes.length).fill(null);
+  let ema = null;
+  const seedBuf = [];
+  for (let i = 0; i < closes.length; i++) {
+    const price = closes[i];
+    if (price == null) { series[i] = ema; continue; }
+    if (ema === null) {
+      seedBuf.push(price);
+      if (seedBuf.length < period) { series[i] = null; continue; }
+      ema = seedBuf.reduce((a, b) => a + b, 0) / seedBuf.length;
+    } else {
+      ema = price * k + ema * (1 - k);
+    }
+    series[i] = ema;
+  }
+  return series;
+}
+
+function fillForward(closes) {
+  let last = null;
+  return closes.map(c => { if (c != null) last = c; return c == null ? last : c; });
+}
+
+function emaStructure(rawEma) {
+  const vals = EMA_PERIODS.map(p => rawEma[p]);
+  if (vals.some(v => v == null)) return '데이터부족';
+  let asc = true, desc = true;
+  for (let i = 1; i < vals.length; i++) {
+    if (!(vals[i - 1] > vals[i])) asc = false;
+    if (!(vals[i - 1] < vals[i])) desc = false;
+  }
+  if (asc) return '정배열';
+  if (desc) return '역배열';
+  return '혼조';
+}
+
 function kstTimeStr() {
   const d = new Date(Date.now() + 9 * 3600 * 1000);
   return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
@@ -84,10 +180,15 @@ function fmtPctPlain(n) { return n != null ? `${n.toFixed(2)}%` : '─'; }
 async function main() {
   const holdings = JSON.parse(fs.readFileSync('C:\\Users\\shinf\\workspace\\data\\holdings.json', 'utf8'));
   const token = await getKisToken();
+  const p2 = Math.floor(Date.now() / 1000);
+  const p1 = p2 - WARMUP_DAYS * 24 * 3600;
 
   const rows = [];
   for (const h of holdings) {
-    const kis = await fetchKisPrice(token, h.종목코드);
+    const [kis, chart] = await Promise.all([
+      fetchKisPrice(token, h.종목코드),
+      fetchChartAutoMarket(h.종목코드, p1, p2),
+    ]);
     await new Promise(r => setTimeout(r, 150));
 
     const 현재가 = kis ? kis.현재가 : null;
@@ -96,7 +197,18 @@ async function main() {
     const 손익 = 평가금액 != null ? 평가금액 - 매입금액 : null;
     const 손익률 = 평가금액 != null ? (손익 / 매입금액) * 100 : null;
 
-    rows.push({ ...h, 현재가, 등락률: kis?.등락률, 평가금액, 매입금액, 손익, 손익률 });
+    let closes = chart ? fillForward(chart.close) : [];
+    if (현재가 && closes.length) closes[closes.length - 1] = 현재가;
+    const rawEma = {}, devEma = {};
+    for (const period of EMA_PERIODS) {
+      const series = buildEmaSeries(closes, period);
+      const ema = series[series.length - 1];
+      rawEma[period] = ema;
+      devEma[period] = (ema && 현재가) ? (현재가 - ema) / ema * 100 : null;
+    }
+    const 구조 = emaStructure(rawEma);
+
+    rows.push({ ...h, 현재가, 등락률: kis?.등락률, 평가금액, 매입금액, 손익, 손익률, devEma, 구조 });
   }
 
   rows.sort((a, b) => (b.손익률 ?? -Infinity) - (a.손익률 ?? -Infinity));
@@ -118,6 +230,43 @@ async function main() {
   console.log(`\n합계\t\t\t${fmtWonSigned(총손익)}\t${fmtPct(총손익률)}\t${fmtWon(총매입)}\t\t\t${fmtPctPlain(총평가 > 0 ? 100 : null)}`);
 
   console.log(`\n[데이터 소스] 현재가·등락률: KIS API 실시간(${kstTimeStr()} 기준) / 평가손익·수익률·보유비중은 현재가 기준 즉시 계산, 매입가·보유수량은 holdings.json 스냅샷`);
+
+  const bySector = {};
+  for (const r of rows) {
+    const name = SECTOR_MAP[r.종목코드] || '기타';
+    if (!bySector[name]) bySector[name] = { name, stocks: [], 매입금액: 0, 평가금액: 0 };
+    bySector[name].stocks.push(r);
+    bySector[name].매입금액 += r.매입금액;
+    if (r.평가금액 != null) bySector[name].평가금액 += r.평가금액;
+  }
+  const sectors = Object.values(bySector)
+    .map(s => ({ ...s, 손익률: ((s.평가금액 - s.매입금액) / s.매입금액) * 100 }))
+    .sort((a, b) => b.손익률 - a.손익률);
+
+  console.log(`\n섹터별 요약 (수익률 내림차순)`);
+  console.log(`섹터\t종목수\t매입금액\t평가손익\t수익률\t손익기여도`);
+  for (const s of sectors) {
+    const s손익 = s.평가금액 - s.매입금액;
+    const 기여도 = 총손익 !== 0 ? (s손익 / 총손익) * 100 : null;
+    console.log(`${s.name}\t${s.stocks.length}\t${fmtWon(s.매입금액)}\t${fmtWonSigned(s손익)}\t${fmtPct(s.손익률)}\t${fmtPct(기여도)}`);
+  }
+
+  console.log(`\n종목별 추세구조 (5/20/50/100/200 EMA 괴리율, 정배열=상승구조·역배열=하락구조)`);
+  console.log(`종목명\t\t구조\t5EMA\t20EMA\t50EMA\t100EMA\t200EMA`);
+  for (const r of rows) {
+    const emaCols = EMA_PERIODS.map(p => fmtPct(r.devEma[p])).join('\t');
+    console.log(`${r.종목명}\t${r.구조}\t${emaCols}`);
+  }
+
+  const 기여도순 = [...rows]
+    .filter(r => r.손익 != null)
+    .sort((a, b) => Math.abs(b.손익) - Math.abs(a.손익));
+  console.log(`\n종목별 손익 기여도 (영향 큰 순, 총손익=${fmtWonSigned(총손익)} 대비)`);
+  console.log(`종목명\t\t평가손익\t기여도`);
+  for (const r of 기여도순) {
+    const 기여도 = 총손익 !== 0 ? (r.손익 / 총손익) * 100 : null;
+    console.log(`${r.종목명}\t${fmtWonSigned(r.손익)}\t${fmtPct(기여도)}`);
+  }
 }
 
 main().catch(e => { console.error(e); process.exit(1); });

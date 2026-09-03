@@ -1,5 +1,5 @@
 /**
- * project_stock_quote_ema_table.mjs — 개별종목 시세표 (5/20/50/100/200 EMA 괴리율 + 돌파 삼각형)
+ * project_stock_quote_ema_table.mjs — 개별종목 시세표 (5/20/50/100/200 EMA 괴리율)
  *
  * 데이터 소스:
  *   KIS API       → 당일 현재가 실시간
@@ -7,8 +7,8 @@
  *
  * 입력: TARGETS (개별종목 감시 리스트, 하단 기본값) 또는 CLI 인자 "코드:종목명,코드:종목명,..."
  * 출력: 터미널 표 — 종목명,현재가,등락률,5/20/50/100/200EMA(괴리율 %)
- *   (2026-08-25: 라운드지지·라운드저항·판단 컬럼 삭제, 20/50/100EMA 컬럼 재추가. 이평선 상향/하향 돌파 시
- *    괴리율 앞에 ▲/▼ 표시 — project_holdings_quote_table.mjs와 동일 결정)
+ *   (2026-08-25: 라운드지지·라운드저항·판단 컬럼 삭제, 20/50/100EMA 컬럼 재추가.
+ *    2026-09-03: 이평선 돌파 삼각형(▲/▼) 표시 삭제, 괴리율만 표시)
  *
  * Usage: node project_stock_quote_ema_table.mjs [코드:이름,코드:이름,...]
  */
@@ -157,18 +157,6 @@ function buildEmaSeries(closes, period) {
   return series;
 }
 
-// 이평선 상향/하향 돌파(전일 종가 vs 전일EMA → 당일 종가 vs 당일EMA 부호 반전) 감지
-function crossMarker(closes, emaSeries) {
-  const n = closes.length;
-  if (n < 2) return '';
-  const c1 = closes[n - 1], c0 = closes[n - 2];
-  const e1 = emaSeries[n - 1], e0 = emaSeries[n - 2];
-  if (c1 == null || c0 == null || e1 == null || e0 == null) return '';
-  if (c0 < e0 && c1 >= e1) return '▲';
-  if (c0 > e0 && c1 <= e1) return '▼';
-  return '';
-}
-
 function fillForward(closes) {
   let last = null;
   return closes.map(c => { if (c != null) last = c; return c == null ? last : c; });
@@ -183,7 +171,7 @@ function fmtPct(n) {
   if (n == null) return '─';
   return `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
 }
-function fmtDev(n, marker) { return n == null ? '─' : `${marker ? marker + ' ' : ''}${fmtPct(n)}`; }
+function fmtDev(n) { return n == null ? '─' : fmtPct(n); }
 
 async function main() {
   const token = await getKisToken();
@@ -203,20 +191,19 @@ async function main() {
     // 마지막 종가를 KIS 당일가로 덮어쓰기(장중·Yahoo 지연 오차 방지)
     if (현재가 && closes.length) closes[closes.length - 1] = 현재가;
 
-    const devByPeriod = {}, crossByPeriod = {};
+    const devByPeriod = {};
     for (const period of EMA_PERIODS) {
       const series = buildEmaSeries(closes, period);
       const ema = series[series.length - 1];
       devByPeriod[period] = (ema && 현재가) ? (현재가 - ema) / ema * 100 : null;
-      crossByPeriod[period] = crossMarker(closes, series);
     }
 
-    rows.push({ 종목명: h.종목명, 현재가, 등락률: kis?.등락률, dev: devByPeriod, cross: crossByPeriod });
+    rows.push({ 종목명: h.종목명, 현재가, 등락률: kis?.등락률, dev: devByPeriod });
   }
 
   console.log(`\n종목명\t\t현재가\t등락률\t${EMA_PERIODS.map(p => `${p}EMA`).join('\t')}`);
   for (const r of rows) {
-    const emaCols = EMA_PERIODS.map(p => fmtDev(r.dev[p], r.cross[p])).join('\t');
+    const emaCols = EMA_PERIODS.map(p => fmtDev(r.dev[p])).join('\t');
     console.log(`${r.종목명}\t${fmtWon(r.현재가)}\t${fmtPct(r.등락률)}\t${emaCols}`);
   }
 
