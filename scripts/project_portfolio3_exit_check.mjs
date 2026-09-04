@@ -239,7 +239,9 @@ async function judgePullback(h, market) {
   else if (aboveEma50) v = { label: '홀딩(50EMA위)', urgent: false };
   else if (ret <= -sl * 0.6) v = { label: '주의', urgent: false };
   else v = { label: '관찰', urgent: false };
-  return { ...h, market, close, ema50, ret, verdict: v.label, urgent: v.urgent };
+  // 2026-09-04: sl(청산 SL%)·ema50을 클라이언트가 그대로 재사용해 "조회" 버튼으로 실시간가 기준 verdict를
+  // 재계산할 수 있도록 노출(stock-portfolio.html liveJudgePullback, EMA는 ema_today=live*k+ema_prev*(1-k) 재귀식으로 갱신).
+  return { ...h, market, close, ema50, ret, sl, verdict: v.label, urgent: v.urgent };
 }
 
 // ── 괴리율 판정 ──
@@ -270,7 +272,9 @@ async function judgeDeviation(h, market) {
   else if (freshTp20) v = { label: '익절검토(+20%)', urgent: true };
   else if (ret <= -8) v = { label: '주의', urgent: false };
   else v = { label: '관찰', urgent: false };
-  return { ...h, market, close, ema5, ema20, ret, verdict: v.label, urgent: v.urgent };
+  // 2026-09-04: "조회" 라이브 재판정용 — aboveEma20(오늘=스냅샷 시점 기준)을 prevAboveEma20으로 노출해
+  // 클라이언트가 (라이브가 vs 재귀갱신 EMA20) 조합으로 freshLeg20 rising-edge를 재현할 수 있게 함.
+  return { ...h, market, close, ema5, ema20, ret, prevAboveEma20: aboveEma20, verdict: v.label, urgent: v.urgent };
 }
 
 // ── 기준선(EMA200 파동) 판정 — 축소·배제 대상, 우선 매도후보로 항상 노출 ──

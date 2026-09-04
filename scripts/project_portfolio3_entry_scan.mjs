@@ -363,7 +363,9 @@ async function checkPullbackEntry(stock, regimeByMarket, kisMap, todayDate) {
   if (normDepth > PB_BAND_K) return null;
   if (i <= blockedUntilIdx) return null; // v13: 손절후 재진입쿨다운 중
   const trendStrength = (s.maLong - prior.maLong) / prior.maLong * 100;
-  return { code: stock.code, name: stock.name, market: stock.market, price: s.close, trendStrength, pullbackNorm: normDepth, reason: `50일신고가(${Math.round(highS).toLocaleString()}) 대비 -${pullbackPct.toFixed(1)}% 눌림, EMA50/100 정배열` };
+  // 2026-09-04: "조회" 라이브 재확인용 — highS(50일신고가, 오늘까지 고정값)·atrPct(스캔시점 값, 근사)를 노출해
+  // 클라이언트가 라이브가로 눌림폭(pullbackNorm)을 재계산할 수 있게 함(stock-portfolio.html liveCheckPullback).
+  return { code: stock.code, name: stock.name, market: stock.market, price: s.close, trendStrength, pullbackNorm: normDepth, highS, atrPct: s.atrPct, reason: `50일신고가(${Math.round(highS).toLocaleString()}) 대비 -${pullbackPct.toFixed(1)}% 눌림, EMA50/100 정배열` };
 }
 
 // ── 괴리율: 오늘 진입신호 판정 ──
@@ -445,7 +447,9 @@ async function checkRoundnumberEntry(stock, kisMap, todayDate) {
         if (seq[f].close < L + step && f === lastIdx) {
           const entryPosition = (seq[f].close - L) / step * 100;
           if (entryPosition >= RN_MINPOS) {
-            return { code: stock.code, name: stock.name, market: 'KOSPI', price: seq[f].close, touchCount: touch, aboveCount, reason: `라운드지지 ${Math.round(L).toLocaleString()} 이탈 후 오늘 재돌파(터치${touch}봉, 진입위치${entryPosition.toFixed(0)}%), TP ${Math.round(L + step).toLocaleString()}` };
+            // 2026-09-04: "조회" 라이브 재확인용 — L(지지레벨)·step·target(TP)은 오늘 하루 고정값이라
+            // 클라이언트가 라이브가만으로 [L, L+step) 이탈 여부를 정확히 재판정할 수 있음(stock-portfolio.html liveCheckRoundnumber).
+            return { code: stock.code, name: stock.name, market: 'KOSPI', price: seq[f].close, touchCount: touch, aboveCount, L, step, target: L + step, reason: `라운드지지 ${Math.round(L).toLocaleString()} 이탈 후 오늘 재돌파(터치${touch}봉, 진입위치${entryPosition.toFixed(0)}%), TP ${Math.round(L + step).toLocaleString()}` };
           }
         }
         break;
@@ -504,7 +508,9 @@ async function checkBigcandleEntry(stock, kisMap, todayDate) {
     const e200 = ema200s[lastIdx];
     if (e200 == null || closes[lastIdx] < e200) continue;
     const stop = candleLow * (1 - BC_STOP_BUFFER_PCT / 100);
-    return { code: stock.code, name: stock.name, market: stock.market, price: closes[lastIdx], bodyPct, candleHigh, candleLow, stop, candleDate: dates[i], touchDate: dates[touchIdx], reason: `${dates[i]} 장대양봉(몸통+${bodyPct.toFixed(1)}%) 중간값눌림 후 오늘 캔들고가(${Math.round(touchHigh).toLocaleString()}) 재돌파, TP ${Math.round(candleHigh).toLocaleString()}/STOP ${Math.round(stop).toLocaleString()}` };
+    // 2026-09-04: "조회" 라이브 재확인용 — ema200(스캔시점, 하루 고정 근사값)을 노출해 클라이언트가
+    // 라이브가 기준 상승국면 이탈(livePrice<ema200) 여부를 함께 표시할 수 있게 함(stock-portfolio.html liveCheckBigcandle).
+    return { code: stock.code, name: stock.name, market: stock.market, price: closes[lastIdx], bodyPct, candleHigh, candleLow, stop, ema200: e200, candleDate: dates[i], touchDate: dates[touchIdx], reason: `${dates[i]} 장대양봉(몸통+${bodyPct.toFixed(1)}%) 중간값눌림 후 오늘 캔들고가(${Math.round(touchHigh).toLocaleString()}) 재돌파, TP ${Math.round(candleHigh).toLocaleString()}/STOP ${Math.round(stop).toLocaleString()}` };
   }
   return null;
 }
