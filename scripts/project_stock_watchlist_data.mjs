@@ -227,14 +227,15 @@ async function loadUniverse(list, market, sectorMap, token, today) {
     const closes = fillForward(chart.close);
     if (dates[dates.length - 1] === today) closes[closes.length - 1] = s.price;
     else closes.push(s.price);
-    const rawEma = {}, dev = {};
+    const rawEma = {}, dev = {}, cross = {};
     for (const p of EMA_PERIODS) {
       const series = buildEmaSeries(closes, p);
       const ema = series[series.length - 1];
       rawEma[p] = ema;
       dev[p] = (ema && s.price) ? (s.price - ema) / ema * 100 : null;
+      cross[p] = crossMarker(closes, series);
     }
-    return { ...s, ema: dev, structure: emaStructureFromRaw(rawEma) };
+    return { ...s, ema: dev, cross, structure: emaStructureFromRaw(rawEma) };
   });
 
   return loaded.map(s => ({ ...s, sector: sectorMap[s.code] || '기타' }));
