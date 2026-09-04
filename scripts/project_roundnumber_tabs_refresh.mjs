@@ -477,6 +477,19 @@ async function main() {
     /<b>이 표와 아래 차트는 [^<]*?장마감 기준 스냅샷으로[\s\S]*?<\/b> &mdash; 다음 장마감 갱신 때[\s\S]*?교체됩니다\./,
     `<b>이 표와 아래 차트는 ${todayStr} 장마감 기준입니다.</b>`
   );
+  // 리디자인 이후엔 위 전환 문구가 이미 사라지고 아래의 단순 형태만 남아있음 — 그 경우 날짜만 갱신
+  html = html.replace(
+    /<b>이 표와 아래 차트는 \d{4}-\d{2}-\d{2} 장마감 기준입니다\.<\/b>/,
+    `<b>이 표와 아래 차트는 ${todayStr} 장마감 기준입니다.</b>`
+  );
+
+  // 헤더 "Update MM.DD HH:MM" 스탬프 갱신
+  {
+    const hh = String(today.getHours()).padStart(2, '0');
+    const mm = String(today.getMinutes()).padStart(2, '0');
+    const mmdd = `${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`;
+    html = html.replace(/<div class="hdr-date">Update \d{2}\.\d{2} \d{2}:\d{2}<\/div>/, `<div class="hdr-date">Update ${mmdd} ${hh}:${mm}</div>`);
+  }
 
   // p0 테이블 tbody(문서상 첫 <tbody>)
   html = spliceMiddle(html, `<tbody>${eol}`, `${eol}        </tbody>`, nl(tradeTableRows));
