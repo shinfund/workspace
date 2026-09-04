@@ -1,4 +1,5 @@
-// 4전략(눌림목+괴리율+라운드넘버+장대양봉) 통합 5슬롯 포트폴리오 — 보유종목 강제청산 체크
+// 4전략(눌림목+괴리율+라운드넘버+장대양봉) 통합 4슬롯 포트폴리오 — 보유종목 강제청산 체크
+// 2026-09-04: 5슬롯→4슬롯 전환(고정식 슬롯당 250만원 = 1,000만원÷4, [[project_slot_count_sensitivity_test]] 근거).
 // 노션 보유종목DB(9f666aeb-832a-4aa2-9e52-e37515b75e56)의 "전략" 선택 필드(눌림목/괴리율/라운드넘버/장대양봉/미분류)로
 // 그룹화해, 각 전략의 정식 청산조건(project_stock_pullback.mjs / project_deviation_tp20_exit_backtest.mjs /
 // project_roundnumber_strategy_backtest.mjs)을 그대로 적용해 판정한다.

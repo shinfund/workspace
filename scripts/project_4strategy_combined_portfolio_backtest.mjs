@@ -1,4 +1,4 @@
-// 4전략(눌림목+괴리율+라운드넘버+되돌림형장대양봉) 통합 5슬롯 공유자본 포트폴리오 (2026-09-01)
+// 4전략(눌림목+괴리율+라운드넘버+되돌림형장대양봉) 통합 4슬롯 공유자본 포트폴리오 (2026-09-01, 2026-09-04 5→4슬롯+고정식 전환)
 // 배경: project_3strategy_combined_portfolio_backtest.mjs(확정 3전략, 베타우선순위 적용) 엔진에
 // 되돌림형 장대양봉(신규 검증 완료: 몸통5%+되돌림20일+재돌파확인5일+STOP0.5%+최대15일+상승국면필터)을
 // 4번째 전략으로 추가. 단독 5슬롯 시뮬레이션(+138.38%, project_bigcandle_5slot_portfolio_backtest.mjs)에서
@@ -24,7 +24,9 @@ const DV = { ROLL: 250, Z_THRESHOLD: -2, ENTRY_PCT_THRESHOLD: 3, FAST: 5, SLOW: 
 const RN = { WINDOW_DAYS: 150, TARGET_TICKS: 30, RECENT_LOOKBACK: 20, PRIOR_ABOVE_DAYS: 5, MIN_TOUCHES: 3, RECLAIM_WINDOW: 5, STOP_BUFFER_PCT: 3, MAX_HOLD: 60, MIN_ENTRY_POSITION_PCT: 20, MIN_BAND_WIDTH_PCT: 2.5, CAP: 3 };
 const BC = { bodyPct: 5, bodyPctMax: 25, minHeadroomPct: 1, retestWindow: 20, stopBufferPct: 0.5, maxHold: 15, confirmWindow: 5, requireUptrend: true, CAP: 3, BASE_PERIOD: 200 };
 
-const SLOTS = 5;
+// 2026-09-04: 5슬롯→4슬롯 전환 + 복리식(운용자산÷SLOTS)→고정식(1,000만원÷SLOTS, 실전 라이브 방식과 일치)로 변경.
+// 근거: [[project_slot_count_sensitivity_test]] 고정식 스윕에서 4슬롯이 5슬롯 대비 총수익률·MDD 둘 다 우위 확인.
+const SLOTS = 4;
 const START_CAPITAL = 10_000_000;
 
 function parseArgs() {
@@ -380,7 +382,7 @@ function runPortfolioSim(calendar, ctx, includeBigcandle) {
       if (held.has(cand.s.code)) continue;
       const st = byCode.get(cand.s.code);
       const price = st.closes[cand.i];
-      const budget = runningCapital() / SLOTS;
+      const budget = Math.min(START_CAPITAL / SLOTS, cash);
       const shares = Math.floor(budget / price);
       if (shares <= 0) { skipCount++; continue; }
       const investedTotal = shares * price;

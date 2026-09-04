@@ -1,4 +1,5 @@
-// 4전략(눌림목+괴리율+라운드넘버+장대양봉) 통합 5슬롯 포트폴리오 — "오늘" 진입신호 스캔
+// 4전략(눌림목+괴리율+라운드넘버+장대양봉) 통합 4슬롯 포트폴리오 — "오늘" 진입신호 스캔
+// 2026-09-04: 5슬롯→4슬롯 전환(고정식 슬롯당 250만원 = 1,000만원÷4, [[project_slot_count_sensitivity_test]] 근거).
 // 기준선(EMA200 파동) 전략은 [[project_trading_plan_3strategy_portfolio]] 결정에 따라 운용에서 제외됨.
 // 장대양봉(2026-09-01 4번째 확정전략 편입, [[project_bigcandle_strategy]])은 project_bigcandle_pullback_reconfirm_backtest.mjs
 // 확정 로직(몸통5%+되돌림20일+재돌파확인5일+STOP0.5%+최대15일+상승국면필터)을 그대로 복제.
@@ -25,7 +26,7 @@ const YF_HEADERS = {
 };
 const NOTION_TOKEN = process.env.NOTION_TOKEN;
 const HOLDINGS_DB_ID = '9f666aeb-832a-4aa2-9e52-e37515b75e56';
-const MAX_SLOTS = 5;
+const MAX_SLOTS = 4;
 
 const KOSPI_SIZE = 50;
 // 코스피 TOP50 (project_pullback_recent_signals.mjs / project_deviation_recent_signals.mjs /
@@ -231,8 +232,8 @@ async function queryAllNotion(url, baseBody, headers) {
   return results;
 }
 async function fetchHeldCodes() {
-  // 빈슬롯은 3전략(눌림목/괴리율/라운드넘버) 5슬롯 공유자본 기준 — 매도완료(보유수량 0)나 기준선 전략(축소·배제 대상) 보유분은 슬롯 점유로 세지 않는다.
-  if (!NOTION_TOKEN) { console.error('[Notion] NOTION_TOKEN 없음 — 빈슬롯 계산 불가, 5슬롯 전부 빈 것으로 가정'); return new Set(); }
+  // 빈슬롯은 4전략(눌림목/괴리율/라운드넘버/장대양봉) 4슬롯 공유자본 기준 — 매도완료(보유수량 0)나 기준선 전략(축소·배제 대상) 보유분은 슬롯 점유로 세지 않는다.
+  if (!NOTION_TOKEN) { console.error('[Notion] NOTION_TOKEN 없음 — 빈슬롯 계산 불가, 4슬롯 전부 빈 것으로 가정'); return new Set(); }
   const results = await queryAllNotion(`https://api.notion.com/v1/databases/${HOLDINGS_DB_ID}/query`, { sorts: [{ property: '날짜', direction: 'descending' }], page_size: 100 }, { 'Authorization': `Bearer ${NOTION_TOKEN}`, 'Notion-Version': '2022-06-28' });
   if (!results.length) return new Set();
   const data = { results };
@@ -752,7 +753,7 @@ async function main() {
   console.error('[4전략 진입신호 체크] 시작');
   const heldCodes = await fetchHeldCodes();
   const openSlots = Math.max(0, MAX_SLOTS - heldCodes.size);
-  console.error(`[슬롯] 보유 ${heldCodes.size}종목 / 5슬롯 → 빈슬롯 ${openSlots}개`);
+  console.error(`[슬롯] 보유 ${heldCodes.size}종목 / 4슬롯 → 빈슬롯 ${openSlots}개`);
 
   const kospiUniverse = await buildKospiUniverse();
   const pdUniverse = kospiUniverse.filter(s => !heldCodes.has(s.code));
