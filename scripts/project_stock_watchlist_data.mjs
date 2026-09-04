@@ -17,6 +17,7 @@
  */
 import https from 'https';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
 import { getToken, fetchKrxUniverse, fetchKisPrice } from './kis_api.mjs';
 
 const EMA_PERIODS = [5, 20, 50, 100, 200];
@@ -251,7 +252,7 @@ function buildSectorSummary(rows) {
 }
 
 // ── ② 보유종목 ──────────────────────────────────────────────
-async function loadHoldings(token) {
+export async function loadHoldings(token) {
   let holdings = [];
   try { holdings = JSON.parse(fs.readFileSync('C:\\Users\\shinf\\workspace\\data\\holdings.json', 'utf8')); } catch { return null; }
   if (!holdings.length) return null;
@@ -462,4 +463,6 @@ async function main() {
   console.log(JSON.stringify(out));
 }
 
-main().catch(e => { console.error('오류:', e); process.exit(1); });
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch(e => { console.error('오류:', e); process.exit(1); });
+}
