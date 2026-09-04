@@ -508,14 +508,18 @@ async function main() {
     html = html.slice(0, secondTbodyContentStart) + nl(pendingTableRows) + html.slice(secondTbodyEnd);
   }
 
-  // p1 ① 차트카드 부제 + 카드그리드
-  html = html.replace(/<div class="sc-title">① 대기 중 차트 <span class="sub">전체 \d+건\(이격순\)<\/span><\/div>/,
-    `<div class="sc-title">① 대기 중 차트 <span class="sub">전체 ${pending.length}건(이격순)</span></div>`);
-  html = spliceMiddle(html,
-    `<div class="sc-title">① 대기 중 차트 <span class="sub">전체 ${pending.length}건(이격순)</span></div>${eol}    <div class="chart-grid">${eol}`,
-    `    </div>${eol}  </div>${eol}  <div class="sc">${eol}    <div class="sc-title">② 재돌파했지만`,
-    nl(pendingChartCards) + eol
-  );
+  // p1 ① 차트카드 부제 + 카드그리드 (2026-09-XX 리디자인으로 예상종목 탭 차트 섹션 자체가 없어진 버전에서는 스킵)
+  if (html.includes('① 대기 중 차트')) {
+    html = html.replace(/<div class="sc-title">① 대기 중 차트 <span class="sub">전체 \d+건\(이격순\)<\/span><\/div>/,
+      `<div class="sc-title">① 대기 중 차트 <span class="sub">전체 ${pending.length}건(이격순)</span></div>`);
+    html = spliceMiddle(html,
+      `<div class="sc-title">① 대기 중 차트 <span class="sub">전체 ${pending.length}건(이격순)</span></div>${eol}    <div class="chart-grid">${eol}`,
+      `    </div>${eol}  </div>${eol}  <div class="sc">${eol}    <div class="sc-title">② 재돌파했지만`,
+      nl(pendingChartCards) + eol
+    );
+  } else {
+    console.error('[스킵] "① 대기 중 차트" 섹션이 현재 HTML에 없음 — 앱 리디자인으로 예상종목 탭 차트 섹션이 제거된 것으로 판단, 스킵');
+  }
 
   // p1 ② 테이블
   {
@@ -526,14 +530,18 @@ async function main() {
     html = html.slice(0, fourthTbodyContentStart) + nl(weakTableRows) + html.slice(fourthTbodyEnd);
   }
 
-  // p1 ② 차트카드 부제 + 카드그리드
-  html = html.replace(/<div class="sc-title">② 위치미달 차트 <span class="sub">전체 \d+건\(위치 높은순\)<\/span><\/div>/,
-    `<div class="sc-title">② 위치미달 차트 <span class="sub">전체 ${weak.length}건(위치 높은순)</span></div>`);
-  html = spliceMiddle(html,
-    `<div class="sc-title">② 위치미달 차트 <span class="sub">전체 ${weak.length}건(위치 높은순)</span></div>${eol}    <div class="chart-grid">${eol}`,
-    `    </div>${eol}  </div>${eol}</div>${eol}${eol}<div class="panel" id="p2">`,
-    nl(weakChartCards) + eol
-  );
+  // p1 ② 차트카드 부제 + 카드그리드 (2026-09-XX 리디자인으로 예상종목 탭 차트 섹션 자체가 없어진 버전에서는 스킵)
+  if (html.includes('② 위치미달 차트')) {
+    html = html.replace(/<div class="sc-title">② 위치미달 차트 <span class="sub">전체 \d+건\(위치 높은순\)<\/span><\/div>/,
+      `<div class="sc-title">② 위치미달 차트 <span class="sub">전체 ${weak.length}건(위치 높은순)</span></div>`);
+    html = spliceMiddle(html,
+      `<div class="sc-title">② 위치미달 차트 <span class="sub">전체 ${weak.length}건(위치 높은순)</span></div>${eol}    <div class="chart-grid">${eol}`,
+      `    </div>${eol}  </div>${eol}</div>${eol}${eol}<div class="panel" id="p2">`,
+      nl(weakChartCards) + eol
+    );
+  } else {
+    console.error('[스킵] "② 위치미달 차트" 섹션이 현재 HTML에 없음 — 스킵');
+  }
 
   fs.writeFileSync(HTML_PATH, html, 'utf8');
   console.error(`[저장완료] ${HTML_PATH}`);
