@@ -26,6 +26,7 @@ const YF_HEADERS = {
 };
 const NOTION_TOKEN = process.env.NOTION_TOKEN;
 const HOLDINGS_DB_ID = '9f666aeb-832a-4aa2-9e52-e37515b75e56';
+const DAYTRADE_DB_ID = '3c859c8c-9c0a-80ea-8bee-f8c263fbbd7c';
 const MAX_SLOTS = 4;
 
 const KOSPI_SIZE = 50;
@@ -256,6 +257,20 @@ async function fetchHeldCodes() {
     if (code && qty > 0 && strategy !== '기준선') codes.push(code);
   }
   return new Set(codes);
+}
+// 2026-09-07 추가: LG전자(라운드넘버 청산 직후 장대양봉 재진입) 사례로 검증([[project_sameday_reentry_exclusion_backtest]],
+// 헤드라인 +386.08%→+400.82% 개선 확인) — 당일매매DB에서 "오늘 매도한 종목"을 조회해 신규진입 후보에서 제외한다.
+async function fetchSoldTodayRows(todayDate) {
+  if (!NOTION_TOKEN) return [];
+  const results = await queryAllNotion(`https://api.notion.com/v1/databases/${DAYTRADE_DB_ID}/query`, { filter: { property: '날짜', date: { equals: todayDate } }, page_size: 100 }, { 'Authorization': `Bearer ${NOTION_TOKEN}`, 'Notion-Version': '2022-06-28' });
+  const rows = [];
+  for (const p of results) {
+    const code = (p.properties['종목코드']?.rich_text?.[0]?.plain_text || '').trim();
+    const name = (p.properties['종목명']?.title?.[0]?.plain_text || '').trim();
+    const sellQty = Number(p.properties['금일매도수량']?.number || 0);
+    if (code && sellQty > 0) rows.push({ code, name });
+  }
+  return rows;
 }
 
 // ── 눌림목: 시장국면 ──
@@ -757,15 +772,18 @@ async function fetchBetaMap(codes, p1, p2) {
 
 async function main() {
   console.error('[4전략 진입신호 체크] 시작');
+  const todayDate = kstTodayDate();
   const heldCodes = await fetchHeldCodes();
+  const soldTodayRows = await fetchSoldTodayRows(todayDate);
+  const soldTodayCodes = new Set(soldTodayRows.map(r => r.code));
   const openSlots = Math.max(0, MAX_SLOTS - heldCodes.size);
   console.error(`[슬롯] 보유 ${heldCodes.size}종목 / 4슬롯 → 빈슬롯 ${openSlots}개`);
+  if (soldTodayRows.length) console.error(`[당일재진입제외] 오늘 매도한 ${soldTodayRows.map(r => `${r.name}(${r.code})`).join(', ')} 신규진입 후보에서 제외`);
 
   const kospiUniverse = await buildKospiUniverse();
-  const pdUniverse = kospiUniverse.filter(s => !heldCodes.has(s.code));
-  const rnUniverse = kospiUniverse.filter(s => !heldCodes.has(s.code));
+  const pdUniverse = kospiUniverse.filter(s => !heldCodes.has(s.code) && !soldTodayCodes.has(s.code));
+  const rnUniverse = kospiUniverse.filter(s => !heldCodes.has(s.code) && !soldTodayCodes.has(s.code));
 
-  const todayDate = kstTodayDate();
   const allCodes = [...new Set(kospiUniverse.map(s => s.code))];
   const kisMap = await fetchKisPriceMap(allCodes);
 
@@ -855,6 +873,7 @@ async function main() {
     todayDate,
     openSlots,
     heldCount: heldCodes.size,
+    soldTodayRows,
     betaReordered,
     finalists: withBt,
     allCandidates: combined,
