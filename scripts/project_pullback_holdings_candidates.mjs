@@ -39,7 +39,7 @@ const CHART_DAYS = 70, CALENDAR_DAYS = 400;
 // v12(2026-08-20): project_stock_pullback.mjs와 동일한 시장국면·개별변동성 필터를 예상종목 판정에도 반영
 const KOSPI_SYMBOL = '%5EKS11', KOSDAQ_SYMBOL = '%5EKQ11';
 const REGIME_STREAK_MIN = 10, KOSPI_ATR_PERIOD = 14, VOL_CAP = 4, STOCK_ATR_CAP = 6;
-// 2026-09-01: 예상종목 필터가 실제 진입조건(project_portfolio3_entry_scan.mjs checkPullbackEntry)의
+// 2026-09-01: 예상종목 필터가 실제 진입조건(project_portfolio_integrated_entry_scan.mjs checkPullbackEntry)의
 // breakout lookback·손절후쿨다운 2개 필터를 빠뜨려 "조건상 진입 불가능한 종목"이 섞여 보일 수 있던 정밀도
 // 이슈를 보정 — pbSimulate/fetchMarketRegimeHistory로 두 필터를 동일하게 재현한다.
 function pbSimulate(seq, i0, entryClose, sl, trail, maxHold, tpPct, tpFrac) {

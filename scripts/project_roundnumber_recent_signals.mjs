@@ -1,5 +1,5 @@
 // 라운드넘버(피겨라운드) 전략 — 지금 시점 "진행 중인 이탈→재돌파" 상태 스캔 (2026-09-01 재설계)
-// project_roundnumber_strategy_backtest.mjs / project_portfolio3_entry_scan.mjs의 진입조건(이탈→트랙레코드+밀집도
+// project_roundnumber_strategy_backtest.mjs / project_portfolio_integrated_entry_scan.mjs의 진입조건(이탈→트랙레코드+밀집도
 // 검증→5거래일 내 재돌파, 진입위치>=20%)을 그대로 따라가되, "오늘 신규진입(조건 충족 완료)"이 아니라
 // 아직 조건 미충족인 두 단계를 예비신호로 보여준다.
 //   1) 이탈 후 재돌파 대기 중 — 레벨 아래로 이미 이탈했고, 재돌파 윈도우(5거래일) 내에서 아직 레벨을 못 넘음
@@ -20,7 +20,7 @@ const FALLBACK_KOSPI = [
 ];
 const DEFAULT_STOCKS = FALLBACK_KOSPI.map(s => ({ ...s, market: 'KOSPI' }));
 
-// project_portfolio3_entry_scan.mjs의 checkRoundnumberEntry(RN_*)와 100% 동일한 확정값
+// project_portfolio_integrated_entry_scan.mjs의 checkRoundnumberEntry(RN_*)와 100% 동일한 확정값
 const WINDOW_DAYS = 150, TARGET_TICKS = 30, RECENT_LOOKBACK = 20, PRIOR_ABOVE_DAYS = 5, MIN_TOUCHES = 3;
 const RECLAIM_WINDOW = 5, STOP_BUFFER_PCT = 3, MIN_ENTRY_POSITION_PCT = 20, MIN_BAND_WIDTH_PCT = 2.5; // v15(2026-08-26): STOP 2→3
 

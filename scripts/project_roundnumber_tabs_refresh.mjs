@@ -67,7 +67,7 @@ async function batchAll(items, fn, concurrency = 5, delay = 150) {
   return results;
 }
 
-// 베타(KOSPI상관) — project_portfolio3_entry_scan.mjs의 슬롯부족 타이브레이커와 동일한 계산식, 여기선 참고표시 전용.
+// 베타(KOSPI상관) — project_portfolio_integrated_entry_scan.mjs의 슬롯부족 타이브레이커와 동일한 계산식, 여기선 참고표시 전용.
 function computeBetaVsSeries(closes, dates, kospiRetByDate) {
   const rets = [], kospiRets = [];
   for (let i = 1; i < dates.length; i++) {

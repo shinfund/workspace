@@ -36,8 +36,8 @@ const CATALOG = [
     category: '3. 당일매매·최근신호 결과표',
     items: [
       { script: 'project_daily_trade_report.mjs', desc: '당일매매DB 일자별 결과표 ("week" 인자로 주간요약도 가능)' },
-      { script: 'project_portfolio3_entry_scan.mjs', desc: '3전략(눌림목+괴리율+라운드넘버) 통합 — 오늘 진입신호 스캔' },
-      { script: 'project_portfolio3_exit_check.mjs', desc: '3전략 통합 — 보유종목 강제청산 체크' },
+      { script: 'project_portfolio_integrated_entry_scan.mjs', desc: '통합전략(눌림목+괴리율+라운드넘버+장대양봉) — 오늘 진입신호 스캔' },
+      { script: 'project_portfolio_integrated_exit_check.mjs', desc: '통합전략 — 보유종목 강제청산 체크' },
       { script: 'project_pullback_recent_signals.mjs', desc: '눌림목 최근신호 (stock-portal 반영용)' },
       { script: 'project_deviation_recent_signals.mjs', desc: '괴리율 최근신호 (stock-portal 반영용)' },
       { script: 'project_roundnumber_recent_signals.mjs', desc: '라운드넘버 지금 감시할 레벨 스캔' },

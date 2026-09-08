@@ -6,7 +6,7 @@
 // 완전 동일 재현은 원본 코드가 없어 불가능 — 아래 가정은 문서화된 것이며 결과는 "근사 재구축치"로 취급할 것.
 //
 // 설계 가정(원본 미상이라 이 스크립트에서 새로 결정):
-//  - 유니버스: project_portfolio3_entry_scan.mjs의 FALLBACK_KOSPI(50종목), 눌림목·괴리율·라운드넘버 3전략
+//  - 유니버스: project_portfolio_integrated_entry_scan.mjs의 FALLBACK_KOSPI(50종목), 눌림목·괴리율·라운드넘버 3전략
 //    전부 코스피 전용(2026-08-26: 3전략 통합 월별 집계표 분석 결과 코스닥이 코스피보다 불안정하다고 판단해
 //    코스닥 유니버스(FALLBACK_KOSDAQ, 20종목) 완전 제외, 사용자 확정). 메모의 "51종목"과는 불일치 — 정확한 51종목
 //    구성을 알 수 없어 그대로 진행.
@@ -40,7 +40,7 @@ const YF_HEADERS = {
   'Accept': 'application/json', 'Accept-Language': 'ko-KR,ko;q=0.9',
 };
 
-// ── 유니버스 (project_portfolio3_entry_scan.mjs FALLBACK_KOSPI와 동일) ──
+// ── 유니버스 (project_portfolio_integrated_entry_scan.mjs FALLBACK_KOSPI와 동일) ──
 // 2026-08-26: 코스닥 종목(FALLBACK_KOSDAQ) 완전 제외 — 3전략 통합 월별 집계표를 분석한 사용자가
 // 코스닥이 코스피보다 불안정하다고 판단, 실측 시장별 리스크 지표(눌림목 코스닥 평균+3.13%·최악-18.09%
 // vs 코스피 평균+6.87%·최악-11.51%; 괴리율 코스닥 최악-38.00% vs 코스피-28.63%)로 확인 후 확정.
