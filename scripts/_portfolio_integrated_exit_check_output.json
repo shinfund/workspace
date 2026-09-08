@@ -1,0 +1,40 @@
+{
+  "generatedAt": "2026-09-08T06:39:25.137Z",
+  "todayDate": "2026-09-08",
+  "baseline": [
+    {
+      "pageId": "3d559c8c-9c0a-8196-8692-ca877bc5d184",
+      "code": "454910",
+      "name": "두산로보틱스",
+      "qty": 9,
+      "avgPrice": 79706,
+      "strategy": "기준선",
+      "market": "KOSPI",
+      "close": 69400,
+      "ema200": 83366.12639621185,
+      "ema5": 69106.68731505792,
+      "ret": -12.930017815471858,
+      "formalSignal": null
+    }
+  ],
+  "urgent": [],
+  "all": [
+    {
+      "pageId": "3d559c8c-9c0a-810a-b7a1-fd2f6c5745dd",
+      "code": "010120",
+      "name": "LS ELECTRIC",
+      "qty": 9,
+      "avgPrice": 207000,
+      "strategy": "라운드넘버",
+      "market": "KOSPI",
+      "close": 200000,
+      "ret": -3.3816425120772946,
+      "support": 200000,
+      "resistance": 210000,
+      "stop": 194000,
+      "verdict": "홀딩(지지 200,000~저항 210,000 박스권)",
+      "urgent": false
+    }
+  ],
+  "unassigned": []
+}

@@ -1,0 +1,15 @@
+{
+  "generatedAt": "2026-09-08T06:39:11.518Z",
+  "todayDate": "2026-09-08",
+  "openSlots": 3,
+  "heldCount": 1,
+  "soldTodayRows": [
+    {
+      "code": "015760",
+      "name": "한국전력"
+    }
+  ],
+  "betaReordered": false,
+  "finalists": [],
+  "allCandidates": []
+}
