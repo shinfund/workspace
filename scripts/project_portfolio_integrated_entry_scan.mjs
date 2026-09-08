@@ -13,7 +13,7 @@
 // 베타 우선순위(2026-08-27, [[project_stock_factor_score_backtest]]): 위 캡을 통과한 전체 후보가 오늘 빈슬롯보다
 // 많을 때만 전략우선순위(눌림목>괴리율>라운드넘버) 대신 베타(KOSPI상관) 높은 종목부터 추천 — 유니버스 축소판은
 // 헤드라인 하락(+1814.72%→+1445.49%)으로 기각, 이 방식(유니버스 유지)은 헤드라인 개선(+1814.72%→+2200.44%) 확인.
-// 사용법: node scripts/project_portfolio3_entry_scan.mjs
+// 사용법: node scripts/project_portfolio_integrated_entry_scan.mjs
 import https from 'https';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -218,7 +218,7 @@ async function refetchHeldRow(pageId) {
 }
 // 2026-08-26 버그 수정: Notion API의 page_size 최대치는 100(요청값 200은 조용히 100으로 잘림)이라
 // has_more를 무시하고 단건 조회하면 "오늘 날짜" 보유종목 중 일부가 응답 순서에 따라 간헐적으로
-// 누락됨(project_portfolio3_exit_check.mjs에서 HD현대중공업 실사례로 먼저 발견) — start_cursor로 끝까지 순회한다.
+// 누락됨(project_portfolio_integrated_exit_check.mjs에서 HD현대중공업 실사례로 먼저 발견) — start_cursor로 끝까지 순회한다.
 async function queryAllNotion(url, baseBody, headers) {
   const results = [];
   let cursor = undefined;
@@ -867,7 +867,7 @@ async function main() {
   }
 
   // 웹(stock-portal "매매신호" 탭) 반영용 JSON 스냅샷 — 콘솔 출력과 별개로 추가 저장(기존 동작 변경 없음, combined.length===0인 날도 항상 기록)
-  const outPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '_portfolio3_entry_scan_output.json');
+  const outPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '_portfolio_integrated_entry_scan_output.json');
   fs.writeFileSync(outPath, JSON.stringify({
     generatedAt: new Date().toISOString(),
     todayDate,

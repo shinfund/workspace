@@ -8,7 +8,7 @@
 // 주의: 이 노션DB엔 정확한 진입일자가 없어(증권사 연동 스냅샷) TRAIL(고점대비)·TIME(경과일수) 같은 상태이력
 // 기반 청산조건은 완전 재현 불가 — project_pullback_holdings_candidates.mjs 등 기존 스크립트와 동일하게
 // EMA크로스·현재손익률 기준 근사 판정(verdict)을 사용한다.
-// 사용법: node scripts/project_portfolio3_exit_check.mjs
+// 사용법: node scripts/project_portfolio_integrated_exit_check.mjs
 import https from 'https';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -372,7 +372,7 @@ async function buildMarketMap() {
 
 // 웹(stock-portal "매매신호" 탭) 반영용 JSON 스냅샷 — 콘솔 출력과 별개로 추가 저장(기존 동작 변경 없음)
 function writeOutputJson(data) {
-  const outPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '_portfolio3_exit_check_output.json');
+  const outPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '_portfolio_integrated_exit_check_output.json');
   fs.writeFileSync(outPath, JSON.stringify({ generatedAt: new Date().toISOString(), ...data }, null, 2), 'utf8');
   console.error(`[JSON] 결과 저장: ${outPath}`);
 }
