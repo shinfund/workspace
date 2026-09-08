@@ -8,6 +8,8 @@
  *   node scripts/project_daily_trade_report.mjs 2026-08-25
  *   node scripts/project_daily_trade_report.mjs 20260825
  *   node scripts/project_daily_trade_report.mjs week       # 이번주(월~오늘) 일별 요약표
+ *   node scripts/project_daily_trade_report.mjs 2026-09    # 해당월 일별 요약표+종목별 집계(2026-09-07 추가)
+ *   node scripts/project_daily_trade_report.mjs month      # 이번달
  */
 
 import https from 'https';
@@ -89,6 +91,122 @@ function fmtSigned(n) {
   return n === null ? '-' : `${n >= 0 ? '+' : ''}${n.toLocaleString('ko-KR')}`;
 }
 
+async function queryAllNotion(body) {
+  const results = [];
+  let cursor;
+  for (let page = 0; page < 20; page++) {
+    const b = cursor ? { ...body, start_cursor: cursor } : body;
+    const data = await httpPostJson(
+      `https://api.notion.com/v1/databases/${TRADE_DB_ID}/query`, b,
+      { 'Authorization': `Bearer ${NOTION_TOKEN}`, 'Notion-Version': '2022-06-28' }
+    );
+    if (!data?.results) throw new Error(data?.message || '조회 실패');
+    results.push(...data.results);
+    if (!data.has_more) break;
+    cursor = data.next_cursor;
+  }
+  return results;
+}
+
+function rowFromPage(p) {
+  const props = p.properties;
+  const buyAvg  = num(props['금일매수평균가']);
+  const buyQty  = num(props['금일매수수량']);
+  const sellAvg = num(props['금일매도평균가']);
+  const sellQty = num(props['금일매도수량']);
+  let 구분;
+  if (buyQty && sellQty) 구분 = '매수+매도';
+  else if (buyQty) 구분 = '매수';
+  else if (sellQty) 구분 = '매도';
+  else 구분 = '-';
+  const 수량 = buyQty && sellQty ? `${buyQty}/${sellQty}` : fmt(buyQty ?? sellQty);
+  const 단가 = buyAvg && sellAvg ? `${fmt(buyAvg)}/${fmt(sellAvg)}` : fmt(buyAvg ?? sellAvg);
+  return {
+    날짜: props['날짜']?.date?.start || '',
+    종목명: props['종목명']?.title?.[0]?.plain_text || '',
+    구분, 수량, 단가,
+    매수금액: num(props['금일매입금액']),
+    매도금액: num(props['금일매도금액']),
+    손익금액: num(props['손익금액']),
+    수익률:   num(props['수익률']),
+  };
+}
+
+function parseMonthArg(arg) {
+  if (arg === 'month' || arg === '이번달' || arg === '이달') {
+    const ym = getKstNow().toISOString().slice(0, 7);
+    return ym;
+  }
+  const m = arg.match(/^(\d{4})-(\d{2})$/);
+  if (!m) return null;
+  return arg;
+}
+
+async function fetchTradesForMonth(ym) {
+  const [y, m] = ym.split('-').map(Number);
+  const monthStart = `${ym}-01`;
+  const nextMonth = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
+  const pages = await queryAllNotion({
+    filter: { and: [
+      { property: '날짜', date: { on_or_after: monthStart } },
+      { property: '날짜', date: { before: nextMonth } },
+    ] },
+    sorts: [{ property: '날짜', direction: 'ascending' }],
+    page_size: 100,
+  });
+  return pages.map(rowFromPage);
+}
+
+async function runMonth(ym) {
+  const rows = await fetchTradesForMonth(ym);
+  console.log(`=== ${ym} 당일매매 결과 ===`);
+  if (!rows.length) { console.log('(해당월 매매 기록 없음)'); return; }
+
+  const byDate = new Map();
+  for (const r of rows) { if (!byDate.has(r.날짜)) byDate.set(r.날짜, []); byDate.get(r.날짜).push(r); }
+  const dates = [...byDate.keys()].sort();
+
+  console.log('\n[일별 요약]');
+  console.log('날짜\t매수건수\t매도건수\t매수금액\t매도금액\t손익금액\t평균수익률');
+  const totals = { 매수건수: 0, 매도건수: 0, 매수금액: 0, 매도금액: 0, 손익금액: 0, returns: [] };
+  for (const date of dates) {
+    const s = summarizeDay(byDate.get(date));
+    const [, mm, dd] = date.split('-');
+    console.log(`${Number(mm)}/${Number(dd)}(${getWeekdayLabel(date)})\t${s.매수건수}\t${s.매도건수}\t${fmt(s.매수금액)}\t${fmt(s.매도금액)}\t${fmtSigned(s.손익금액)}\t${s.returns.length ? fmtPct(s.returns.reduce((a, b) => a + b, 0) / s.returns.length) : '-'}`);
+    totals.매수건수 += s.매수건수; totals.매도건수 += s.매도건수;
+    totals.매수금액 += s.매수금액; totals.매도금액 += s.매도금액;
+    totals.손익금액 += s.손익금액; totals.returns.push(...s.returns);
+  }
+  const totalAvg = totals.returns.length ? totals.returns.reduce((a, b) => a + b, 0) / totals.returns.length : null;
+  console.log(`합계\t${totals.매수건수}\t${totals.매도건수}\t${fmt(totals.매수금액)}\t${fmt(totals.매도금액)}\t${fmtSigned(totals.손익금액)}\t${totalAvg !== null ? fmtPct(totalAvg) : '-'}`);
+
+  console.log('\n[종목별 집계 — 매도(청산) 건 기준]');
+  const sellRows = rows.filter(r => r.손익금액 !== null && r.매도금액 !== null);
+  const byStock = new Map();
+  for (const r of sellRows) {
+    if (!byStock.has(r.종목명)) byStock.set(r.종목명, []);
+    byStock.get(r.종목명).push(r);
+  }
+  console.log('종목명\t건수\t승률\t손익금액합\t평균수익률');
+  const stockNames = [...byStock.keys()].sort((a, b) => {
+    const pnlA = byStock.get(a).reduce((s, r) => s + (r.손익금액 ?? 0), 0);
+    const pnlB = byStock.get(b).reduce((s, r) => s + (r.손익금액 ?? 0), 0);
+    return pnlB - pnlA;
+  });
+  for (const name of stockNames) {
+    const rs = byStock.get(name);
+    const pnl = rs.reduce((s, r) => s + (r.손익금액 ?? 0), 0);
+    const wins = rs.filter(r => (r.손익금액 ?? 0) > 0).length;
+    const rets = rs.map(r => r.수익률).filter(v => v !== null);
+    const avgRet = rets.length ? rets.reduce((a, b) => a + b, 0) / rets.length : null;
+    console.log(`${name}\t${rs.length}\t${(wins / rs.length * 100).toFixed(0)}%\t${fmtSigned(pnl)}\t${avgRet !== null ? fmtPct(avgRet) : '-'}`);
+  }
+
+  const totalSellPnl = sellRows.reduce((s, r) => s + (r.손익금액 ?? 0), 0);
+  const totalWins = sellRows.filter(r => (r.손익금액 ?? 0) > 0).length;
+  console.log(`\n[종합] 청산 ${sellRows.length}건, 승률 ${sellRows.length ? (totalWins / sellRows.length * 100).toFixed(1) : '-'}%, 손익금액 합계 ${fmtSigned(totalSellPnl)}원`);
+}
+
 async function fetchTradesForDate(date) {
   if (!NOTION_TOKEN) throw new Error('NOTION_TOKEN 환경변수 없음');
   const data = await httpPostJson(
@@ -163,6 +281,11 @@ async function main() {
   const arg = process.argv[2];
   if (arg === 'week' || arg === '주간' || arg === '이번주') {
     await runWeek();
+    return;
+  }
+  const ym = arg ? parseMonthArg(arg) : null;
+  if (ym) {
+    await runMonth(ym);
     return;
   }
   const date = parseDateArg(arg);
