@@ -1,15 +1,162 @@
 {
-  "generatedAt": "2026-09-08T06:39:11.518Z",
-  "todayDate": "2026-09-08",
+  "generatedAt": "2026-09-09T06:06:44.574Z",
+  "todayDate": "2026-09-09",
   "openSlots": 3,
   "heldCount": 1,
-  "soldTodayRows": [
+  "soldTodayRows": [],
+  "betaReordered": false,
+  "finalists": [
     {
-      "code": "015760",
-      "name": "한국전력"
+      "code": "005490",
+      "name": "POSCO홀딩스",
+      "market": "KOSPI",
+      "price": 337500,
+      "touchCount": 23,
+      "aboveCount": 11,
+      "L": 330000,
+      "step": 10000,
+      "target": 340000,
+      "reason": "라운드지지 330,000 이탈 후 오늘 재돌파(터치23봉, 진입위치75%), TP 340,000",
+      "strategy": "라운드넘버",
+      "changePct": 2.74,
+      "bt": {
+        "n": 19,
+        "winRate": 68.42105263157895,
+        "avgRet": 1.594743646483364,
+        "recent": [
+          {
+            "date": "2026-08-21",
+            "reason": "TP",
+            "ret": 1.3740458015267176
+          },
+          {
+            "date": "2026-08-03",
+            "reason": "TP",
+            "ret": 5.7507987220447285
+          },
+          {
+            "date": "2026-07-14",
+            "reason": "TP",
+            "ret": 2.8616852146263914
+          }
+        ]
+      }
+    },
+    {
+      "code": "298040",
+      "name": "효성중공업",
+      "market": "KOSPI",
+      "price": 2934000,
+      "touchCount": 21,
+      "aboveCount": 9,
+      "L": 2900000,
+      "step": 100000,
+      "target": 3000000,
+      "reason": "라운드지지 2,900,000 이탈 후 오늘 재돌파(터치21봉, 진입위치34%), TP 3,000,000",
+      "strategy": "라운드넘버",
+      "changePct": 3.53,
+      "bt": {
+        "n": 14,
+        "winRate": 78.57142857142857,
+        "avgRet": 1.6835713581479903,
+        "recent": [
+          {
+            "date": "2026-06-26",
+            "reason": "TP",
+            "ret": 5.00916310323763
+          },
+          {
+            "date": "2025-12-30",
+            "reason": "TP",
+            "ret": 3.685636856368564
+          },
+          {
+            "date": "2025-12-16",
+            "reason": "STOP",
+            "ret": -5.130890052356021
+          }
+        ]
+      }
+    },
+    {
+      "code": "267260",
+      "name": "HD현대일렉트릭",
+      "market": "KOSPI",
+      "price": 757000,
+      "touchCount": 13,
+      "aboveCount": 11,
+      "L": 750000,
+      "step": 25000,
+      "target": 775000,
+      "reason": "라운드지지 750,000 이탈 후 오늘 재돌파(터치13봉, 진입위치28%), TP 775,000",
+      "strategy": "라운드넘버",
+      "changePct": 3.98,
+      "bt": {
+        "n": 32,
+        "winRate": 71.875,
+        "avgRet": 0.9142225577608583,
+        "recent": [
+          {
+            "date": "2026-08-25",
+            "reason": "TP",
+            "ret": 12.005457025920874
+          },
+          {
+            "date": "2026-03-16",
+            "reason": "TP",
+            "ret": 4.618689581095596
+          },
+          {
+            "date": "2025-12-26",
+            "reason": "TP",
+            "ret": 3.934010152284264
+          }
+        ]
+      }
     }
   ],
-  "betaReordered": false,
-  "finalists": [],
-  "allCandidates": []
+  "allCandidates": [
+    {
+      "code": "005490",
+      "name": "POSCO홀딩스",
+      "market": "KOSPI",
+      "price": 337500,
+      "touchCount": 23,
+      "aboveCount": 11,
+      "L": 330000,
+      "step": 10000,
+      "target": 340000,
+      "reason": "라운드지지 330,000 이탈 후 오늘 재돌파(터치23봉, 진입위치75%), TP 340,000",
+      "strategy": "라운드넘버",
+      "changePct": 2.74
+    },
+    {
+      "code": "298040",
+      "name": "효성중공업",
+      "market": "KOSPI",
+      "price": 2934000,
+      "touchCount": 21,
+      "aboveCount": 9,
+      "L": 2900000,
+      "step": 100000,
+      "target": 3000000,
+      "reason": "라운드지지 2,900,000 이탈 후 오늘 재돌파(터치21봉, 진입위치34%), TP 3,000,000",
+      "strategy": "라운드넘버",
+      "changePct": 3.53
+    },
+    {
+      "code": "267260",
+      "name": "HD현대일렉트릭",
+      "market": "KOSPI",
+      "price": 757000,
+      "touchCount": 13,
+      "aboveCount": 11,
+      "L": 750000,
+      "step": 25000,
+      "target": 775000,
+      "reason": "라운드지지 750,000 이탈 후 오늘 재돌파(터치13봉, 진입위치28%), TP 775,000",
+      "strategy": "라운드넘버",
+      "changePct": 3.98
+    }
+  ]
 }

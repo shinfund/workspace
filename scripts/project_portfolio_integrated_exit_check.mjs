@@ -226,6 +226,7 @@ async function judgePullback(h, market) {
   const n = closes.length;
   if (n < 2 || ema50s[n - 1] == null) return { ...h, market, error: '데이터 부족' };
   const close = closes[n - 1], prevClose = closes[n - 2], ema50 = ema50s[n - 1];
+  const changePct = prevClose ? (close - prevClose) / prevClose * 100 : null;
   const sl = market === 'KOSDAQ' ? PB_SL_KOSDAQ : PB_SL;
   const ret = (close - h.avgPrice) / h.avgPrice * 100;
   const prevRet = (prevClose - h.avgPrice) / h.avgPrice * 100;
@@ -241,7 +242,7 @@ async function judgePullback(h, market) {
   else v = { label: '관찰', urgent: false };
   // 2026-09-04: sl(청산 SL%)·ema50을 클라이언트가 그대로 재사용해 "조회" 버튼으로 실시간가 기준 verdict를
   // 재계산할 수 있도록 노출(stock-portfolio.html liveJudgePullback, EMA는 ema_today=live*k+ema_prev*(1-k) 재귀식으로 갱신).
-  return { ...h, market, close, ema50, ret, sl, verdict: v.label, urgent: v.urgent };
+  return { ...h, market, close, changePct, ema50, ret, sl, verdict: v.label, urgent: v.urgent };
 }
 
 // ── 괴리율 판정 ──
@@ -256,6 +257,7 @@ async function judgeDeviation(h, market) {
   const n = closes.length;
   if (n < 2 || ema5s[n - 1] == null || ema20s[n - 1] == null) return { ...h, market, error: '데이터 부족' };
   const close = closes[n - 1], prevClose = closes[n - 2], ema5 = ema5s[n - 1], ema20 = ema20s[n - 1];
+  const changePct = prevClose ? (close - prevClose) / prevClose * 100 : null;
   const prevEma20 = ema20s[n - 2];
   const ret = (close - h.avgPrice) / h.avgPrice * 100;
   const prevRet = (prevClose - h.avgPrice) / h.avgPrice * 100;
@@ -274,7 +276,7 @@ async function judgeDeviation(h, market) {
   else v = { label: '관찰', urgent: false };
   // 2026-09-04: "조회" 라이브 재판정용 — aboveEma20(오늘=스냅샷 시점 기준)을 prevAboveEma20으로 노출해
   // 클라이언트가 (라이브가 vs 재귀갱신 EMA20) 조합으로 freshLeg20 rising-edge를 재현할 수 있게 함.
-  return { ...h, market, close, ema5, ema20, ret, prevAboveEma20: aboveEma20, verdict: v.label, urgent: v.urgent };
+  return { ...h, market, close, changePct, ema5, ema20, ret, prevAboveEma20: aboveEma20, verdict: v.label, urgent: v.urgent };
 }
 
 // ── 기준선(EMA200 파동) 판정 — 축소·배제 대상, 우선 매도후보로 항상 노출 ──
@@ -292,6 +294,7 @@ async function judgeBaseline(h, market) {
   const n = closes.length;
   if (n < 2 || ema200s[n - 1] == null || ema5s[n - 1] == null) return { ...h, market, error: '데이터 부족' };
   const close = closes[n - 1], prevClose = closes[n - 2];
+  const changePct = prevClose ? (close - prevClose) / prevClose * 100 : null;
   const ema200 = ema200s[n - 1], prevEma200 = ema200s[n - 2];
   const ema5 = ema5s[n - 1], prevEma5 = ema5s[n - 2];
   const ret = (close - h.avgPrice) / h.avgPrice * 100;
@@ -302,7 +305,7 @@ async function judgeBaseline(h, market) {
   } else {
     if (prevEma5 != null && prevClose >= prevEma5 && close < ema5) signal = 'WAVE1_FULL(오늘 EMA5 하향이탈)';
   }
-  return { ...h, market, close, ema200, ema5, ret, formalSignal: signal };
+  return { ...h, market, close, changePct, ema200, ema5, ret, formalSignal: signal };
 }
 
 // ── 장대양봉 판정(2026-09-01 4번째 확정전략 편입) — 한계: 정밀판정 불가(참고용) ──
@@ -317,8 +320,10 @@ async function judgeBigcandleApprox(h) {
   const closes = fillForward(chart.close);
   const close = closes[closes.length - 1];
   if (close == null) return { ...h, market: 'KOSPI', error: '데이터 부족' };
+  const prevClose = closes[closes.length - 2];
+  const changePct = prevClose ? (close - prevClose) / prevClose * 100 : null;
   const ret = (close - h.avgPrice) / h.avgPrice * 100;
-  return { ...h, market: 'KOSPI', close, ret, verdict: '정밀판정불가(참고용) — 매수시 기록한 진입캔들 고가/저가/진입일로 수동확인', urgent: false };
+  return { ...h, market: 'KOSPI', close, changePct, ret, verdict: '정밀판정불가(참고용) — 매수시 기록한 진입캔들 고가/저가/진입일로 수동확인', urgent: false };
 }
 
 // ── 라운드넘버 판정 ──
@@ -336,9 +341,11 @@ async function judgeRoundnumber(h) {
   const i = closes.length - 1;
   if (i < RN_WINDOW + RN_LOOKBACK) return { ...h, market: 'KOSPI', error: '데이터 부족' };
   const price = closes[i];
+  const prevClose = closes[i - 1];
+  const changePct = prevClose ? (price - prevClose) / prevClose * 100 : null;
   const ret = (price - h.avgPrice) / h.avgPrice * 100;
   const step = computeStepAt(highs, lows, i, RN_WINDOW, RN_TICKS);
-  if (!step) return { ...h, market: 'KOSPI', close: price, ret, verdict: '감시레벨 계산 불가', urgent: false };
+  if (!step) return { ...h, market: 'KOSPI', close: price, changePct, ret, verdict: '감시레벨 계산 불가', urgent: false };
 
   // 2026-08-26 버그 수정: 감시레벨을 "오늘 종가" 기준으로 다시 잡으면, 진입 후 주가가 이미 TP를
   // 돌파한 종목도 그 돌파가격을 새 지지선으로 재설정해버려 TP 도달 사실이 영구히 사라짐(LS ELECTRIC·
@@ -352,14 +359,14 @@ async function judgeRoundnumber(h) {
     const touch = touchCountBefore(highs, lows, i, L, RN_WINDOW);
     if (aboveCount >= RN_PRIOR && touch >= RN_TOUCHES) { watchLevel = L; break; }
   }
-  if (watchLevel == null) return { ...h, market: 'KOSPI', close: price, ret, verdict: '감시레벨 없음(관찰)', urgent: false };
+  if (watchLevel == null) return { ...h, market: 'KOSPI', close: price, changePct, ret, verdict: '감시레벨 없음(관찰)', urgent: false };
   const stop = watchLevel * (1 - RN_STOPBUF / 100);
   const tp = watchLevel + step;
   let v;
   if (price <= stop) v = { label: `손절검토(라운드지지 ${fmtWon(watchLevel)} 붕괴)`, urgent: true };
   else if (price >= tp) v = { label: `익절검토(라운드저항 ${fmtWon(tp)} 도달)`, urgent: true };
   else v = { label: `홀딩(지지 ${fmtWon(watchLevel)}~저항 ${fmtWon(tp)} 박스권)`, urgent: false };
-  return { ...h, market: 'KOSPI', close: price, ret, support: watchLevel, resistance: tp, stop, verdict: v.label, urgent: v.urgent };
+  return { ...h, market: 'KOSPI', close: price, changePct, ret, support: watchLevel, resistance: tp, stop, verdict: v.label, urgent: v.urgent };
 }
 
 async function buildMarketMap() {
@@ -418,14 +425,14 @@ async function main() {
       if (r.error) { console.log(`  - ${r.name}(${r.code}): ${r.error}`); continue; }
       n++;
       const sigLabel = r.formalSignal ? `정식청산신호: 있음(${r.formalSignal})` : '정식청산신호: 없음(홀딩중, 축소 방침상 매도 검토는 별도 가능)';
-      console.log(`  ${n}. ${r.name}(${r.code}) 현재가 ${fmtWon(r.close)} / 평단 ${fmtWon(r.avgPrice)} / 손익 ${fmtPct(r.ret)} → ${sigLabel}`);
+      console.log(`  ${n}. ${r.name}(${r.code}) 현재가 ${fmtWon(r.close)}(${fmtPct(r.changePct)}) / 평단 ${fmtWon(r.avgPrice)} / 손익 ${fmtPct(r.ret)} → ${sigLabel}`);
     }
   }
 
   const urgentRows = all.filter(r => r.urgent && !r.error);
   if (urgentRows.length) {
     console.log(`\n🔴 청산검토 대상 ${urgentRows.length}건`);
-    for (const r of urgentRows) console.log(`  [${r.strategy}] ${r.name}(${r.code}) 현재가 ${fmtWon(r.close)} / 평단 ${fmtWon(r.avgPrice)} / 손익 ${fmtPct(r.ret)} → ${r.verdict}`);
+    for (const r of urgentRows) console.log(`  [${r.strategy}] ${r.name}(${r.code}) 현재가 ${fmtWon(r.close)}(${fmtPct(r.changePct)}) / 평단 ${fmtWon(r.avgPrice)} / 손익 ${fmtPct(r.ret)} → ${r.verdict}`);
   } else {
     console.log('\n청산검토 대상 없음 — 전 종목 홀딩/관찰');
   }
@@ -436,7 +443,7 @@ async function main() {
     console.log(`\n· ${strat} (${rows.length}건)`);
     for (const r of rows) {
       if (r.error) { console.log(`  - ${r.name}(${r.code}): ${r.error}`); continue; }
-      console.log(`  - ${r.name}(${r.code}) 현재가 ${fmtWon(r.close)} / 평단 ${fmtWon(r.avgPrice)} / 손익 ${fmtPct(r.ret)} → ${r.verdict}`);
+      console.log(`  - ${r.name}(${r.code}) 현재가 ${fmtWon(r.close)}(${fmtPct(r.changePct)}) / 평단 ${fmtWon(r.avgPrice)} / 손익 ${fmtPct(r.ret)} → ${r.verdict}`);
     }
   }
 

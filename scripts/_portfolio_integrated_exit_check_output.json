@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-09-08T06:39:25.137Z",
-  "todayDate": "2026-09-08",
+  "generatedAt": "2026-09-09T06:06:00.708Z",
+  "todayDate": "2026-09-09",
   "baseline": [
     {
       "pageId": "3d559c8c-9c0a-8196-8692-ca877bc5d184",
@@ -10,14 +10,33 @@
       "avgPrice": 79706,
       "strategy": "기준선",
       "market": "KOSPI",
-      "close": 69400,
-      "ema200": 83366.12639621185,
-      "ema5": 69106.68731505792,
-      "ret": -12.930017815471858,
+      "close": 72300,
+      "changePct": 4.329004329004329,
+      "ema200": 83253.96734486226,
+      "ema5": 70148.90265448307,
+      "ret": -9.29164680199734,
       "formalSignal": null
     }
   ],
-  "urgent": [],
+  "urgent": [
+    {
+      "pageId": "3d559c8c-9c0a-810a-b7a1-fd2f6c5745dd",
+      "code": "010120",
+      "name": "LS ELECTRIC",
+      "qty": 9,
+      "avgPrice": 207000,
+      "strategy": "라운드넘버",
+      "market": "KOSPI",
+      "close": 211000,
+      "changePct": 5.236907730673317,
+      "ret": 1.932367149758454,
+      "support": 200000,
+      "resistance": 210000,
+      "stop": 194000,
+      "verdict": "익절검토(라운드저항 210,000 도달)",
+      "urgent": true
+    }
+  ],
   "all": [
     {
       "pageId": "3d559c8c-9c0a-810a-b7a1-fd2f6c5745dd",
@@ -27,13 +46,14 @@
       "avgPrice": 207000,
       "strategy": "라운드넘버",
       "market": "KOSPI",
-      "close": 200000,
-      "ret": -3.3816425120772946,
+      "close": 211000,
+      "changePct": 5.236907730673317,
+      "ret": 1.932367149758454,
       "support": 200000,
       "resistance": 210000,
       "stop": 194000,
-      "verdict": "홀딩(지지 200,000~저항 210,000 박스권)",
-      "urgent": false
+      "verdict": "익절검토(라운드저항 210,000 도달)",
+      "urgent": true
     }
   ],
   "unassigned": []

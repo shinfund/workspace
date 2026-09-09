@@ -178,18 +178,22 @@ async function fetchKisPriceMap(codes) {
   let token;
   try { token = await getKisToken(); } catch (e) {
     console.error(`[KIS] 토큰 실패: ${e.message} → 당일 종가는 Yahoo 값 사용`);
-    return new Map();
+    return { priceMap: new Map(), changeMap: new Map() };
   }
-  const map = new Map();
+  const priceMap = new Map(), changeMap = new Map();
   const BATCH = 5, DELAY_KIS = 200;
   for (let i = 0; i < codes.length; i += BATCH) {
     const batch = codes.slice(i, i + BATCH);
     const res = await Promise.all(batch.map(c => fetchKisPrice(token, c)));
-    batch.forEach((c, j) => { if (res[j] && res[j].현재가 > 0) map.set(c, res[j].현재가); });
+    batch.forEach((c, j) => { if (res[j] && res[j].현재가 > 0) { priceMap.set(c, res[j].현재가); changeMap.set(c, res[j].등락률); } });
     if (i + BATCH < codes.length) await new Promise(r => setTimeout(r, DELAY_KIS));
   }
-  console.error(`[KIS] 당일 현재가 ${map.size}/${codes.length}종목 확보`);
-  return map;
+  console.error(`[KIS] 당일 현재가 ${priceMap.size}/${codes.length}종목 확보`);
+  return { priceMap, changeMap };
+}
+function fmtChg(pct) {
+  if (pct == null || Number.isNaN(pct)) return '';
+  return `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`;
 }
 
 // ── 노션 보유종목DB: 최신 스냅샷 종목코드 집합(빈슬롯 계산용) ──
@@ -785,7 +789,7 @@ async function main() {
   const rnUniverse = kospiUniverse.filter(s => !heldCodes.has(s.code) && !soldTodayCodes.has(s.code));
 
   const allCodes = [...new Set(kospiUniverse.map(s => s.code))];
-  const kisMap = await fetchKisPriceMap(allCodes);
+  const { priceMap: kisMap, changeMap } = await fetchKisPriceMap(allCodes);
 
   const p2 = Math.floor(Date.now() / 1000), p1 = p2 - 1100 * 24 * 3600;
   console.error('[눌림목] 시장국면(KOSPI/KOSDAQ) 조회...');
@@ -822,6 +826,7 @@ async function main() {
     ...rnResults.map(r => ({ ...r, strategy: '라운드넘버' })),
     ...bcResults.map(r => ({ ...r, strategy: '장대양봉' })),
   ];
+  combined.forEach(r => { r.changePct = changeMap.get(r.code) ?? null; });
 
   let betaReordered = false;
   if (combined.length > openSlots && openSlots > 0) {
@@ -843,7 +848,7 @@ async function main() {
     console.log('\n오늘 발생한 진입신호 없음.');
   } else {
     console.log(`\n[추천 ${Math.min(openSlots, combined.length)}건]`);
-    finalists.forEach((r, i) => console.log(`${i + 1}. [${r.strategy}] ${r.name}(${r.code}) ${Math.round(r.price).toLocaleString()}원 — ${r.reason}`));
+    finalists.forEach((r, i) => console.log(`${i + 1}. [${r.strategy}] ${r.name}(${r.code}) ${Math.round(r.price).toLocaleString()}원 ${fmtChg(r.changePct)} — ${r.reason}`));
 
     if (finalists.length) {
       console.error('[백테스트] 추천 후보 과거 매매성과 조회 중...');
@@ -862,7 +867,7 @@ async function main() {
       const rows = combined.filter(r => r.strategy === strat);
       if (!rows.length) continue;
       console.log(`\n· ${strat} (${rows.length}건)`);
-      rows.forEach(r => console.log(`  - ${r.name}(${r.code}) ${Math.round(r.price).toLocaleString()}원 — ${r.reason}`));
+      rows.forEach(r => console.log(`  - ${r.name}(${r.code}) ${Math.round(r.price).toLocaleString()}원 ${fmtChg(r.changePct)} — ${r.reason}`));
     }
   }
 
