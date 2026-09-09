@@ -590,7 +590,7 @@ function summarizeBtTrades(trades) {
   const n = trades.length;
   const winRate = trades.filter(t => t.ret > 0).length / n * 100;
   const avgRet = trades.reduce((a, t) => a + t.ret, 0) / n;
-  const recent = trades.slice(-3).reverse();
+  const recent = trades.slice(-5).reverse();
   return { n, winRate, avgRet, recent };
 }
 async function backtestPullbackStock(stock, regimeByMarket) {
