@@ -162,6 +162,40 @@ export async function fetchKisPrice(token, code) {
   });
 }
 
+// 정규장 확정 종가 조회(FHKST01010400 일별시세) — fetchKisPrice(FHKST01010100, 현재가 실시간)는
+// 시간외단일가(15:40~16:00) 체결까지 반영해 정규장 마감 후에도 계속 값이 흔들린다.
+// "정규장 종가 기준" 요청 시 이 함수를 사용할 것(현재가·시가·고가·저가·등락률은 확정치, 거래대금·거래량은
+// 이 엔드포인트에 없어 fetchKisPrice로 보조조회 — 가격 기반 신호 판정에는 영향 없음).
+export async function fetchKisDailyClose(token, code) {
+  const qs=new URLSearchParams({FID_COND_MRKT_DIV_CODE:'J',FID_INPUT_ISCD:code,FID_PERIOD_DIV_CODE:'D',FID_ORG_ADJ_PRC:'1'});
+  const daily = await new Promise(res=>{
+    const r=https.request({
+      hostname:KIS_HOST, port:KIS_PORT,
+      path:`/uapi/domestic-stock/v1/quotations/inquire-daily-price?${qs}`,
+      method:'GET',
+      headers:{'Content-Type':'application/json',authorization:`Bearer ${token}`,appkey:APP_KEY,appsecret:APP_SECRET,tr_id:'FHKST01010400',custtype:'P'}
+    },resp=>{
+      let d=''; resp.on('data',c=>d+=c);
+      resp.on('end',()=>{
+        try {
+          const j=JSON.parse(d);
+          if (j.rt_cd!=='0') return res(null);
+          const o=j.output?.[0];
+          if (!o) return res(null);
+          res({
+            현재가:Number(o.stck_clpr||0), 등락률:Number(o.prdy_ctrt||0),
+            시가:Number(o.stck_oprc||0), 고가:Number(o.stck_hgpr||0), 저가:Number(o.stck_lwpr||0),
+          });
+        } catch { res(null); }
+      });
+    });
+    r.on('error',()=>res(null)); r.end();
+  });
+  if (!daily) return fetchKisPrice(token, code); // 확정종가 조회 실패 시 실시간가로 폴백
+  const live = await fetchKisPrice(token, code);
+  return { ...daily, 거래대금: live?.거래대금 ?? 0, 거래량: live?.거래량 ?? 0, 상장주식수: live?.상장주식수 ?? 0 };
+}
+
 async function batchKis(token, codes) {
   const map={};
   for (let i=0; i<codes.length; i+=BATCH) {

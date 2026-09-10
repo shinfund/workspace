@@ -2,7 +2,7 @@
 // project_pullback_recent_signals.mjs와 project_holdings_deviation_stats.mjs의 로직을 눌림목 전략에 맞춰 결합.
 // 사용법: node scripts/project_pullback_holdings_candidates.mjs
 import https from 'https';
-import { fetchKrxUniverse, getToken as getKisToken, fetchKisPrice } from './kis_api.mjs';
+import { fetchKrxUniverse, getToken as getKisToken, fetchKisDailyClose } from './kis_api.mjs';
 
 const YF_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -125,7 +125,7 @@ async function fetchKisPriceMap(codes) {
   const BATCH = 5, DELAY_KIS = 200;
   for (let i = 0; i < codes.length; i += BATCH) {
     const batch = codes.slice(i, i + BATCH);
-    const res = await Promise.all(batch.map(c => fetchKisPrice(token, c)));
+    const res = await Promise.all(batch.map(c => fetchKisDailyClose(token, c)));
     batch.forEach((c, j) => { if (res[j] && res[j].현재가 > 0) map.set(c, res[j].현재가); });
     if (i + BATCH < codes.length) await new Promise(r => setTimeout(r, DELAY_KIS));
   }

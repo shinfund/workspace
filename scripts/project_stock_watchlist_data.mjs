@@ -18,7 +18,7 @@
 import https from 'https';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { getToken, fetchKrxUniverse, fetchKisPrice } from './kis_api.mjs';
+import { getToken, fetchKrxUniverse, fetchKisDailyClose as fetchKisPrice } from './kis_api.mjs';
 
 const EMA_PERIODS = [5, 20, 50, 100, 200];
 const BATCH = 5, DELAY = 200;
@@ -62,6 +62,8 @@ const SECTOR_MAP_KOSDAQ = {
 // 보유종목 전용(project_holdings_quote_table.mjs SECTOR_MAP)
 const SECTOR_MAP_HOLDINGS = {
   '010140': '조선', '015760': '전력', '454910': '로봇/자동화', '032830': '금융(보험/증권)',
+  '010120': '전력기기/유틸리티', '267260': '전력기기/유틸리티', '005490': '철강/비철금속', '000150': '지주회사',
+  '298040': '전력기기/유틸리티',
 };
 
 const INDICES = [

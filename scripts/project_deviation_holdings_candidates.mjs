@@ -4,7 +4,7 @@
 // 며칠 전 이미 이탈해 지속 중인 종목이 최하위 배지("관찰")로 방치되는 문제 — breakdown5를 "현재 상태" 기준으로 재정의.
 // 사용법: node scripts/project_deviation_holdings_candidates.mjs
 import https from 'https';
-import { fetchKrxUniverse, getToken as getKisToken, fetchKisPrice } from './kis_api.mjs';
+import { fetchKrxUniverse, getToken as getKisToken, fetchKisDailyClose } from './kis_api.mjs';
 
 const YF_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -108,11 +108,11 @@ async function fetchKisPriceMap(codes) {
   const BATCH = 5, DELAY_KIS = 200;
   for (let i = 0; i < codes.length; i += BATCH) {
     const batch = codes.slice(i, i + BATCH);
-    const res = await Promise.all(batch.map(c => fetchKisPrice(token, c)));
+    const res = await Promise.all(batch.map(c => fetchKisDailyClose(token, c)));
     batch.forEach((c, j) => { if (res[j] && res[j].현재가 > 0) map.set(c, res[j].현재가); });
     if (i + BATCH < codes.length) await new Promise(r => setTimeout(r, DELAY_KIS));
   }
-  console.error(`[KIS] 당일 현재가 ${map.size}/${codes.length}종목 확보`);
+  console.error(`[KIS] 당일 확정종가 ${map.size}/${codes.length}종목 확보`);
   return map;
 }
 function buildEma(closes, period) {

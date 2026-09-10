@@ -18,7 +18,7 @@ import https from 'https';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
-import { fetchKrxUniverse, getToken as getKisToken, fetchKisPrice } from './kis_api.mjs';
+import { fetchKrxUniverse, getToken as getKisToken, fetchKisDailyClose as fetchKisPrice } from './kis_api.mjs';
 
 const YF_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -28,6 +28,7 @@ const NOTION_TOKEN = process.env.NOTION_TOKEN;
 const HOLDINGS_DB_ID = '9f666aeb-832a-4aa2-9e52-e37515b75e56';
 const DAYTRADE_DB_ID = '3c859c8c-9c0a-80ea-8bee-f8c263fbbd7c';
 const MAX_SLOTS = 4;
+const SLOT_BUDGET = 2_500_000; // 1,000만원÷4슬롯 고정식([[project_trading_plan_3strategy_portfolio]] 2026-09-04 확정) — 1주 가격이 이를 넘으면 예산 내 매수 불가
 
 const KOSPI_SIZE = 50;
 // 코스피 TOP50 (project_pullback_recent_signals.mjs / project_deviation_recent_signals.mjs /
@@ -194,6 +195,9 @@ async function fetchKisPriceMap(codes) {
 function fmtChg(pct) {
   if (pct == null || Number.isNaN(pct)) return '';
   return `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`;
+}
+function budgetWarning(price) {
+  return price > SLOT_BUDGET ? ` ⚠슬롯예산(${(SLOT_BUDGET / 10000).toLocaleString()}만원) 초과 — 1주도 매수 불가` : '';
 }
 
 // ── 노션 보유종목DB: 최신 스냅샷 종목코드 집합(빈슬롯 계산용) ──
@@ -826,7 +830,7 @@ async function main() {
     ...rnResults.map(r => ({ ...r, strategy: '라운드넘버' })),
     ...bcResults.map(r => ({ ...r, strategy: '장대양봉' })),
   ];
-  combined.forEach(r => { r.changePct = changeMap.get(r.code) ?? null; });
+  combined.forEach(r => { r.changePct = changeMap.get(r.code) ?? null; r.overBudget = r.price > SLOT_BUDGET; });
 
   let betaReordered = false;
   if (combined.length > openSlots && openSlots > 0) {
@@ -848,7 +852,7 @@ async function main() {
     console.log('\n오늘 발생한 진입신호 없음.');
   } else {
     console.log(`\n[추천 ${Math.min(openSlots, combined.length)}건]`);
-    finalists.forEach((r, i) => console.log(`${i + 1}. [${r.strategy}] ${r.name}(${r.code}) ${Math.round(r.price).toLocaleString()}원 ${fmtChg(r.changePct)} — ${r.reason}`));
+    finalists.forEach((r, i) => console.log(`${i + 1}. [${r.strategy}] ${r.name}(${r.code}) ${Math.round(r.price).toLocaleString()}원 ${fmtChg(r.changePct)} — ${r.reason}${budgetWarning(r.price)}`));
 
     if (finalists.length) {
       console.error('[백테스트] 추천 후보 과거 매매성과 조회 중...');
@@ -867,7 +871,7 @@ async function main() {
       const rows = combined.filter(r => r.strategy === strat);
       if (!rows.length) continue;
       console.log(`\n· ${strat} (${rows.length}건)`);
-      rows.forEach(r => console.log(`  - ${r.name}(${r.code}) ${Math.round(r.price).toLocaleString()}원 ${fmtChg(r.changePct)} — ${r.reason}`));
+      rows.forEach(r => console.log(`  - ${r.name}(${r.code}) ${Math.round(r.price).toLocaleString()}원 ${fmtChg(r.changePct)} — ${r.reason}${budgetWarning(r.price)}`));
     }
   }
 

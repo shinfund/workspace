@@ -13,7 +13,7 @@ import https from 'https';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
-import { fetchKrxUniverse, getToken as getKisToken, fetchKisPrice } from './kis_api.mjs';
+import { fetchKrxUniverse, getToken as getKisToken, fetchKisDailyClose as fetchKisPrice } from './kis_api.mjs';
 
 const YF_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',

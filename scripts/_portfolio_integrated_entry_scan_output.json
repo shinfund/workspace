@@ -1,9 +1,14 @@
 {
-  "generatedAt": "2026-09-10T06:40:08.121Z",
+  "generatedAt": "2026-09-10T07:01:19.929Z",
   "todayDate": "2026-09-10",
   "openSlots": 0,
   "heldCount": 4,
-  "soldTodayRows": [],
+  "soldTodayRows": [
+    {
+      "code": "000150",
+      "name": "두산"
+    }
+  ],
   "betaReordered": false,
   "finalists": [],
   "allCandidates": []
