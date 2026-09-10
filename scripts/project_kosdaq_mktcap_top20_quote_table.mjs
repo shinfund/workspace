@@ -253,13 +253,14 @@ async function main() {
     });
   }
 
-  const sumHdr = '섹터'.padEnd(14) + '종목수'.padStart(6) + '시총합계'.padStart(10) + '평균등락률'.padStart(10);
+  const sumHdr = '섹터'.padEnd(14) + '종목수'.padStart(6) + '시총합계'.padStart(10) + '평균등락률'.padStart(10) + '  종목';
   console.log(`\n━━━ 섹터별 요약 (평균등락률 내림차순) ━━━`);
   console.log(sumHdr);
-  console.log('─'.repeat(sumHdr.length));
+  console.log('─'.repeat(sumHdr.length + 40));
   for (const sec of sectors) {
     const avgStr = (sec.avgChg >= 0 ? '+' : '') + sec.avgChg.toFixed(2) + '%';
-    console.log(sec.name.padEnd(14) + String(sec.stocks.length).padStart(6) + mktcapStr(sec.mktcap).padStart(10) + avgStr.padStart(10));
+    const stockNames = sec.stocks.map(r => r.종목명).join(', ');
+    console.log(sec.name.padEnd(14) + String(sec.stocks.length).padStart(6) + mktcapStr(sec.mktcap).padStart(10) + avgStr.padStart(10) + '  ' + stockNames);
   }
   console.log(`\n[섹터 분류] 스크립트 데이터가 아닌 일반 업종 기준 수동 매핑(SECTOR_MAP) / ﹡ = 위와 동일 섹터`);
 
