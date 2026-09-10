@@ -34,7 +34,7 @@ export const PAGE_PRESETS = {
   },
   portrait: {
     orientation: 'portrait',
-    margins: { top: 1.5, header: 1, left: 1.5, right: 1, bottom: 1, footer: 1 },
+    margins: { top: 2, header: 1, left: 1.5, right: 1, bottom: 1, footer: 1 },
   },
 };
 
