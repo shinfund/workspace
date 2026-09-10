@@ -1,8 +1,13 @@
 /**
  * project_holdings_quote_table.mjs — 보유종목 현황표 (수익률 desc 정렬)
  *
+ * 사용법: node project_holdings_quote_table.mjs --price=live|close
+ *   live  = 실시간 현재가(FHKST01010100, 장중 변동 + 시간외단일가 반영)
+ *   close = 정규장 확정 종가(FHKST01010400 일별시세, 시간외단일가 미반영)
+ *   (2026-09-10부터 명시 필수 — 프롬프트에 "장중 시세"/"정규장 확정 종가" 등 문구가 없으면 호출 전에 사용자에게 확인할 것)
+ *
  * 데이터 소스:
- *   KIS API       → 당일 현재가 실시간
+ *   KIS API       → --price 모드에 따른 당일가(위 참고)
  *   Yahoo Finance → EMA 계산용 과거 종가(마지막날은 KIS 당일가로 덮어쓰기)
  *
  * 입력: data/holdings.json
@@ -21,6 +26,9 @@ const SECTOR_MAP = {
   '010140': '조선',
   '015760': '전력',
   '454910': '로봇/자동화',
+  '267260': '전력기기/유틸리티',
+  '005490': '철강/비철금속',
+  '000150': '지주회사',
 };
 
 const KIS_APP_KEY    = 'PSO0pNJJEdcjc5qizFifXHn0yXG42TRA0hUz';
@@ -62,6 +70,8 @@ async function getKisToken() {
   });
 }
 
+// 실시간 현재가 조회(FHKST01010100) — 장중 변동 + 마감 후 15:40~16:00 시간외단일가 체결까지 반영되어 흔들림.
+// "장중 시세"·"실시간" 요청 시 사용. 확정 종가가 필요하면 fetchKisDailyClose를 사용(2026-09-10, --price 플래그로 선택).
 function fetchKisPrice(token, code) {
   const qs = new URLSearchParams({ FID_COND_MRKT_DIV_CODE: 'J', FID_INPUT_ISCD: code });
   return new Promise(resolve => {
@@ -81,6 +91,36 @@ function fetchKisPrice(token, code) {
           if (j.rt_cd !== '0') return resolve(null);
           const o = j.output;
           resolve({ 현재가: Number(o.stck_prpr || 0), 등락률: Number(o.prdy_ctrt || 0) });
+        } catch { resolve(null); }
+      });
+    });
+    req.on('error', () => resolve(null));
+    req.setTimeout(8000, () => { req.destroy(); resolve(null); });
+    req.end();
+  });
+}
+
+// 정규장 확정 종가 조회(FHKST01010400 일별시세) — 시간외단일가 미반영. "정규장 확정 종가" 요청 시 사용.
+function fetchKisDailyClose(token, code) {
+  const qs = new URLSearchParams({ FID_COND_MRKT_DIV_CODE: 'J', FID_INPUT_ISCD: code, FID_PERIOD_DIV_CODE: 'D', FID_ORG_ADJ_PRC: '1' });
+  return new Promise(resolve => {
+    const req = https.request({
+      hostname: KIS_HOST, port: KIS_PORT,
+      path: `/uapi/domestic-stock/v1/quotations/inquire-daily-price?${qs}`,
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json', authorization: `Bearer ${token}`,
+        appkey: KIS_APP_KEY, appsecret: KIS_APP_SECRET, tr_id: 'FHKST01010400', custtype: 'P',
+      },
+    }, resp => {
+      let d = ''; resp.on('data', c => d += c);
+      resp.on('end', () => {
+        try {
+          const j = JSON.parse(d);
+          if (j.rt_cd !== '0') return resolve(null);
+          const o = j.output?.[0];
+          if (!o) return resolve(null);
+          resolve({ 현재가: Number(o.stck_clpr || 0), 등락률: Number(o.prdy_ctrt || 0) });
         } catch { resolve(null); }
       });
     });
@@ -177,16 +217,35 @@ function fmtWonSigned(n) { return n != null ? `${n >= 0 ? '+' : ''}${Number(Math
 function fmtPct(n) { return n != null ? `${n >= 0 ? '+' : ''}${n.toFixed(2)}%` : '─'; }
 function fmtPctPlain(n) { return n != null ? `${n.toFixed(2)}%` : '─'; }
 
+// 가격 기준 모드는 반드시 --price=live|close 로 명시해야 한다(2026-09-10) — 프롬프트에 "장중 시세"/
+// "실시간" 요청이면 live, "정규장 확정 종가" 요청이면 close. 문구가 없으면 호출자가 사용자에게 물어서 정한다.
+function parsePriceMode() {
+  const arg = process.argv.find(a => a.startsWith('--price='));
+  const mode = arg ? arg.split('=')[1] : null;
+  if (mode !== 'live' && mode !== 'close') {
+    console.error('사용법: node project_holdings_quote_table.mjs --price=live|close');
+    console.error('  live  = 실시간 현재가(장중 변동 + 시간외단일가 반영)');
+    console.error('  close = 정규장 확정 종가(시간외단일가 미반영)');
+    process.exit(1);
+  }
+  return mode;
+}
+
 async function main() {
+  const priceMode = parsePriceMode();
+  const fetchPrice = priceMode === 'live' ? fetchKisPrice : fetchKisDailyClose;
   const holdings = JSON.parse(fs.readFileSync('C:\\Users\\shinf\\workspace\\data\\holdings.json', 'utf8'));
   const token = await getKisToken();
   const p2 = Math.floor(Date.now() / 1000);
   const p1 = p2 - WARMUP_DAYS * 24 * 3600;
 
+  const nowHm = (() => { const d = new Date(Date.now() + 9 * 3600 * 1000); return d.getUTCHours() * 100 + d.getUTCMinutes(); })();
+  if (priceMode === 'close' && nowHm < 1530) console.error(`⚠️  장 중(${kstTimeStr()}) — 정규장 확정 종가 아님(당일 진행 중 값)`);
+
   const rows = [];
   for (const h of holdings) {
     const [kis, chart] = await Promise.all([
-      fetchKisPrice(token, h.종목코드),
+      fetchPrice(token, h.종목코드),
       fetchChartAutoMarket(h.종목코드, p1, p2),
     ]);
     await new Promise(r => setTimeout(r, 150));
@@ -229,7 +288,8 @@ async function main() {
   const 총손익률 = (총손익 / 총매입) * 100;
   console.log(`\n합계\t\t\t${fmtWonSigned(총손익)}\t${fmtPct(총손익률)}\t${fmtWon(총매입)}\t\t\t${fmtPctPlain(총평가 > 0 ? 100 : null)}`);
 
-  console.log(`\n[데이터 소스] 현재가·등락률: KIS API 실시간(${kstTimeStr()} 기준) / 평가손익·수익률·보유비중은 현재가 기준 즉시 계산, 매입가·보유수량은 holdings.json 스냅샷`);
+  const sourceLabel = priceMode === 'live' ? 'KIS API 실시간 현재가' : 'KIS API 정규장 확정 종가';
+  console.log(`\n[데이터 소스] 현재가·등락률: ${sourceLabel}(${kstTimeStr()} 조회) / 평가손익·수익률·보유비중은 해당 가격 기준 즉시 계산, 매입가·보유수량은 holdings.json 스냅샷`);
 
   const bySector = {};
   for (const r of rows) {

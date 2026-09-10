@@ -13,12 +13,28 @@
 // 베타 우선순위(2026-08-27, [[project_stock_factor_score_backtest]]): 위 캡을 통과한 전체 후보가 오늘 빈슬롯보다
 // 많을 때만 전략우선순위(눌림목>괴리율>라운드넘버) 대신 베타(KOSPI상관) 높은 종목부터 추천 — 유니버스 축소판은
 // 헤드라인 하락(+1814.72%→+1445.49%)으로 기각, 이 방식(유니버스 유지)은 헤드라인 개선(+1814.72%→+2200.44%) 확인.
-// 사용법: node scripts/project_portfolio_integrated_entry_scan.mjs
+// 사용법: node scripts/project_portfolio_integrated_entry_scan.mjs --price=live|close
+//   live  = 실시간 현재가(장중 변동 + 시간외단일가 반영), close = 정규장 확정 종가(시간외단일가 미반영)
+//   (2026-09-10부터 명시 필수 — 프롬프트에 "장중 시세"/"정규장 확정 종가" 등 문구가 없으면 호출 전에 사용자에게 확인할 것)
 import https from 'https';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
-import { fetchKrxUniverse, getToken as getKisToken, fetchKisDailyClose as fetchKisPrice } from './kis_api.mjs';
+import { fetchKrxUniverse, getToken as getKisToken, fetchKisPrice as fetchKisPriceLive, fetchKisDailyClose } from './kis_api.mjs';
+
+function parsePriceMode() {
+  const arg = process.argv.find(a => a.startsWith('--price='));
+  const mode = arg ? arg.split('=')[1] : null;
+  if (mode !== 'live' && mode !== 'close') {
+    console.error('사용법: node project_portfolio_integrated_entry_scan.mjs --price=live|close');
+    console.error('  live  = 실시간 현재가(장중 변동 + 시간외단일가 반영)');
+    console.error('  close = 정규장 확정 종가(시간외단일가 미반영)');
+    process.exit(1);
+  }
+  return mode;
+}
+const PRICE_MODE = parsePriceMode();
+const fetchKisPrice = PRICE_MODE === 'live' ? fetchKisPriceLive : fetchKisDailyClose;
 
 const YF_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -189,7 +205,7 @@ async function fetchKisPriceMap(codes) {
     batch.forEach((c, j) => { if (res[j] && res[j].현재가 > 0) { priceMap.set(c, res[j].현재가); changeMap.set(c, res[j].등락률); } });
     if (i + BATCH < codes.length) await new Promise(r => setTimeout(r, DELAY_KIS));
   }
-  console.error(`[KIS] 당일 현재가 ${priceMap.size}/${codes.length}종목 확보`);
+  console.error(`[KIS] 당일 ${PRICE_MODE === 'live' ? '실시간 현재가' : '정규장 확정 종가'} ${priceMap.size}/${codes.length}종목 확보`);
   return { priceMap, changeMap };
 }
 function fmtChg(pct) {

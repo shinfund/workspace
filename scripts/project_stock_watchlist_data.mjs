@@ -13,12 +13,28 @@
  *   Yahoo Finance → EMA 계산용 과거 종가(코스닥은 .KQ, 코스피는 .KS, 마지막날은 KIS 당일가로 대체)
  *
  * 출력: JSON 1개(stdout)
- * Usage: node project_stock_watchlist_data.mjs > watchlist_data.json
+ * Usage: node project_stock_watchlist_data.mjs --price=live|close > watchlist_data.json
+ *   live  = 실시간 현재가(장중 변동 + 시간외단일가 반영), close = 정규장 확정 종가(시간외단일가 미반영)
+ *   (2026-09-10부터 명시 필수 — 프롬프트에 "장중 시세"/"정규장 확정 종가" 등 문구가 없으면 호출 전에 사용자에게 확인할 것)
  */
 import https from 'https';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { getToken, fetchKrxUniverse, fetchKisDailyClose as fetchKisPrice } from './kis_api.mjs';
+import { getToken, fetchKrxUniverse, fetchKisPrice as fetchKisPriceLive, fetchKisDailyClose } from './kis_api.mjs';
+
+function parsePriceMode() {
+  const arg = process.argv.find(a => a.startsWith('--price='));
+  const mode = arg ? arg.split('=')[1] : null;
+  if (mode !== 'live' && mode !== 'close') {
+    console.error('사용법: node project_stock_watchlist_data.mjs --price=live|close');
+    console.error('  live  = 실시간 현재가(장중 변동 + 시간외단일가 반영)');
+    console.error('  close = 정규장 확정 종가(시간외단일가 미반영)');
+    process.exit(1);
+  }
+  return mode;
+}
+const PRICE_MODE = parsePriceMode();
+const fetchKisPrice = PRICE_MODE === 'live' ? fetchKisPriceLive : fetchKisDailyClose;
 
 const EMA_PERIODS = [5, 20, 50, 100, 200];
 const BATCH = 5, DELAY = 200;
@@ -454,7 +470,7 @@ async function main() {
   const indexRows = await loadIndices();
 
   const out = {
-    meta: { date, time, krxBasDt: `${basDt.slice(0, 4)}-${basDt.slice(4, 6)}-${basDt.slice(6, 8)}` },
+    meta: { date, time, krxBasDt: `${basDt.slice(0, 4)}-${basDt.slice(4, 6)}-${basDt.slice(6, 8)}`, priceMode: PRICE_MODE },
     lookup,
     universe: { kospi: kospiRows, kosdaq: kosdaqRows },
     sectorSummary: { kospi: buildSectorSummary(kospiRows), kosdaq: buildSectorSummary(kosdaqRows) },

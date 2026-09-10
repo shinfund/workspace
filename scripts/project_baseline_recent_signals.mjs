@@ -2,10 +2,12 @@
 // project_baseline_strategy_backtest.mjs(확정 진입·청산 로직)와 동일한 규칙을 실시간(오늘 기준)으로 적용해
 // ①최근 365일 내 발생한 진입 신호의 현재 상태(보유중/청산완료)와 ②아직 신호는 안 났지만 조건①(16거래일↑
 // 기준선 이탈)을 충족한 관찰(워치) 후보종목을 산출해 HTML 조각 + JSON으로 출력한다.
-// 사용법: node scripts/project_baseline_recent_signals.mjs [--days 365] [--chart-cap 10] [--watch-cap 8]
+// 사용법: node scripts/project_baseline_recent_signals.mjs --price=live|close [--days 365] [--chart-cap 10] [--watch-cap 8]
+//   live  = 실시간 현재가(장중 변동 + 시간외단일가 반영), close = 정규장 확정 종가(시간외단일가 미반영)
+//   (2026-09-10부터 명시 필수 — 프롬프트에 "장중 시세"/"정규장 확정 종가" 등 문구가 없으면 호출 전에 사용자에게 확인할 것)
 import https from 'https';
 import fs from 'fs';
-import { getToken as getKisToken, fetchKisDailyClose, fetchKrxUniverse } from './kis_api.mjs';
+import { getToken as getKisToken, fetchKisPrice as fetchKisPriceLive, fetchKisDailyClose, fetchKrxUniverse } from './kis_api.mjs';
 
 const YF_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -98,11 +100,21 @@ function breakoutProbability(seq) {
 }
 function fmtProb(p) { return p.p != null ? `${p.p.toFixed(0)}%(n=${p.n})` : '─'; }
 
-// ─── KIS API (당일 확정종가 — 장중/시간외단일가로 흔들리는 실시간가 대신 정규장 마감 확정치 사용) ──
-// 인증·시세조회 함수는 kis_api.mjs에서 그대로 가져다 쓴다(자격증명 중복 방지).
-// 2026-09-10: 선물·옵션 동시만기일+섹터지수 리밸런싱으로 fetchKisPrice(FHKST01010100)가 15:30 마감
-// 이후에도 시간외단일가 체결을 계속 반영해 값이 흔들리는 문제 발견 → fetchKisDailyClose(FHKST01010400,
-// 일별시세)로 교체. 반환 형태는 fetchKisPrice와 동일(현재가·등락률·거래대금·거래량·시가·고가·저가·상장주식수).
+// ─── KIS API (당일가 — --price 플래그로 live/close 선택, 인증·시세조회 함수는 kis_api.mjs 재사용) ──
+// 반환 형태는 두 함수 동일(현재가·등락률·거래대금·거래량·시가·고가·저가·상장주식수).
+function parsePriceMode() {
+  const arg = process.argv.find(a => a.startsWith('--price='));
+  const mode = arg ? arg.split('=')[1] : null;
+  if (mode !== 'live' && mode !== 'close') {
+    console.error('사용법: node project_baseline_recent_signals.mjs --price=live|close');
+    console.error('  live  = 실시간 현재가(장중 변동 + 시간외단일가 반영)');
+    console.error('  close = 정규장 확정 종가(시간외단일가 미반영)');
+    process.exit(1);
+  }
+  return mode;
+}
+const PRICE_MODE = parsePriceMode();
+const fetchKisPrice = PRICE_MODE === 'live' ? fetchKisPriceLive : fetchKisDailyClose;
 async function fetchKisPriceMap(stocks) {
   let token;
   try { token = await getKisToken(); } catch (e) {
@@ -113,11 +125,11 @@ async function fetchKisPriceMap(stocks) {
   const BATCH = 5, DELAY_KIS = 200;
   for (let i = 0; i < stocks.length; i += BATCH) {
     const batch = stocks.slice(i, i + BATCH);
-    const res = await Promise.all(batch.map(s => fetchKisDailyClose(token, s.code)));
+    const res = await Promise.all(batch.map(s => fetchKisPrice(token, s.code)));
     batch.forEach((s, j) => { if (res[j] && res[j].현재가 > 0) map.set(s.code, res[j].현재가); });
     if (i + BATCH < stocks.length) await new Promise(r => setTimeout(r, DELAY_KIS));
   }
-  console.error(`[KIS] 당일 확정종가 ${map.size}/${stocks.length}종목 확보`);
+  console.error(`[KIS] 당일 ${PRICE_MODE === 'live' ? '실시간 현재가' : '확정종가'} ${map.size}/${stocks.length}종목 확보`);
   return map;
 }
 
