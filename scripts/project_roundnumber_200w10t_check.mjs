@@ -246,7 +246,8 @@ async function main() {
       const hits = touches(ts, highs, lows, step, lv.price, windowDays);
       const recent = hits.slice(-8).reverse();
       const lastDate = recent.length ? recent[0].date : '없음';
-      console.log(`  ${lv.label}: ${fmtWon(lv.price)}원 (${fmtPct(lv.dist)}, ${windowDays}일내 ${hits.length}봉 터치, 최근터치 ${lastDate})`);
+      const lastDateLabel = recent.length ? `${lastDate}${lastDate === todayStr ? '(오늘)' : ''}` : lastDate;
+      console.log(`  ${lv.label}: ${fmtWon(lv.price)}원 (${fmtPct(lv.dist)}, ${windowDays}일내 ${hits.length}봉 터치, 최근터치 ${lastDateLabel})`);
       if (recent.length) {
         console.log('    ' + recent.map(h => `${h.date}(고${fmtWon(h.high)}/저${fmtWon(h.low)})`).join(', '));
       }
