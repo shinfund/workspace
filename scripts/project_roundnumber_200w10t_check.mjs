@@ -7,6 +7,7 @@
 //   지정 시 해당 KIS 가격을 "현재가"로 쓰고, Yahoo 당일 고/저에도 반영해 지지/저항 산출. 생략 시 기존처럼 Yahoo 종가 기준(변경 없음).
 // 2026-09-11: 종목 헤더 아래 "추세: 정배열/역배열/혼조" 한 줄 추가(5/20/50/100/200 EMA, holdings_quote_table의 emaStructure 로직 재사용).
 // 2026-09-11: "현재가"/"전일종가" 참고행을 지지/저항 레벨과 함께 실제 가격순으로 정렬해 출력 — 저항 돌파 여부를 행 순서로 바로 확인 가능.
+// 2026-09-11: "최근터치"에 날짜 2개 표시(기존 1개), 어제 날짜엔 "(어제)" 표기 추가(기존 "(오늘)"과 동일 패턴).
 // 사용법: node scripts/project_roundnumber_200w10t_check.mjs --stocks 코드:이름:시장,... [--window 150] [--ticks 30] [--price=live|close]
 //   --window/--ticks 생략 시 기본 200일/10틱(참고용 그리드). 150/30 지정 시 매매확정 그리드(project_roundnumber_strategy_backtest.mjs)와 동일 산식.
 import https from 'https';
@@ -206,6 +207,7 @@ async function main() {
     const 구조 = emaStructure(rawEma);
 
     const todayStr = kstDateStr();
+    const yesterdayStr = kstDateStr(Math.floor(Date.now() / 1000) - 24 * 3600);
     let 전일종가 = null, 전일종가Date = null;
     for (let i = ts.length - 1; i >= 0; i--) {
       const dStr = kstDateStr(ts[i]);
@@ -244,9 +246,9 @@ async function main() {
       }
       const hits = touches(ts, highs, lows, step, lv.price, windowDays);
       const recent = hits.slice(-8).reverse();
-      const lastDate = recent.length ? recent[0].date : '없음';
-      const lastDateLabel = recent.length ? `${lastDate}${lastDate === todayStr ? '(오늘)' : ''}` : lastDate;
-      console.log(`  ${lv.label}: ${fmtWon(lv.price)}원 (${fmtPct(lv.dist)}, ${windowDays}일내 ${hits.length}봉 터치, 최근터치 ${lastDateLabel})`);
+      const dateLabel = (d) => `${d}${d === todayStr ? '(오늘)' : d === yesterdayStr ? '(어제)' : ''}`;
+      const lastDatesLabel = recent.length ? recent.slice(0, 2).map(h => dateLabel(h.date)).join(', ') : '없음';
+      console.log(`  ${lv.label}: ${fmtWon(lv.price)}원 (${fmtPct(lv.dist)}, ${windowDays}일내 ${hits.length}봉 터치, 최근터치 ${lastDatesLabel})`);
       if (recent.length) {
         console.log('    ' + recent.map(h => `${h.date}(고${fmtWon(h.high)}/저${fmtWon(h.low)})`).join(', '));
       }
