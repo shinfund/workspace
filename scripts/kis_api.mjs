@@ -75,8 +75,18 @@ function kstNow() {
 }
 
 function get(url) {
+  // 2026-09-11: chunk마다 개별 toString()되던 문자열 결합(d+=c) 방식이 다바이트 UTF-8 문자를
+  // chunk 경계에서 깨뜨리는 버그 수정 — KRX 유니버스(5000건 대용량 JSON)에서 "HD현대중공업" 등
+  // 종목명이 반복적으로 깨져 나오던 원인. Buffer로 모아뒀다가 끝에 한 번에 UTF-8 디코딩한다.
   return new Promise((res,rej)=>{
-    https.get(url,r=>{ let d=''; r.on('data',c=>d+=c); r.on('end',()=>{ try{res(JSON.parse(d));}catch(e){rej(new Error(`파싱실패: ${d.slice(0,200)}`));} }); }).on('error',rej);
+    https.get(url,r=>{
+      const chunks=[];
+      r.on('data',c=>chunks.push(c));
+      r.on('end',()=>{
+        const d=Buffer.concat(chunks).toString('utf8');
+        try{res(JSON.parse(d));}catch(e){rej(new Error(`파싱실패: ${d.slice(0,200)}`));}
+      });
+    }).on('error',rej);
   });
 }
 
