@@ -234,13 +234,12 @@ async function main() {
     ];
     const refRows = [{ label: '현재가', price, dist: 0, isRef: true }];
     if (전일종가 != null) {
-      refRows.push({ label: '전일종가', price: 전일종가, dist: (전일종가 - price) / price * 100, isRef: true, refNote: 전일종가Date });
+      refRows.push({ label: '전일종가', price: 전일종가, dist: (전일종가 - price) / price * 100, isRef: true });
     }
     const displayRows = [...levels, ...refRows].sort((a, b) => b.price - a.price);
     for (const lv of displayRows) {
       if (lv.isRef) {
-        const note = lv.refNote ? ` (${lv.refNote})` : '';
-        console.log(`  ${lv.label}${note}: ${fmtWon(lv.price)}원 (${fmtPct(lv.dist)})`);
+        console.log(`  ${lv.label}: ${fmtWon(lv.price)}원 (${fmtPct(lv.dist)})`);
         continue;
       }
       const hits = touches(ts, highs, lows, step, lv.price, windowDays);
