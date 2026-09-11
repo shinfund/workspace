@@ -4,6 +4,7 @@
 // 2026-09-01: "분석해줘" 요청 표준 포맷으로 2단계 확장(지지2/지지1/저항1/저항2, 지지 먼저)+터치 날짜 이력 추가.
 // 2026-09-11: --price=live|close 플래그 추가 — 기준가를 KIS 실시간 현재가/정규장 확정 종가 중 선택(holdings_quote_table과 동일 패턴).
 //   지정 시 해당 KIS 가격을 "현재가"로 쓰고, Yahoo 당일 고/저에도 반영해 지지/저항 산출. 생략 시 기존처럼 Yahoo 종가 기준(변경 없음).
+// 2026-09-11: 종목 헤더 아래 "추세: 정배열/역배열/혼조" 한 줄 추가(5/20/50/100/200 EMA, holdings_quote_table의 emaStructure 로직 재사용).
 // 사용법: node scripts/project_roundnumber_200w10t_check.mjs --stocks 코드:이름:시장,... [--window 150] [--ticks 30] [--price=live|close]
 //   --window/--ticks 생략 시 기본 200일/10틱(참고용 그리드). 150/30 지정 시 매매확정 그리드(project_roundnumber_strategy_backtest.mjs)와 동일 산식.
 import https from 'https';
@@ -15,6 +16,8 @@ const YF_HEADERS = {
 };
 
 const NICE_FAMILY = [1, 2, 2.5, 5, 10];
+const EMA_PERIODS = [5, 20, 50, 100, 200];
+const WARMUP_DAYS = Math.max(...EMA_PERIODS) * 6;
 
 function parseArgs() {
   const argv = process.argv.slice(2);
@@ -107,6 +110,38 @@ function touches(ts, highs, lows, step, level, windowDays) {
   return hits;
 }
 
+function buildEmaSeries(closes, period) {
+  const k = 2 / (period + 1);
+  const series = new Array(closes.length).fill(null);
+  let ema = null;
+  const seedBuf = [];
+  for (let i = 0; i < closes.length; i++) {
+    const price = closes[i];
+    if (price == null) { series[i] = ema; continue; }
+    if (ema === null) {
+      seedBuf.push(price);
+      if (seedBuf.length < period) { series[i] = null; continue; }
+      ema = seedBuf.reduce((a, b) => a + b, 0) / seedBuf.length;
+    } else {
+      ema = price * k + ema * (1 - k);
+    }
+    series[i] = ema;
+  }
+  return series;
+}
+function emaStructure(rawEma) {
+  const vals = EMA_PERIODS.map(p => rawEma[p]);
+  if (vals.some(v => v == null)) return '데이터부족';
+  let asc = true, desc = true;
+  for (let i = 1; i < vals.length; i++) {
+    if (!(vals[i - 1] > vals[i])) asc = false;
+    if (!(vals[i - 1] < vals[i])) desc = false;
+  }
+  if (asc) return '정배열';
+  if (desc) return '역배열';
+  return '혼조';
+}
+
 function fmtWon(n) { return n != null ? Math.round(n).toLocaleString('ko-KR') : '─'; }
 function fmtPct(n) { return n != null ? `${n >= 0 ? '+' : ''}${n.toFixed(1)}%` : '─'; }
 
@@ -128,7 +163,7 @@ async function main() {
   const windowDays = opts.window, targetTicks = opts.ticks;
   const gridLabel = `${windowDays}일창/${targetTicks}틱`;
   const p2 = Math.floor(Date.now() / 1000);
-  const p1 = p2 - (windowDays * 3) * 24 * 3600; // 주말/휴장 감안 여유
+  const p1 = p2 - Math.max(windowDays * 3, WARMUP_DAYS) * 24 * 3600; // 주말/휴장 감안 여유 + EMA200 워밍업
 
   const token = opts.price ? await getToken() : null;
   const fetchKis = opts.price === 'live' ? fetchKisPrice : opts.price === 'close' ? fetchKisDailyClose : null;
@@ -154,6 +189,15 @@ async function main() {
     const step = computeStep(highs, lows, windowDays, targetTicks);
     if (!step || price == null) { console.log(`\n===== ${s.name}(${s.code}) — 데이터 부족 =====`); continue; }
 
+    const emaCloses = closes.slice();
+    if (emaCloses.length) emaCloses[emaCloses.length - 1] = price;
+    const rawEma = {};
+    for (const period of EMA_PERIODS) {
+      const series = buildEmaSeries(emaCloses, period);
+      rawEma[period] = series[series.length - 1];
+    }
+    const 구조 = emaStructure(rawEma);
+
     const support1 = Math.floor(price / step) * step;
     const resistance1 = support1 + step;
     const support2 = support1 - step;
@@ -162,6 +206,7 @@ async function main() {
     const priceLabel = opts.price === 'live' ? `실시간 현재가` : opts.price === 'close' ? `정규장 확정 종가` : `현재가(Yahoo 종가)`;
     const priceSuffix = kis ? ` (등락률 ${fmtPct(kis.등락률)}, ${kstTimeStr()} 조회)` : '';
     console.log(`\n===== ${s.name}(${s.code}) — ${priceLabel} ${fmtWon(price)}원${priceSuffix} / step ${fmtWon(step)}원 =====`);
+    console.log(`  추세: ${구조} (5/20/50/100/200 EMA, 정배열=상승구조·역배열=하락구조)`);
     const levels = [
       { label: '지지2', price: support2, dist: (price - support2) / price * 100 * -1 },
       { label: '지지1', price: support1, dist: (price - support1) / price * 100 * -1 },
