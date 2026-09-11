@@ -1,15 +1,74 @@
 {
-  "generatedAt": "2026-09-10T07:19:39.250Z",
-  "todayDate": "2026-09-10",
+  "generatedAt": "2026-09-11T01:39:53.195Z",
+  "todayDate": "2026-09-11",
   "openSlots": 1,
   "heldCount": 3,
-  "soldTodayRows": [
+  "soldTodayRows": [],
+  "betaReordered": false,
+  "finalists": [
     {
-      "code": "000150",
-      "name": "두산"
+      "code": "015760",
+      "name": "한국전력",
+      "market": "KOSPI",
+      "price": 33600,
+      "touchCount": 9,
+      "aboveCount": 7,
+      "L": 33000,
+      "step": 1000,
+      "target": 34000,
+      "reason": "라운드지지 33,000 이탈 후 오늘 재돌파(터치9봉, 진입위치60%), TP 34,000",
+      "strategy": "라운드넘버",
+      "changePct": 2.6,
+      "overBudget": false,
+      "bt": {
+        "n": 11,
+        "winRate": 63.63636363636363,
+        "avgRet": -0.3021800804741181,
+        "recent": [
+          {
+            "date": "2026-09-02",
+            "reason": "TP",
+            "ret": 5.084745762711865
+          },
+          {
+            "date": "2026-08-31",
+            "reason": "TP",
+            "ret": 5.4095826893353935
+          },
+          {
+            "date": "2026-07-09",
+            "reason": "STOP",
+            "ret": -5.386740331491713
+          },
+          {
+            "date": "2026-06-26",
+            "reason": "TP",
+            "ret": 2.3529411764705883
+          },
+          {
+            "date": "2026-06-02",
+            "reason": "STOP",
+            "ret": -6.976744186046512
+          }
+        ]
+      }
     }
   ],
-  "betaReordered": false,
-  "finalists": [],
-  "allCandidates": []
+  "allCandidates": [
+    {
+      "code": "015760",
+      "name": "한국전력",
+      "market": "KOSPI",
+      "price": 33600,
+      "touchCount": 9,
+      "aboveCount": 7,
+      "L": 33000,
+      "step": 1000,
+      "target": 34000,
+      "reason": "라운드지지 33,000 이탈 후 오늘 재돌파(터치9봉, 진입위치60%), TP 34,000",
+      "strategy": "라운드넘버",
+      "changePct": 2.6,
+      "overBudget": false
+    }
+  ]
 }
