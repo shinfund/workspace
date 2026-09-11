@@ -2,6 +2,7 @@
 // 매매 확정 그리드(150일/30틱, project_roundnumber_strategy_backtest.mjs)와는 별개로,
 // 실제 HTS 차트 축 간격과 더 가까운 200일/10틱 그리드로 지지/저항을 참고 확인하기 위한 스크립트.
 // 2026-09-01: "분석해줘" 요청 표준 포맷으로 2단계 확장(지지2/지지1/저항1/저항2, 지지 먼저)+터치 날짜 이력 추가.
+// 2026-09-11: 지지3/저항3 한 단계 더 추가(3단계) — 당일 어디까지 터치했는지 더 넓게 확인.
 // 2026-09-11: --price=live|close 플래그 추가 — 기준가를 KIS 실시간 현재가/정규장 확정 종가 중 선택(holdings_quote_table과 동일 패턴).
 //   지정 시 해당 KIS 가격을 "현재가"로 쓰고, Yahoo 당일 고/저에도 반영해 지지/저항 산출. 생략 시 기존처럼 Yahoo 종가 기준(변경 없음).
 // 2026-09-11: 종목 헤더 아래 "추세: 정배열/역배열/혼조" 한 줄 추가(5/20/50/100/200 EMA, holdings_quote_table의 emaStructure 로직 재사용).
@@ -168,7 +169,7 @@ async function main() {
   const token = opts.price ? await getToken() : null;
   const fetchKis = opts.price === 'live' ? fetchKisPrice : opts.price === 'close' ? fetchKisDailyClose : null;
 
-  console.log(`\n[${gridLabel} 그리드 — 지지2/지지1/저항1/저항2 2단계]`);
+  console.log(`\n[${gridLabel} 그리드 — 지지3/지지2/지지1/저항1/저항2/저항3 3단계]`);
   for (const s of opts.stocks) {
     const symbol = s.market === 'KOSDAQ' ? `${s.code}.KQ` : `${s.code}.KS`;
     const [chart, kis] = await Promise.all([
@@ -202,16 +203,20 @@ async function main() {
     const resistance1 = support1 + step;
     const support2 = support1 - step;
     const resistance2 = resistance1 + step;
+    const support3 = support2 - step;
+    const resistance3 = resistance2 + step;
 
     const priceLabel = opts.price === 'live' ? `실시간 현재가` : opts.price === 'close' ? `정규장 확정 종가` : `현재가(Yahoo 종가)`;
     const priceSuffix = kis ? ` (등락률 ${fmtPct(kis.등락률)}, ${kstTimeStr()} 조회)` : '';
     console.log(`\n===== ${s.name}(${s.code}) — ${priceLabel} ${fmtWon(price)}원${priceSuffix} / step ${fmtWon(step)}원 =====`);
     console.log(`  추세: ${구조} (5/20/50/100/200 EMA, 정배열=상승구조·역배열=하락구조)`);
     const levels = [
+      { label: '지지3', price: support3, dist: (price - support3) / price * 100 * -1 },
       { label: '지지2', price: support2, dist: (price - support2) / price * 100 * -1 },
       { label: '지지1', price: support1, dist: (price - support1) / price * 100 * -1 },
       { label: '저항1', price: resistance1, dist: (resistance1 - price) / price * 100 },
       { label: '저항2', price: resistance2, dist: (resistance2 - price) / price * 100 },
+      { label: '저항3', price: resistance3, dist: (resistance3 - price) / price * 100 },
     ];
     for (const lv of levels) {
       const hits = touches(ts, highs, lows, step, lv.price, windowDays);
