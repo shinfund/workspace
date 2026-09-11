@@ -2,9 +2,12 @@
 // 매매 확정 그리드(150일/30틱, project_roundnumber_strategy_backtest.mjs)와는 별개로,
 // 실제 HTS 차트 축 간격과 더 가까운 200일/10틱 그리드로 지지/저항을 참고 확인하기 위한 스크립트.
 // 2026-09-01: "분석해줘" 요청 표준 포맷으로 2단계 확장(지지2/지지1/저항1/저항2, 지지 먼저)+터치 날짜 이력 추가.
-// 사용법: node scripts/project_roundnumber_200w10t_check.mjs --stocks 코드:이름:시장,... [--window 150] [--ticks 30]
+// 2026-09-11: --price=live|close 플래그 추가 — 기준가를 KIS 실시간 현재가/정규장 확정 종가 중 선택(holdings_quote_table과 동일 패턴).
+//   지정 시 해당 KIS 가격을 "현재가"로 쓰고, Yahoo 당일 고/저에도 반영해 지지/저항 산출. 생략 시 기존처럼 Yahoo 종가 기준(변경 없음).
+// 사용법: node scripts/project_roundnumber_200w10t_check.mjs --stocks 코드:이름:시장,... [--window 150] [--ticks 30] [--price=live|close]
 //   --window/--ticks 생략 시 기본 200일/10틱(참고용 그리드). 150/30 지정 시 매매확정 그리드(project_roundnumber_strategy_backtest.mjs)와 동일 산식.
 import https from 'https';
+import { getToken, fetchKisPrice, fetchKisDailyClose } from './kis_api.mjs';
 
 const YF_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -15,7 +18,7 @@ const NICE_FAMILY = [1, 2, 2.5, 5, 10];
 
 function parseArgs() {
   const argv = process.argv.slice(2);
-  const o = { stocks: null, window: 200, ticks: 10 };
+  const o = { stocks: null, window: 200, ticks: 10, price: null };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--stocks') {
       o.stocks = argv[++i].split(',').map(s => {
@@ -26,6 +29,8 @@ function parseArgs() {
       o.window = Number(argv[++i]);
     } else if (argv[i] === '--ticks') {
       o.ticks = Number(argv[++i]);
+    } else if (argv[i].startsWith('--price=')) {
+      o.price = argv[i].split('=')[1];
     }
   }
   return o;
@@ -105,10 +110,19 @@ function touches(ts, highs, lows, step, level, windowDays) {
 function fmtWon(n) { return n != null ? Math.round(n).toLocaleString('ko-KR') : '─'; }
 function fmtPct(n) { return n != null ? `${n >= 0 ? '+' : ''}${n.toFixed(1)}%` : '─'; }
 
+function kstTimeStr() {
+  const d = new Date(Date.now() + 9 * 3600 * 1000);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')} ${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+}
+
 async function main() {
   const opts = parseArgs();
   if (!opts.stocks) {
-    console.error('사용법: node scripts/project_roundnumber_200w10t_check.mjs --stocks 코드:이름:시장,...');
+    console.error('사용법: node scripts/project_roundnumber_200w10t_check.mjs --stocks 코드:이름:시장,... [--price=live|close]');
+    process.exit(1);
+  }
+  if (opts.price != null && opts.price !== 'live' && opts.price !== 'close') {
+    console.error('--price 는 live 또는 close 만 허용됩니다.');
     process.exit(1);
   }
   const windowDays = opts.window, targetTicks = opts.ticks;
@@ -116,16 +130,27 @@ async function main() {
   const p2 = Math.floor(Date.now() / 1000);
   const p1 = p2 - (windowDays * 3) * 24 * 3600; // 주말/휴장 감안 여유
 
+  const token = opts.price ? await getToken() : null;
+  const fetchKis = opts.price === 'live' ? fetchKisPrice : opts.price === 'close' ? fetchKisDailyClose : null;
+
   console.log(`\n[${gridLabel} 그리드 — 지지2/지지1/저항1/저항2 2단계]`);
   for (const s of opts.stocks) {
     const symbol = s.market === 'KOSDAQ' ? `${s.code}.KQ` : `${s.code}.KS`;
-    const chart = await fetchYahooChart(symbol, p1, p2);
+    const [chart, kis] = await Promise.all([
+      fetchYahooChart(symbol, p1, p2),
+      fetchKis ? fetchKis(token, s.code) : Promise.resolve(null),
+    ]);
     if (!chart) { console.log(`\n===== ${s.name}(${s.code}) — 조회 실패 =====`); continue; }
     const ts = chart.ts;
     const highs = fillForward(chart.high);
     const lows = fillForward(chart.low);
     const closes = fillForward(chart.close);
-    const price = closes[closes.length - 1];
+    const price = kis ? kis.현재가 : closes[closes.length - 1];
+    // KIS 가격 기준일 땐 당일 고/저에도 반영해야 step·터치 계산이 오늘 캔들을 놓치지 않음.
+    if (kis && highs.length) {
+      highs[highs.length - 1] = Math.max(highs[highs.length - 1] ?? price, price);
+      lows[lows.length - 1] = Math.min(lows[lows.length - 1] ?? price, price);
+    }
     const step = computeStep(highs, lows, windowDays, targetTicks);
     if (!step || price == null) { console.log(`\n===== ${s.name}(${s.code}) — 데이터 부족 =====`); continue; }
 
@@ -134,7 +159,9 @@ async function main() {
     const support2 = support1 - step;
     const resistance2 = resistance1 + step;
 
-    console.log(`\n===== ${s.name}(${s.code}) — 현재가 ${fmtWon(price)}원 / step ${fmtWon(step)}원 =====`);
+    const priceLabel = opts.price === 'live' ? `실시간 현재가` : opts.price === 'close' ? `정규장 확정 종가` : `현재가(Yahoo 종가)`;
+    const priceSuffix = kis ? ` (등락률 ${fmtPct(kis.등락률)}, ${kstTimeStr()} 조회)` : '';
+    console.log(`\n===== ${s.name}(${s.code}) — ${priceLabel} ${fmtWon(price)}원${priceSuffix} / step ${fmtWon(step)}원 =====`);
     const levels = [
       { label: '지지2', price: support2, dist: (price - support2) / price * 100 * -1 },
       { label: '지지1', price: support1, dist: (price - support1) / price * 100 * -1 },
@@ -152,7 +179,8 @@ async function main() {
     }
     await new Promise(r => setTimeout(r, 200));
   }
-  console.log(`\n[데이터 소스] Yahoo Finance 일봉(고가/저가), 기준 그리드: ${gridLabel}`);
+  const sourceLabel = opts.price === 'live' ? 'KIS API 실시간 현재가' : opts.price === 'close' ? 'KIS API 정규장 확정 종가' : 'Yahoo Finance 일봉 종가';
+  console.log(`\n[데이터 소스] 현재가: ${sourceLabel} / 고가·저가 이력: Yahoo Finance 일봉, 기준 그리드: ${gridLabel}`);
 }
 
 main().catch(e => { console.error('오류:', e.message); process.exit(1); });
