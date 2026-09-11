@@ -6,6 +6,7 @@
 // 2026-09-11: --price=live|close 플래그 추가 — 기준가를 KIS 실시간 현재가/정규장 확정 종가 중 선택(holdings_quote_table과 동일 패턴).
 //   지정 시 해당 KIS 가격을 "현재가"로 쓰고, Yahoo 당일 고/저에도 반영해 지지/저항 산출. 생략 시 기존처럼 Yahoo 종가 기준(변경 없음).
 // 2026-09-11: 종목 헤더 아래 "추세: 정배열/역배열/혼조" 한 줄 추가(5/20/50/100/200 EMA, holdings_quote_table의 emaStructure 로직 재사용).
+// 2026-09-11: "현재가"/"전일종가" 참고행을 지지/저항 레벨과 함께 실제 가격순으로 정렬해 출력 — 저항 돌파 여부를 행 순서로 바로 확인 가능.
 // 사용법: node scripts/project_roundnumber_200w10t_check.mjs --stocks 코드:이름:시장,... [--window 150] [--ticks 30] [--price=live|close]
 //   --window/--ticks 생략 시 기본 200일/10틱(참고용 그리드). 150/30 지정 시 매매확정 그리드(project_roundnumber_strategy_backtest.mjs)와 동일 산식.
 import https from 'https';
@@ -150,6 +151,11 @@ function kstTimeStr() {
   const d = new Date(Date.now() + 9 * 3600 * 1000);
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')} ${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
 }
+function kstDateStr(tsSec) {
+  const ms = tsSec != null ? tsSec * 1000 + 9 * 3600 * 1000 : Date.now() + 9 * 3600 * 1000;
+  const d = new Date(ms);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+}
 
 async function main() {
   const opts = parseArgs();
@@ -199,6 +205,14 @@ async function main() {
     }
     const 구조 = emaStructure(rawEma);
 
+    const todayStr = kstDateStr();
+    let 전일종가 = null, 전일종가Date = null;
+    for (let i = ts.length - 1; i >= 0; i--) {
+      const dStr = kstDateStr(ts[i]);
+      if (dStr === todayStr) continue;
+      if (chart.close[i] != null) { 전일종가 = chart.close[i]; 전일종가Date = dStr; break; }
+    }
+
     const support1 = Math.floor(price / step) * step;
     const resistance1 = support1 + step;
     const support2 = support1 - step;
@@ -218,7 +232,17 @@ async function main() {
       { label: '저항2', price: resistance2, dist: (resistance2 - price) / price * 100 },
       { label: '저항3', price: resistance3, dist: (resistance3 - price) / price * 100 },
     ];
-    for (const lv of levels) {
+    const refRows = [{ label: '현재가', price, dist: 0, isRef: true }];
+    if (전일종가 != null) {
+      refRows.push({ label: '전일종가', price: 전일종가, dist: (전일종가 - price) / price * 100, isRef: true, refNote: 전일종가Date });
+    }
+    const displayRows = [...levels, ...refRows].sort((a, b) => b.price - a.price);
+    for (const lv of displayRows) {
+      if (lv.isRef) {
+        const note = lv.refNote ? ` (${lv.refNote})` : '';
+        console.log(`  ${lv.label}${note}: ${fmtWon(lv.price)}원 (${fmtPct(lv.dist)})`);
+        continue;
+      }
       const hits = touches(ts, highs, lows, step, lv.price, windowDays);
       const recent = hits.slice(-8).reverse();
       const lastDate = recent.length ? recent[0].date : '없음';
